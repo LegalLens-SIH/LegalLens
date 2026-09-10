@@ -1,0 +1,8 @@
+product_identity
+mrp
+unit_sale_price
+net_quantity
+entity_details
+country_of_origin
+mfg_date_batch
+consumer_care

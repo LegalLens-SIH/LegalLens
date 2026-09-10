@@ -1,0 +1,68 @@
+# LegalLense custom YOLO26 dataset - Legal Metrology label field detection.
+#
+# STATUS: class list approved. See training/CLASS_TAXONOMY.md for the full
+# reasoning behind each class (and behind classes deliberately excluded).
+#
+# Fill in images/train, images/val, labels/train, labels/val with real,
+# labeled product-label photos before running train_yolo.py - see
+# training/README.md for the annotation format and where files go. Nothing
+# under images/ or labels/ is included here.
+#
+# These 8 classes were derived directly from backend/rules/
+# legal_metrology_rules_2011.json's required_fields (LMPC-R6 retail +
+# LMPC-R24 wholesale rules) and from how backend/services/
+# compliance_engine.py's ALIASES dict already treats some rule-field names
+# as the same underlying declaration (e.g. manufacturer/packer/importer are
+# already one field in the extraction code, not three) - see
+# training/CLASS_TAXONOMY.md for the full per-class rationale, difficult
+# cases, and what was deliberately left out (fssai_license, dimensions,
+# barcode - none of which correspond to anything this ruleset checks).
+#
+#   0 product_identity     - the commodity's common/generic name (what the
+#                             product IS), not brand art or slogans
+#   1 mrp                  - Maximum Retail Price: label + amount + tax
+#                             qualifier, as one box
+#   2 unit_sale_price       - price per unit weight/volume (e.g. "Rs 90/kg"),
+#                             legally distinct from mrp - often physically
+#                             absent; do not assume every image has one
+#   3 net_quantity          - net quantity/weight/volume declaration
+#   4 entity_details        - manufacturer/packer/importer name + address,
+#                             merged into one class (see CLASS_TAXONOMY.md)
+#   5 country_of_origin      - country-of-origin declaration, when printed
+#                             as its own line/stamp
+#   6 mfg_date_batch         - manufacture/packing date, printed together
+#                             with batch number and expiry/best-before on
+#                             almost all real packages, kept as one region
+#   7 consumer_care          - consumer/customer care details (phone/email)
+#
+# These are generic COCO-incompatible custom classes - the pretrained
+# yolo26n.pt has no concept of them. Training produces
+# models/legal_lense_yolo26.pt, meant to detect exactly these eight
+# declaration REGIONS (not read them - that's still PaddleOCR's job, and not
+# judge compliance - that's still the rules engine's job) once trained on
+# real, sufficiently varied label photos.
+
+# Deliberately NO `path:` key here. Ultralytics resolves a relative `path:`
+# against the CURRENT WORKING DIRECTORY of the training process (or its
+# global datasets-dir setting), NOT against this yaml file's own location -
+# confirmed by testing: with `path: .` set, running train_yolo.py from
+# Portal/ made Ultralytics look for Portal/images/val instead of
+# training/images/val. Omitting `path:` makes Ultralytics fall back to this
+# file's own parent directory instead, which is what we actually want -
+# do not add `path: .` (or any relative `path:`) back.
+train: images/train  # relative to this file's directory
+val: images/val      # relative to this file's directory - used during training for validation/early-stopping
+test: images/test    # relative to this file's directory - HELD OUT, never touched by train_yolo.py.
+                      # Only used via `evaluate_yolo.py --split test` for a final, unbiased read on
+                      # the fully-trained model. Populate this once past the Phase 10 pilot stage
+                      # (see training/DATASET_STRUCTURE.md) - it can stay empty during the pilot.
+
+names:
+  0: product_identity
+  1: mrp
+  2: unit_sale_price
+  3: net_quantity
+  4: entity_details
+  5: country_of_origin
+  6: mfg_date_batch
+  7: consumer_care

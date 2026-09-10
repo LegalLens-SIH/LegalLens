@@ -1,0 +1,62 @@
+# Pip constraints for the LegalLense backend.
+#
+# Purpose: pin the cv2-providing packages so that if either is ever pulled in
+# transitively (e.g. by a future package), pip resolves it to this exact,
+# already-tested version instead of silently drifting to a newer one.
+#
+# THE SITUATION (found and fixed during a dependency-hygiene pass after
+# adding YOLO26/ultralytics):
+#
+# `opencv-python`, `opencv-python-headless`, and `opencv-contrib-python` are
+# three SEPARATE PyPI packages that all install into the same `cv2` import
+# path - only one can actually "win" on disk at a time.
+#
+#   - ultralytics declares a hard dependency on plain `opencv-python` (the
+#     GUI build, needs system libs like libGL.so that are absent in
+#     headless/server/Docker environments) - this is the conflict this file
+#     exists to prevent. It has been uninstalled and must not come back.
+#   - paddlex (PaddleOCR's backend) does its OWN internal dependency check -
+#     independent of pip's dependency graph, via `importlib.metadata` - that
+#     hard-requires `opencv-contrib-python==4.10.0.84` by exact name+version
+#     before it will construct a PaddleOCR pipeline at all (see
+#     `paddlex.utils.deps.EXTRAS["ocr-core"]`). Uninstalling it breaks
+#     PaddleOCR with `DependencyError: "OCR" requires additional
+#     dependencies` - confirmed by testing - so it MUST stay installed.
+#   - `opencv-python-headless` is installed last (see backend/requirements.txt
+#     ordering) so its files overwrite opencv-contrib-python's in the shared
+#     `cv2/` site-packages directory. This is what makes the actual cv2
+#     binary loaded at runtime the headless one (verified with
+#     `cv2.getBuildInformation()` -> `GUI: NONE`) while satisfying paddlex's
+#     metadata check, which only inspects dist-info, not which files are
+#     actually on disk.
+#
+# What this constraints file can and cannot do:
+# A constraints file can only pin the VERSION of a package that is already
+# going to be installed - it cannot tell pip "treat package X as satisfying
+# package Y's requirement" for two differently-named packages, and it cannot
+# stop a full dependency resolve from installing an extra package that some
+# other package's metadata declares. Concretely: even with this file in
+# place, `pip install -U ultralytics` run on its own (a full resolve) will
+# still reinstall `opencv-python` to satisfy ultralytics' declared
+# dependency, and `pip check` will always report
+# "ultralytics requires opencv-python, which is not installed" - that
+# specific warning is expected and safe to ignore; it does not affect
+# runtime (`import cv2` works fine via opencv-python-headless).
+#
+# The actual guarantee comes from installing the fully-pinned
+# backend/requirements.txt (which already lists every real dependency this
+# project needs, in the required order) with `--no-deps`, so pip never
+# consults ultralytics' own declared dependencies at all:
+#
+#   pip install --no-deps -r backend/requirements.txt -c backend/constraints.txt
+#
+# If you ever upgrade a package by hand instead (e.g. `pip install -U
+# ultralytics`), always pass `-c backend/constraints.txt --no-deps` too, then
+# diff `pip freeze` against requirements.txt for any genuinely new
+# sub-dependency to add back manually - the same discipline already used to
+# maintain this file (see backend/ocr/README.md). Never run a bare
+# `pip install -U ultralytics` (or any bare install/upgrade) without
+# `--no-deps` in this project.
+
+opencv-contrib-python==4.10.0.84
+opencv-python-headless==5.0.0.93

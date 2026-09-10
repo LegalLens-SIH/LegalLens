@@ -1,0 +1,58 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.venv/
+.venv311/
+.pytest_cache/
+node_modules/
+
+# Runtime/dev-server logs.
+*.log
+
+# Ad-hoc scratch OCR dumps from manual testing at the repo root - not
+# referenced by any application code or test.
+/scratch_a.json
+/scratch_b.json
+
+# Generated OCR result dumps from ocr/test_ocr.py and ocr/test_yolo.py's CLI
+# smoke-test tools - regenerated on demand, not source.
+backend/ocr_output/
+
+# YOLO model weights (pretrained download + any fine-tuned checkpoint) -
+# binary files that don't belong in git; see backend/ocr/README.md and
+# training/README.md for how they're obtained/produced.
+/yolo26n.pt
+models/*.pt
+!models/.gitkeep
+
+# Training dataset (see training/README.md) - real product-label photos and
+# their annotations are supplied separately, not committed by default. Keep
+# the placeholder folders themselves tracked via .gitkeep.
+training/images/**/*.jpg
+training/images/**/*.jpeg
+training/images/**/*.png
+training/images/**/*.webp
+training/labels/**/*.txt
+!training/labels/**/classes.txt
+
+# Rejected/unusable photos (see training/LABELING_GUIDE.md section G.4) -
+# real images that shouldn't be committed, same reasoning as images/ above.
+training/rejected_images/*.jpg
+training/rejected_images/*.jpeg
+training/rejected_images/*.png
+training/rejected_images/*.webp
+training/rejected_images/*.avif
+
+# Raw, not-yet-annotated QC-staging photos (see training/README.md) - same
+# reasoning as images/ and rejected_images/ above: real product photos
+# supplied separately, not committed by default.
+training/raw_images/*.jpg
+training/raw_images/*.jpeg
+training/raw_images/*.png
+training/raw_images/*.webp
+training/raw_images/*.avif
+
+# Ultralytics training/eval run outputs (logs, curves, per-epoch weights).
+training/runs/

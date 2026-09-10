@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Compliance Report | LegalLens</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#76d6d5",
+                    "surface-container-low": "#f3f4f5",
+                    "secondary-container": "#90efef",
+                    "secondary": "#006a6a",
+                    "surface": "#f8f9fa",
+                    "inverse-surface": "#2e3132",
+                    "primary-fixed": "#d3e4ff",
+                    "secondary-fixed": "#93f2f2",
+                    "on-primary-fixed-variant": "#1c4877",
+                    "primary-fixed-dim": "#a2c9ff",
+                    "surface-tint": "#386090",
+                    "on-primary-fixed": "#001c38",
+                    "on-primary-container": "#82a9dd",
+                    "surface-variant": "#e1e3e4",
+                    "surface-dim": "#d9dadb",
+                    "background": "#f8f9fa",
+                    "on-error-container": "#93000a",
+                    "tertiary-fixed": "#ffdfa0",
+                    "on-tertiary-container": "#d39d00",
+                    "primary": "#00274a",
+                    "outline": "#737780",
+                    "on-background": "#191c1d",
+                    "surface-container-high": "#e7e8e9",
+                    "on-tertiary-fixed": "#261a00",
+                    "on-secondary-fixed": "#002020",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#332300",
+                    "surface-container-highest": "#e1e3e4",
+                    "primary-container": "#0b3d6b",
+                    "on-secondary-container": "#006e6e",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#4e3800",
+                    "on-tertiary-fixed-variant": "#5c4300",
+                    "inverse-primary": "#a2c9ff",
+                    "outline-variant": "#c3c6d0",
+                    "inverse-on-surface": "#f0f1f2",
+                    "tertiary-fixed-dim": "#fbbc00",
+                    "surface-bright": "#f8f9fa",
+                    "on-surface": "#191c1d",
+                    "on-surface-variant": "#42474f",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-secondary-fixed-variant": "#004f4f",
+                    "error-container": "#ffdad6",
+                    "surface-container": "#edeeef",
+                    "on-primary": "#ffffff",
+                    "error": "#ba1a1a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "sidebar-width": "260px",
+                    "container-max": "1440px",
+                    "unit": "4px",
+                    "margin-page": "32px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-lg": [
+                            "Inter"
+                    ],
+                    "headline-md": [
+                            "Inter"
+                    ],
+                    "label-md": [
+                            "Inter"
+                    ],
+                    "display-lg": [
+                            "Inter"
+                    ],
+                    "headline-lg-mobile": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "headline-lg": [
+                            "28px",
+                            {
+                                    "lineHeight": "36px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-md": [
+                            "22px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-md": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "36px",
+                            {
+                                    "lineHeight": "44px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "body-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8F9FA; }
+        .bounding-box { border: 2px solid #00274a; position: absolute; background-color: rgba(0, 39, 74, 0.1); }
+        .bounding-box-label { position: absolute; left: -2px; top: -24px; max-width: 240px; padding: 2px 5px; color: #fff; background: #00274a; font: 600 10px/14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+        .bounding-box-low-confidence { border-color: #ba1a1a; background-color: rgba(186, 26, 26, 0.12); }
+        .bounding-box-low-confidence .bounding-box-label { background: #ba1a1a; }
+        #source-evidence-viewer:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #edeeef; z-index: 9999; }
+        #source-evidence-viewer.source-evidence-expanded { position: fixed; inset: 0; width: 100vw; height: 100vh; border: 0; border-radius: 0; z-index: 9999; }
+        #export-details { display: none; }
+        @media print {
+                @page { size: A4; margin: 12mm; }
+                body { display: block !important; background: #fff !important; color: #191c1d !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body > aside, body > header, .no-print, #source-evidence-viewer, #report-not-found { display: none !important; }
+                body > div { margin: 0 !important; }
+                main { max-width: none !important; padding: 0 !important; }
+                #report-content { display: none !important; }
+                #export-details { display: block !important; margin: 0; font: 12px/1.35 Arial, sans-serif; }
+                #export-details h1 { margin: 0 0 3px; font-size: 14px; color: #00274a; }
+                #export-details h2 { margin: 10px 0 4px; font-size: 13px; }
+                #export-details h3 { margin: 7px 0 3px; font-size: 12px; }
+                #export-details p { margin: 3px 0; }
+                .export-cover { min-height: 250mm; break-after: page; page-break-after: always; }
+                .export-cover-header { border-bottom: 3px solid #f97316; padding-bottom: 8px; margin-bottom: 8px; }
+                .export-result { display: inline-block; margin: 5px 0 8px; padding: 5px 10px; color: #fff; background: #006a6a; font-weight: 700; border-radius: 3px; }
+                .export-barcode-wrap { float: right; width: 180px; margin: 0 0 5px 12px; text-align: center; }
+                .export-barcode { display: block; width: 180px; height: 45px; }
+                .export-image-section { clear: both; break-inside: avoid; page-break-inside: avoid; margin: 8px 0; }
+                .export-image { display: block; width: auto; max-width: 100%; max-height: 132mm; margin: 6px auto; object-fit: contain; }
+                .export-details-page { break-before: page; page-break-before: always; }
+                .export-section { break-inside: avoid; margin: 8px 0; }
+                .export-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                .export-table th, .export-table td { border: 1px solid #c3c6d0; padding: 3px 5px; text-align: left; vertical-align: top; }
+                .export-table th { background: #edeeef; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background flex min-h-screen font-body-md">
+<!-- Fixed SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-primary text-on-primary border-r border-outline-variant flex flex-col z-50">
+<div class="p-6">
+<div class="flex items-center gap-3">
+<img alt="Department of Consumer Affairs Logo" class="w-10 h-10 object-contain rounded-full bg-white/10 p-1" data-alt="Official seal or logo of the Department of Consumer Affairs, Government of India. The logo should feature a minimalist, modern, corporate aesthetic suitable for a high-stakes digital compliance portal, designed in high contrast white and teal on a navy blue background. The style should be authoritative and clean." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZPr2u3uPN8MUz7VLXgwFuZStxkpPYE-z0daP8AsPdAUiEq6AFFpmHbFQNC-t_VYKqbMDBYS-eWkFx8H_udI_PSvgqX41GYU8U1AsQ6W5EK1gweK6Ke4VrEErsEvNuQWj5C5XEiF7Knc5rUbwBVL_WO_IqODHE8BE6xBIVTEGmp23uqNnmYpgHEsPEzizznVuO--els9KCBsv1OYKZo1U7g70h4QXsb1h4KDABB8xe60L1dWQ0MwHv"/>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-on-primary">LegalLens</h1>
+<p class="text-label-md font-label-md text-on-primary/70">Govt. of India Portal</p>
+</div>
+</div>
+<button class="mt-8 w-full bg-secondary-fixed-dim text-on-secondary-fixed font-bold py-3 px-4 rounded hover:opacity-90 transition-opacity flex items-center justify-center gap-2" onclick="location.href='new-compliance-scan.html'">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                New Compliance Scan
+            </button>
+</div>
+<nav class="flex-1 overflow-y-auto py-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="official-dashboard.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-body-md font-body-md font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="new-compliance-scan.html">
+<span class="material-symbols-outlined" data-icon="qr_code_scanner">qr_code_scanner</span>
+<span class="text-body-md font-body-md font-medium">Operations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 border-l-4 border-secondary-fixed-dim bg-on-primary-fixed-variant/10 text-secondary-fixed-dim font-bold opacity-90 transition-opacity" href="scan-history.html">
+<span class="material-symbols-outlined" data-icon="history" style="font-variation-settings: 'FILL' 1;">history</span>
+<span class="text-body-md font-body-md">History</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="#" onclick="return LL.comingSoon(event,'Product directory')">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="text-body-md font-body-md font-medium">Products</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="#" onclick="return LL.comingSoon(event,'Settings')">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-body-md font-body-md font-medium">Settings</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-on-primary/10 py-4">
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="#" onclick="return LL.comingSoon(event,'Support')">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="text-body-md font-body-md">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="login.html" onclick="window.LL&&LL.logout();">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="text-body-md font-body-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[260px] flex-1 flex flex-col min-w-0 bg-background">
+<!-- TopAppBar -->
+<header class="bg-surface flex justify-between items-center h-16 px-8 sticky top-0 z-40 border-b border-outline-variant transition-all duration-200 ease-in-out shadow-sm">
+<div class="flex-1 flex items-center gap-8">
+<h2 class="text-headline-md font-headline-md font-black text-primary hidden lg:block">LegalLens</h2>
+<div class="hidden md:flex gap-6">
+<a class="text-on-surface-variant font-medium text-body-md font-body-md hover:text-primary hover:bg-surface-container-low px-2 py-1 rounded transition-colors" href="official-dashboard.html">Official Dashboard</a>
+<a class="text-on-surface-variant font-medium text-body-md font-body-md hover:text-primary hover:bg-surface-container-low px-2 py-1 rounded transition-colors" href="#" onclick="return LL.comingSoon(event,'Departmental Guidelines')">Departmental Guidelines</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-full transition-colors relative" onclick="LL.comingSoon(event,'Notifications')">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-full transition-colors" onclick="LL.comingSoon(event,'Profile settings')">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant ml-2">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="A generic user profile avatar placeholder, styled in a minimalist, corporate light-mode aesthetic. Soft white and light grey background with a generic teal silhouette icon, representing a government official or compliance officer." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAqjdyyyrYMIoTGZGXn-7wZbWtQOOYq5vwPQoCJ0zqfqo5vTKRKcc2PO40e-JpN3OcSvy6j92LJeXrEgFZwNAZ_p7bBQjpPkwUv-JLORa4isK4m9t9p8JD9JJQKe69CfyMdv2OrwL-6JhApH5Y44RWQYW76iWgARUKYr3nZeEtpWdcMkWuU8zBQdH2Sw14lSCJ2vYaeFgzs2Ye1PpgU92yaBkdU7N9gL5PTU1o9_XWNqeFW03lB9us"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-8 max-w-[1440px] mx-auto w-full">
+<!-- Breadcrumbs & Header -->
+<div class="mb-8">
+<nav class="flex items-center text-body-md font-body-md text-on-surface-variant mb-4">
+<a class="hover:text-primary transition-colors" href="official-dashboard.html">Dashboard</a>
+<span class="material-symbols-outlined mx-2 text-[16px]">chevron_right</span>
+<a class="hover:text-primary transition-colors" href="scan-history.html">Scan History</a>
+<span class="material-symbols-outlined mx-2 text-[16px]">chevron_right</span>
+<span class="text-on-surface font-medium" id="report-breadcrumb">Report #LM2024-089</span>
+</nav>
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<h1 class="text-headline-lg font-headline-lg text-primary mb-1" id="report-product-name">Compliance Report</h1>
+<p class="text-body-md font-body-md text-on-surface-variant" id="report-subtitle">Automated packaging scan against Legal Metrology Rules, 2011.</p>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-body-md font-body-md text-on-surface-variant">Overall Score:</span>
+<div class="flex items-center gap-2 bg-tertiary-fixed-dim/20 text-tertiary-container px-4 py-2 rounded font-bold border border-tertiary-fixed-dim/50 shadow-sm" id="report-score-badge">
+<span class="material-symbols-outlined" id="report-score-icon">warning</span>
+<span class="text-headline-md font-headline-md" id="report-score-value">60%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="hidden bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center" id="report-not-found">
+<span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">search_off</span>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Report Not Found</h2>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6">We couldn't find a compliance report matching that scan ID.</p>
+<button class="px-6 py-2.5 rounded bg-primary text-on-primary font-semibold" onclick="location.href='scan-history.html'">Back to Scan History</button>
+</div>
+<!-- Two Column Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8" id="report-content">
+<!-- Left: Uploaded Image Area -->
+<div class="lg:col-span-7 flex flex-col gap-4">
+<div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex flex-col h-full">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-body-lg font-body-lg font-bold text-primary">Source Evidence</h3>
+<div class="flex gap-2">
+<button aria-label="Zoom in" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-zoom-in" title="Zoom in"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
+<button aria-label="Zoom out" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-zoom-out" title="Zoom out"><span class="material-symbols-outlined text-[20px]">zoom_out</span></button>
+<button aria-label="Open original image" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-open-original" title="Open original image"><span class="material-symbols-outlined text-[20px]">open_in_new</span></button>
+<button aria-label="View image fullscreen" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-fullscreen" title="View image fullscreen"><span class="material-symbols-outlined text-[20px]">fullscreen</span></button>
+</div>
+</div>
+<div class="relative w-full h-[500px] bg-surface-container-low rounded border border-outline-variant overflow-auto" id="source-evidence-viewer">
+<!-- Image Container -->
+<div class="min-h-full min-w-full p-4">
+<div class="relative mx-auto max-w-full" id="source-evidence-image-wrap">
+<img alt="Product label scan" class="block max-w-full h-auto object-contain shadow-md" id="source-evidence-image"/>
+<div aria-label="OCR detected text regions" class="absolute inset-0 pointer-events-none" id="source-evidence-boxes"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Field Checklist -->
+<div class="lg:col-span-5 flex flex-col gap-4">
+<div class="bg-surface border border-outline-variant rounded-xl p-6 shadow-sm flex-1">
+<h3 class="text-body-lg font-body-lg font-bold text-primary mb-6 flex items-center gap-2 border-b border-outline-variant pb-3">
+<span class="material-symbols-outlined">checklist</span>
+                            Rule 6 Declaration Checklist
+                        </h3>
+<div class="hidden mb-5 p-4 bg-surface-container-lowest border border-outline-variant rounded-lg" id="report-score-summary">
+<p class="text-body-md font-body-md text-on-surface-variant mb-2">The numerical score reflects only <strong>confirmed</strong> checks. Checks needing manual review are excluded from the score, not treated as passed or failed.</p>
+<div class="flex flex-wrap gap-4 text-body-md font-body-md">
+<span class="flex items-center gap-1 text-secondary font-semibold"><span class="material-symbols-outlined text-[18px]">check_circle</span><span id="report-summary-compliant">0</span> Passed</span>
+<span class="flex items-center gap-1 text-error font-semibold"><span class="material-symbols-outlined text-[18px]">cancel</span><span id="report-summary-non-compliant">0</span> Failed</span>
+<span class="flex items-center gap-1 text-tertiary-container font-semibold"><span class="material-symbols-outlined text-[18px]">warning</span><span id="report-summary-low-confidence">0</span> Needs Review</span>
+</div>
+<p class="hidden text-label-md font-label-md text-tertiary-container mt-2" id="report-summary-review-note"></p>
+</div>
+<div class="flex flex-col gap-3" id="report-findings"></div>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="mt-8 pt-6 border-t border-outline-variant flex flex-col sm:flex-row justify-end items-center gap-4">
+<button class="no-print w-full sm:w-auto px-6 py-2.5 rounded border border-primary text-primary hover:bg-surface-container-low transition-colors font-semibold text-body-md font-body-md flex items-center justify-center gap-2" id="export-pdf-btn" title="Print or save this report as PDF">
+<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+                                        Export PDF
+                </button>
+<button class="no-print w-full sm:w-auto px-6 py-2.5 rounded border border-primary text-primary hover:bg-surface-container-low transition-colors font-semibold text-body-md font-body-md flex items-center justify-center gap-2" id="export-doc-btn">
+<span class="material-symbols-outlined text-[20px]">description</span>
+                                        Export DOC
+                </button>
+<button class="hidden w-full sm:w-auto px-6 py-2.5 rounded border border-primary text-primary hover:bg-surface-container-low transition-colors font-semibold text-body-md font-body-md flex items-center justify-center gap-2" id="view-case-btn">
+<span class="material-symbols-outlined text-[20px]">folder_open</span>
+                    View Case
+                </button>
+<button class="hidden w-full sm:w-auto px-8 py-2.5 rounded bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors font-bold text-body-md font-body-md shadow-sm flex items-center justify-center gap-2" id="log-action-btn">
+<span class="material-symbols-outlined text-[20px]">gavel</span>
+                    Log Case Action
+                </button>
+</div>
+</div>
+<section id="export-details" aria-label="Complete compliance report export">
+        <div class="export-cover">
+                <div class="export-cover-header"><h1>LegalLens Compliance Report</h1><p>Government of India | Department of Consumer Affairs</p></div>
+                <div class="export-barcode-wrap"><svg class="export-barcode" id="export-barcode" aria-label="Report barcode"></svg><small id="export-barcode-caption"></small></div>
+                <div id="export-summary"></div>
+                <div class="export-result" id="export-result"></div>
+                <div class="export-image-section"><h2>Original Uploaded Product Image</h2><img class="export-image" id="export-image" alt="Original uploaded product image" /></div>
+        </div>
+        <div class="export-details-page">
+                <div class="export-section"><h2>OCR Detected Text</h2><table class="export-table"><thead><tr><th>Detected text</th><th>Confidence</th><th>Coordinates</th></tr></thead><tbody id="export-ocr-rows"></tbody></table></div>
+                <div class="export-section"><h2>Rules and Compliance Results</h2><div id="export-rules"></div></div>
+        </div>
+</section>
+</main>
+<script src="assets/app.js"></script>
+<script src="assets/auth-client.js"></script>
+<script src="assets/official-header.js"></script>
+<script src="assets/ocr-client.js"></script>
+<script>
+    if (LL.requireRole('official')) {
+                var scanId = LL.qs('id');
+
+                LLOcr.getScan(scanId).then(function (scan) {
+                if (!scan) {
+            document.getElementById('report-content').classList.add('hidden');
+            document.getElementById('report-not-found').classList.remove('hidden');
+            document.getElementById('report-breadcrumb').textContent = 'Report #' + scanId;
+            document.getElementById('report-product-name').textContent = 'Compliance Report';
+            document.getElementById('report-subtitle').textContent = 'No scan record matches this ID.';
+            document.querySelector('#report-score-badge').closest('.flex.items-center.gap-3').classList.add('hidden');
+        } else {
+            document.getElementById('report-breadcrumb').textContent = 'Report #' + scan.id;
+            document.getElementById('report-product-name').textContent = scan.productName;
+            document.getElementById('report-subtitle').textContent = scan.manufacturer + ' • ' + scan.category + ' • Automated packaging scan against Legal Metrology Rules, 2011.';
+            var sourceImage = document.getElementById('source-evidence-image');
+                        var sourceImageWrap = document.getElementById('source-evidence-image-wrap');
+                        var sourceEvidenceBoxes = document.getElementById('source-evidence-boxes');
+            var apiOrigin = LLOcr.DEFAULT_BASE_URL;
+            sourceImage.src = (scan.sourceImageUrl ? apiOrigin + scan.sourceImageUrl : apiOrigin + '/api/scans/' + encodeURIComponent(scan.id) + '/image');
+            sourceImage.alt = scan.fileName ? 'Original product label: ' + scan.fileName : 'Original product label scan';
+                        function renderSourceEvidenceBoxes() {
+                                sourceEvidenceBoxes.innerHTML = '';
+                                var detections = Array.isArray(scan.detections) ? scan.detections : ((scan.ocr && scan.ocr.detections) || []);
+                                var rule6 = scan.compliance && Array.isArray(scan.compliance.rule_results)
+                                        ? scan.compliance.rule_results.find(function (rule) { return rule.rule_id === 'LMPC-R6-MANDATORY-DECLARATIONS'; })
+                                        : null;
+                                var rule6Aliases = [
+                                        /manufacturer|packer|importer|manufactured\s+by|packed\s+by/i,
+                                        /country\s+of\s+origin|made\s+in/i,
+                                        /product\s+name|commodity|generic\s+name/i,
+                                        /net\s+(quantity|qty|weight|wt)/i,
+                                        /date\s+of\s+manufacture|manufactur|mfg|packed\s+on|packing\s+date/i,
+                                        /maximum\s+retail\s+price|m\.?r\.?p\.?/i,
+                                        /unit\s+sale\s+price|price\s+per|\/\s*(kg|g|l|litre)/i,
+                                        /consumer\s+care|customer\s+(care|service)|helpline|toll\s*free/i
+                                ];
+                                function rule6FieldValues() {
+                                        if (!rule6 || !rule6.required_fields) return [];
+                                        var values = [];
+                                        function collect(value) {
+                                                if (value == null) return;
+                                                if (typeof value === 'object') {
+                                                        Object.keys(value).forEach(function (key) { collect(value[key]); });
+                                                } else if (String(value).trim().length >= 4) {
+                                                        values.push(String(value).trim().toLowerCase());
+                                                }
+                                        }
+                                        Object.keys(rule6.required_fields).forEach(function (name) {
+                                                collect(rule6.required_fields[name].value);
+                                        });
+                                        return values;
+                                }
+                                var rule6Values = rule6FieldValues();
+                                function isRule6Detection(detection) {
+                                        if (!rule6) return false;
+                                        var text = String(detection.text || '').trim().toLowerCase();
+                                        if (!text) return false;
+                                        return rule6Aliases.some(function (alias) { return alias.test(text); }) || rule6Values.some(function (value) {
+                                                return text.indexOf(value) !== -1 || value.indexOf(text) !== -1;
+                                        });
+                                }
+                                var naturalWidth = sourceImage.naturalWidth;
+                                var naturalHeight = sourceImage.naturalHeight;
+                                if (!naturalWidth || !naturalHeight) return;
+                                detections.forEach(function (detection) {
+                                        if (!isRule6Detection(detection)) return;
+                                        var bbox = detection.bbox;
+                                        if (!Array.isArray(bbox) || bbox.length !== 4) return;
+                                        var x1 = Math.max(0, Math.min(naturalWidth, Number(bbox[0])));
+                                        var y1 = Math.max(0, Math.min(naturalHeight, Number(bbox[1])));
+                                        var x2 = Math.max(x1, Math.min(naturalWidth, Number(bbox[2])));
+                                        var y2 = Math.max(y1, Math.min(naturalHeight, Number(bbox[3])));
+                                        if (x2 <= x1 || y2 <= y1) return;
+                                        var box = document.createElement('div');
+                                        var lowConfidence = Number(detection.confidence) < 0.7;
+                                        box.className = 'bounding-box' + (lowConfidence ? ' bounding-box-low-confidence' : '');
+                                        box.style.left = (x1 / naturalWidth * 100) + '%';
+                                        box.style.top = (y1 / naturalHeight * 100) + '%';
+                                        box.style.width = ((x2 - x1) / naturalWidth * 100) + '%';
+                                        box.style.height = ((y2 - y1) / naturalHeight * 100) + '%';
+                                        box.title = (detection.text || 'Detected text') + ' (' + Math.round(Number(detection.confidence || 0) * 100) + '%)';
+                                        var label = document.createElement('span');
+                                        label.className = 'bounding-box-label';
+                                        label.textContent = detection.text || 'Detected text';
+                                        box.appendChild(label);
+                                        sourceEvidenceBoxes.appendChild(box);
+                                });
+                        }
+                        sourceImage.addEventListener('load', renderSourceEvidenceBoxes);
+                        if (sourceImage.complete) renderSourceEvidenceBoxes();
+                        var sourceZoom = 1;
+                        function setSourceZoom(nextZoom) {
+                                sourceZoom = Math.max(1, Math.min(4, nextZoom));
+                                sourceImage.style.width = sourceZoom === 1 ? '' : '100%';
+                                sourceImage.style.maxWidth = sourceZoom === 1 ? '' : 'none';
+                                sourceImageWrap.style.width = sourceZoom === 1 ? '' : (sourceZoom * 100) + '%';
+                                renderSourceEvidenceBoxes();
+                        }
+                        document.getElementById('source-zoom-in').addEventListener('click', function () { setSourceZoom(sourceZoom + 0.5); });
+                        document.getElementById('source-zoom-out').addEventListener('click', function () { setSourceZoom(sourceZoom - 0.5); });
+                        document.getElementById('source-open-original').addEventListener('click', function () {
+                                if (sourceImage.src) window.open(sourceImage.src, '_blank', 'noopener');
+                        });
+                        var sourceViewer = document.getElementById('source-evidence-viewer');
+                        var fullscreenButton = document.getElementById('source-fullscreen');
+                        function updateFullscreenButton() {
+                                var isFullscreen = document.fullscreenElement === sourceViewer || sourceViewer.classList.contains('source-evidence-expanded');
+                                fullscreenButton.querySelector('span').textContent = isFullscreen ? 'fullscreen_exit' : 'fullscreen';
+                                fullscreenButton.title = isFullscreen ? 'Exit fullscreen' : 'View image fullscreen';
+                                fullscreenButton.setAttribute('aria-label', fullscreenButton.title);
+                        }
+                        fullscreenButton.addEventListener('click', function () {
+                                if (document.fullscreenElement === sourceViewer) {
+                                        document.exitFullscreen();
+                                } else if (sourceViewer.requestFullscreen) {
+                                        sourceViewer.requestFullscreen();
+                                } else {
+                                        sourceViewer.classList.toggle('source-evidence-expanded');
+                                        updateFullscreenButton();
+                                }
+                        });
+                        document.addEventListener('fullscreenchange', updateFullscreenButton);
+
+                        function exportEscape(value) {
+                                return String(value == null ? '' : value).replace(/[&<>"']/g, function (character) {
+                                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+                                });
+                        }
+                        function exportDetections() {
+                                return Array.isArray(scan.detections) ? scan.detections : ((scan.ocr && scan.ocr.detections) || []);
+                        }
+                        function populateExportDetails(officialName) {
+                                var official = officialName || 'Enforcement Official';
+                                document.getElementById('export-summary').innerHTML =
+                                        '<table class="export-table"><tbody>' +
+                                        '<tr><th>Official</th><td>' + exportEscape(official) + '</td></tr>' +
+                                        '<tr><th>Report ID</th><td>' + exportEscape(scan.id) + '</td></tr>' +
+                                        '<tr><th>Product</th><td>' + exportEscape(scan.productName) + '</td></tr>' +
+                                        '<tr><th>Manufacturer</th><td>' + exportEscape(scan.manufacturer) + '</td></tr>' +
+                                        '<tr><th>Category</th><td>' + exportEscape(scan.category) + '</td></tr>' +
+                                        '<tr><th>Scan date</th><td>' + exportEscape(scan.date ? new Date(scan.date).toLocaleString() : '') + '</td></tr>' +
+                                        '<tr><th>Compliance status</th><td>' + exportEscape(scan.status) + '</td></tr>' +
+                                        '<tr><th>Compliance score</th><td>' + exportEscape(scan.score == null ? 'Pending' : scan.score + '%') + '</td></tr>' +
+                                        '</tbody></table>';
+                                var reportScore = scan.score == null ? 'Pending' : scan.score + '%';
+                                var reportResult = String(scan.status || 'pending').replace(/_/g, ' ').toUpperCase();
+                                document.getElementById('export-result').textContent = 'RESULT: ' + reportResult + ' | SCORE: ' + reportScore;
+                                document.getElementById('export-barcode-caption').textContent = scan.id + ' | ' + reportScore + ' | ' + reportResult;
+                                if (window.JsBarcode) {
+                                        JsBarcode('#export-barcode', scan.id + '|' + reportScore + '|' + reportResult, { format: 'CODE128', width: 1.4, height: 42, displayValue: false, margin: 0, lineColor: '#00274a' });
+                                }
+                                document.getElementById('export-image').src = sourceImage.src;
+                                document.getElementById('export-ocr-rows').innerHTML = exportDetections().map(function (detection) {
+                                        return '<tr><td>' + exportEscape(detection.text) + '</td><td>' + Math.round(Number(detection.confidence || 0) * 100) + '%</td><td>' + exportEscape((detection.bbox || []).join(', ')) + '</td></tr>';
+                                }).join('') || '<tr><td colspan="3">No OCR detections returned.</td></tr>';
+                                var rules = scan.compliance && scan.compliance.rule_results || [];
+                                document.getElementById('export-rules').innerHTML = rules.map(function (rule) {
+                                        var fields = Object.keys(rule.required_fields || {}).map(function (field) {
+                                                var item = rule.required_fields[field] || {};
+                                                return '<tr><td>' + exportEscape(field.replace(/_/g, ' ')) + '</td><td>' + exportEscape(LL.formatComplianceValue(item.value) || 'Not detected by OCR') + '</td><td>' + exportEscape(item.status || '') + '</td><td>' + exportEscape(item.explanation || '') + '</td></tr>';
+                                        }).join('');
+                                        return '<h3>' + exportEscape(rule.rule_name || 'Compliance rule') + '</h3><p>' + exportEscape(rule.explanation || '') + '</p>' +
+                                                '<table class="export-table"><thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Explanation</th></tr></thead><tbody>' + (fields || '<tr><td colspan="4">' + exportEscape(rule.recommended_action || 'No field-level results.') + '</td></tr>') + '</tbody></table>';
+                                }).join('') || '<p>No rule results are available for this scan.</p>';
+                        }
+                        function getOfficialName() {
+                                var session = LL.getSession && LL.getSession();
+                                return session && session.name ? Promise.resolve(session.name) : (window.LLAuth ? LLAuth.me().then(function (user) { return user.fullName || user.name || user.email; }).catch(function () { return 'Enforcement Official'; }) : Promise.resolve('Enforcement Official'));
+                        }
+                        function imageAsDataUrl() {
+                                return fetch(sourceImage.src, { credentials: 'include' }).then(function (response) { return response.blob(); }).then(function (blob) {
+                                        return new Promise(function (resolve, reject) {
+                                                var reader = new FileReader();
+                                                reader.onloadend = function () { resolve(reader.result); };
+                                                reader.onerror = reject;
+                                                reader.readAsDataURL(blob);
+                                        });
+                                });
+                        }
+                        function downloadDocument() {
+                                getOfficialName().then(function (officialName) {
+                                        populateExportDetails(officialName);
+                                        return imageAsDataUrl().catch(function () { return sourceImage.src; }).then(function (imageData) {
+                                                var reportHtml = '<!doctype html><html><head><meta charset="utf-8"><title>LegalLens Compliance Report</title><style>@page{size:A4;margin:12mm}body{font:12px/1.35 Arial,sans-serif;color:#191c1d;margin:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1{margin:0 0 3px;color:#00274a;font-size:14px}h2{margin:10px 0 4px;color:#00274a;font-size:13px}h3{margin:7px 0 3px;font-size:12px}p{margin:3px 0}.export-cover{min-height:250mm;break-after:page;page-break-after:always}.export-cover-header{border-bottom:3px solid #f97316;padding-bottom:8px;margin-bottom:8px}.export-result{display:inline-block;margin:5px 0 8px;padding:5px 10px;color:#fff;background:#006a6a;font-weight:700;border-radius:3px}.export-barcode-wrap{float:right;width:180px;margin:0 0 5px 12px;text-align:center}.export-barcode{display:block;width:180px;height:45px}.export-image-section{clear:both;break-inside:avoid;page-break-inside:avoid;margin:8px 0}.export-image{display:block;width:auto;max-width:100%;max-height:520px;margin:6px auto;object-fit:contain}.export-details-page{break-before:page;page-break-before:always}.export-section{margin:8px 0;break-inside:avoid}table{width:100%;border-collapse:collapse;margin:5px 0 8px;font-size:12px}th,td{border:1px solid #c3c6d0;padding:3px 5px;text-align:left;vertical-align:top}th{background:#edeeef}</style></head><body>' + document.getElementById('export-details').innerHTML.replace(sourceImage.src, imageData) + '</body></html>';
+                                                var blob = new Blob([reportHtml], { type: 'application/msword' });
+                                                var link = document.createElement('a');
+                                                link.href = URL.createObjectURL(blob);
+                                                link.download = 'LegalLens-' + (scan.id || 'compliance-report') + '.doc';
+                                                link.click();
+                                                URL.revokeObjectURL(link.href);
+                                        });
+                                });
+                        }
+                        document.getElementById('export-pdf-btn').addEventListener('click', function () {
+                                getOfficialName().then(function (officialName) {
+                                        populateExportDetails(officialName);
+                                        document.title = 'LegalLens Compliance Report - ' + scan.id;
+                                        window.print();
+                                });
+                        });
+                        document.getElementById('export-doc-btn').addEventListener('click', downloadDocument);
+
+            var score = scan.score == null ? 0 : scan.score;
+            var badge = document.getElementById('report-score-badge');
+            var icon = document.getElementById('report-score-icon');
+            document.getElementById('report-score-value').textContent = (scan.score == null ? 'Pending' : score + '%');
+            if (scan.status === 'compliant') {
+                badge.className = 'flex items-center gap-2 bg-secondary-container/40 text-on-secondary-container px-4 py-2 rounded font-bold border border-secondary/40 shadow-sm';
+                icon.textContent = 'check_circle';
+            } else if (scan.status === 'pending') {
+                badge.className = 'flex items-center gap-2 bg-surface-variant text-on-surface-variant px-4 py-2 rounded font-bold border border-outline-variant shadow-sm';
+                icon.textContent = 'schedule';
+                        } else if (scan.status === 'manual_review') {
+                                badge.className = 'flex items-center gap-2 bg-tertiary-fixed-dim/20 text-tertiary-container px-4 py-2 rounded font-bold border border-tertiary-fixed-dim/50 shadow-sm';
+                                icon.textContent = 'fact_check';
+            } else {
+                badge.className = 'flex items-center gap-2 bg-tertiary-fixed-dim/20 text-tertiary-container px-4 py-2 rounded font-bold border border-tertiary-fixed-dim/50 shadow-sm';
+                icon.textContent = 'warning';
+            }
+
+            // Exactly three visually distinct outcomes for a requirement -
+            // never more, never fewer. CONFIRMED compliant and CONFIRMED
+            // non-compliant (which includes PARTIAL: some of the legally
+            // required information - e.g. consumer-care phone + email
+            // present, name confirmed missing - genuinely WAS located, so
+            // this is evidence-backed non-compliance, not uncertainty) are
+            // as distinct from LOW_CONFIDENCE/REVIEW_REQUIRED (insufficient
+            // evidence either way) as the backend's scoring now treats them:
+            // low-confidence checks are excluded from the score entirely,
+            // and must never be shown as if they were a confirmed pass OR a
+            // confirmed failure.
+            var FINDING_STYLE = {
+                compliant: { wrap: 'flex items-start justify-between p-3 bg-surface-container-lowest border border-outline-variant rounded hover:shadow-sm transition-shadow', badge: 'flex items-center gap-1 text-secondary bg-secondary-container/30 px-2 py-1 rounded text-[12px] font-bold border border-secondary/20', icon: 'check_circle', label: '✅ Compliant' },
+                non_compliant: { wrap: 'flex items-start justify-between p-3 bg-error-container/10 border border-error/30 rounded hover:shadow-sm transition-shadow', badge: 'flex items-center gap-1 text-error bg-error-container px-2 py-1 rounded text-[12px] font-bold border border-error/20', icon: 'cancel', label: '❌ Non-Compliant' },
+                low_confidence: { wrap: 'flex items-start justify-between p-3 bg-tertiary-fixed-dim/5 border border-tertiary-fixed-dim/30 rounded hover:shadow-sm transition-shadow', badge: 'flex items-center gap-1 text-tertiary-container bg-tertiary-fixed-dim/20 px-2 py-1 rounded text-[12px] font-bold border border-tertiary-fixed-dim/40', icon: 'warning', label: '⚠️ Low Confidence' }
+            };
+
+            // Collapses every FieldResult/RuleResult status this backend can
+            // produce into exactly the three FINDING_STYLE buckets above -
+            // mirrors compliance_engine.py's _status_bucket()/_aggregate_checks()
+            // exactly, so the report never shows a status the score/overall
+            // calculation didn't also treat the same way.
+            function findingStatusFor(status) {
+                if (status === 'PASS' || status === 'COMPLIANT') return 'compliant';
+                if (status === 'NEEDS_MANUAL_VERIFICATION' || status === 'REVIEW_REQUIRED') return 'low_confidence';
+                return 'non_compliant'; // FAIL, PARTIAL, NON_COMPLIANT, PARTIALLY_COMPLIANT (legacy)
+            }
+
+            var complianceSummary = (scan.compliance && scan.compliance.summary) || null;
+            if (complianceSummary && typeof complianceSummary.compliant === 'number') {
+                document.getElementById('report-score-summary').classList.remove('hidden');
+                document.getElementById('report-summary-compliant').textContent = complianceSummary.compliant;
+                document.getElementById('report-summary-non-compliant').textContent = complianceSummary.non_compliant;
+                document.getElementById('report-summary-low-confidence').textContent = complianceSummary.low_confidence;
+                if (complianceSummary.low_confidence > 0) {
+                    var reviewNote = document.getElementById('report-summary-review-note');
+                    reviewNote.textContent = 'Manual verification required for ' + complianceSummary.low_confidence + ' check' + (complianceSummary.low_confidence === 1 ? '' : 's') + '.';
+                    reviewNote.classList.remove('hidden');
+                }
+            }
+
+            var container = document.getElementById('report-findings');
+                        var persistedFindings = [];
+                        (scan.compliance && scan.compliance.rule_results || []).forEach(function (rule) {
+                                Object.keys(rule.required_fields || {}).forEach(function (field) {
+                                        var item = rule.required_fields[field];
+                                        var itemStatus = findingStatusFor(item.status);
+                                        // Low confidence means the evidence is insufficient to say either
+                                        // way - an empty value here must not read as "confirmed absent".
+                                        var emptyValueText = itemStatus === 'low_confidence' ? 'Evidence was insufficient to confirm whether this declaration is present.' : 'Not detected by OCR';
+                                        persistedFindings.push({ field: field.replace(/_/g, ' '), value: LL.formatComplianceValue(item.value) || emptyValueText, status: itemStatus, note: item.explanation });
+                                });
+                                if (!rule.required_fields || !Object.keys(rule.required_fields).length) {
+                                        persistedFindings.push({ field: rule.rule_name, value: rule.explanation, status: findingStatusFor(rule.status), note: rule.recommended_action });
+                                }
+                        });
+                        (persistedFindings.length ? persistedFindings : (scan.findings || [])).forEach(function (f) {
+                var style = FINDING_STYLE[f.status] || FINDING_STYLE.compliant;
+                var row = document.createElement('div');
+                row.className = style.wrap;
+                row.innerHTML =
+                    '<div class="flex flex-col gap-1">' +
+                    '<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">' + LL.escapeHtml(f.field) + '</span>' +
+                    '<span class="text-body-md font-body-md text-on-surface font-medium' + (f.status !== 'compliant' ? ' italic opacity-70' : '') + '">' + LL.escapeHtml(f.value || '') + '</span>' +
+                    (f.note ? '<span class="text-label-md font-label-md text-error flex items-center gap-1 mt-1"><span class="material-symbols-outlined text-[14px]">error</span>' + LL.escapeHtml(f.note) + '</span>' : '') +
+                    '</div>' +
+                    '<div class="' + style.badge + '"><span class="material-symbols-outlined text-[16px]">' + style.icon + '</span>' + style.label + '</div>';
+                container.appendChild(row);
+            });
+
+            if (scan.caseId) {
+                var viewCaseBtn = document.getElementById('view-case-btn');
+                var logActionBtn = document.getElementById('log-action-btn');
+                viewCaseBtn.classList.remove('hidden');
+                logActionBtn.classList.remove('hidden');
+                viewCaseBtn.addEventListener('click', function () { location.href = 'case-details.html?id=' + encodeURIComponent(scan.caseId); });
+                logActionBtn.addEventListener('click', function () { location.href = 'log-case-action.html?id=' + encodeURIComponent(scan.caseId); });
+            }
+        }
+                });
+    }
+</script>
+</body></html>

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LegalLens - Manufacturer Self-Check Report</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary-fixed-dim": "#76d6d5",
+                      "surface-container-low": "#f3f4f5",
+                      "secondary-container": "#90efef",
+                      "secondary": "#006a6a",
+                      "surface": "#f8f9fa",
+                      "inverse-surface": "#2e3132",
+                      "primary-fixed": "#d3e4ff",
+                      "secondary-fixed": "#93f2f2",
+                      "on-primary-fixed-variant": "#1c4877",
+                      "primary-fixed-dim": "#a2c9ff",
+                      "surface-tint": "#386090",
+                      "on-primary-fixed": "#001c38",
+                      "on-primary-container": "#82a9dd",
+                      "surface-variant": "#e1e3e4",
+                      "surface-dim": "#d9dadb",
+                      "background": "#f8f9fa",
+                      "on-error-container": "#93000a",
+                      "tertiary-fixed": "#ffdfa0",
+                      "on-tertiary-container": "#d39d00",
+                      "primary": "#00274a",
+                      "outline": "#737780",
+                      "on-background": "#191c1d",
+                      "surface-container-high": "#e7e8e9",
+                      "on-tertiary-fixed": "#261a00",
+                      "on-secondary-fixed": "#002020",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary": "#332300",
+                      "surface-container-highest": "#e1e3e4",
+                      "primary-container": "#0b3d6b",
+                      "on-secondary-container": "#006e6e",
+                      "on-error": "#ffffff",
+                      "tertiary-container": "#4e3800",
+                      "on-tertiary-fixed-variant": "#5c4300",
+                      "inverse-primary": "#a2c9ff",
+                      "outline-variant": "#c3c6d0",
+                      "inverse-on-surface": "#f0f1f2",
+                      "tertiary-fixed-dim": "#fbbc00",
+                      "surface-bright": "#f8f9fa",
+                      "on-surface": "#191c1d",
+                      "on-surface-variant": "#42474f",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-fixed-variant": "#004f4f",
+                      "error-container": "#ffdad6",
+                      "surface-container": "#edeeef",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "sidebar-width": "260px",
+                      "container-max": "1440px",
+                      "unit": "4px",
+                      "margin-page": "32px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md": [
+                              "22px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "36px",
+                              {
+                                      "lineHeight": "44px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full w-[260px] bg-primary dark:bg-primary-container border-r border-outline-variant flex flex-col h-full py-6 z-50">
+<div class="px-6 mb-8 flex flex-col">
+<div class="flex items-center mb-2">
+<img alt="LegalLens" class="h-10 w-auto max-w-full object-contain rounded-md bg-white px-2 py-1" src="assets/page-previews/Logo.png"/>
+</div>
+<span class="text-label-md font-label-md text-on-primary/80 uppercase tracking-wider">Govt. of India Portal</span>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full bg-secondary text-on-secondary rounded-lg py-3 px-4 font-headline-md text-body-md font-semibold flex items-center justify-center gap-2 hover:bg-secondary-fixed-dim transition-colors shadow-sm" onclick="location.href='new-self-check.html'">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+                New Self-Check
+            </button>
+</div>
+<ul class="flex-1 flex flex-col gap-1 w-full text-body-md font-body-md">
+<!-- Dashboard -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="manufacturer-dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<!-- Operations -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="new-self-check.html">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+                    Operations
+                </a>
+</li>
+<!-- History -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="revision-history.html" id="sidebar-history-link">
+<span class="material-symbols-outlined">history</span>
+                    History
+                </a>
+</li>
+<!-- Products (Active mapped from 'My Products') -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 border-l-4 border-secondary-fixed-dim bg-on-primary-fixed-variant/10 text-secondary-fixed-dim font-bold opacity-90 transition-opacity" href="products.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+                    Products
+                </a>
+</li>
+<!-- Settings -->
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="#" onclick="return LL.comingSoon(event,'Settings')">
+<span class="material-symbols-outlined">settings</span>
+                    Settings
+                </a>
+</li>
+</ul>
+<div class="mt-auto px-0">
+<ul class="flex flex-col gap-1 w-full text-body-md font-body-md">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="#" onclick="return LL.comingSoon(event,'Support')">
+<span class="material-symbols-outlined">help</span>
+                        Support
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="login.html" onclick="window.LL&&LL.logout();">
+<span class="material-symbols-outlined">logout</span>
+                        Logout
+                    </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 ml-[260px] flex flex-col min-h-screen overflow-y-auto bg-background">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 border-b border-outline-variant bg-surface dark:bg-surface-dim flex justify-between items-center h-16 px-8 sticky top-0 z-40">
+<div class="flex items-center gap-8">
+<!-- Search (Left aligned as per JSON) -->
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-transparent focus:border-primary focus:ring-1 focus:ring-primary rounded-lg text-body-md text-on-surface placeholder:text-on-surface-variant transition-all" placeholder="Search guidelines..." type="text"/>
+</div>
+<nav class="hidden lg:flex gap-6">
+<a class="text-on-surface-variant font-medium hover:text-primary hover:bg-surface-container-low transition-all duration-200 ease-in-out px-2 py-1 rounded" href="manufacturer-dashboard.html">Manufacturer Dashboard</a>
+<a class="text-on-surface-variant font-medium hover:text-primary hover:bg-surface-container-low transition-all duration-200 ease-in-out px-2 py-1 rounded" href="#" onclick="return LL.comingSoon(event,'Departmental Guidelines')">Departmental Guidelines</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button aria-label="Notification Bell" class="p-2 rounded-full text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors relative" onclick="LL.comingSoon(event,'Notifications')">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="h-6 w-[1px] bg-outline-variant mx-2"></div>
+<button class="flex items-center gap-2 hover:bg-surface-container-low p-1 pr-3 rounded-full transition-colors border border-transparent hover:border-outline-variant" onclick="LL.comingSoon(event,'Profile settings')">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full object-cover" data-alt="Professional corporate headshot of a user, clean lighting, confident expression, neutral gray background, suitable for an official government portal user profile avatar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvSPg6WYTIIT5a871MInWdSMEMff6E7KngGjeNqIEVAEGvk_v-tD9yHCsAMjoEBq7wSXC9bOc3LIlV7IapjyfHO6kynuCN5YO8k6F0ynRr5spWdYYrR9JTKtb4YaMH__1DvC22HyUiJbbcaijzUc6vma0x4Inb6jJ5QB4ohMZ9IUZoDlm1J8fqUGWGJmdsLdKJrgaRL4lMPdwpIHzGLFEjPUXrfxY3IP1s4Jvb3_l5bIWKKmquwp9d"/>
+<span class="material-symbols-outlined text-on-surface-variant">arrow_drop_down</span>
+</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 p-margin-page max-w-container-max mx-auto w-full">
+<!-- Breadcrumbs -->
+<nav aria-label="Breadcrumb" class="mb-6 flex items-center text-body-md text-on-surface-variant">
+<ol class="flex items-center gap-2">
+<li><a class="hover:text-primary transition-colors" href="manufacturer-dashboard.html">Dashboard</a></li>
+<li><span class="material-symbols-outlined text-[16px]">chevron_right</span></li>
+<li><a class="hover:text-primary transition-colors" href="products.html">My Products</a></li>
+<li><span class="material-symbols-outlined text-[16px]">chevron_right</span></li>
+<li aria-current="page" class="font-medium text-on-surface" id="report-breadcrumb">Label v2 Analysis</li>
+</ol>
+</nav>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center mb-8" id="self-check-loading">
+<span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4 animate-spin">progress_activity</span>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Loading your analysis…</h2>
+<p class="text-body-md font-body-md text-on-surface-variant">Fetching the self-check result from the server.</p>
+</div>
+<div class="hidden bg-error-container/20 border border-error/40 rounded-xl p-12 text-center mb-8" id="self-check-load-error">
+<span class="material-symbols-outlined text-5xl text-error mb-4">error</span>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Couldn't load this report</h2>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6" id="self-check-load-error-message">Something went wrong while fetching this self-check result.</p>
+<button class="px-6 py-2.5 rounded bg-primary text-on-primary font-semibold" onclick="location.href='manufacturer-dashboard.html'">Back to Dashboard</button>
+</div>
+<div class="hidden bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center mb-8" id="self-check-not-found">
+<span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">search_off</span>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Self-Check Report Not Found</h2>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6">We couldn't find a self-check matching that ID.</p>
+<button class="px-6 py-2.5 rounded bg-primary text-on-primary font-semibold" onclick="location.href='manufacturer-dashboard.html'">Back to Dashboard</button>
+</div>
+<!-- Page Header -->
+<div class="hidden mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4" id="self-check-header">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<h1 class="text-display-lg font-display-lg text-primary">Self-Check Report</h1>
+<span class="hidden items-center gap-1.5 px-3 py-1 rounded-full text-label-md font-label-md font-bold uppercase tracking-wide" id="report-overall-badge"></span>
+</div>
+<p class="text-body-lg font-body-lg text-on-surface-variant" id="report-subtitle">Review the automated compliance analysis for your uploaded label.</p>
+</div>
+<div class="flex flex-col sm:flex-row gap-3">
+<button class="bg-surface border border-outline-variant text-primary px-6 py-3 rounded-lg font-headline-md text-body-md font-semibold hover:bg-surface-container-low transition-colors shadow-sm flex items-center gap-2" id="view-revisions-btn">
+<span class="material-symbols-outlined">history</span>
+                    View Revision History
+                </button>
+<button class="bg-secondary text-on-secondary px-6 py-3 rounded-lg font-headline-md text-body-md font-semibold hover:bg-secondary-fixed-dim transition-colors shadow-sm flex items-center gap-2" id="reupload-btn">
+<span class="material-symbols-outlined">upload</span>
+                    Re-upload Revised Label
+                </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="hidden grid grid-cols-1 lg:grid-cols-12 gap-gutter" id="report-content">
+<!-- Left Column: Label Image (Spans 7 cols) -->
+<div class="lg:col-span-7 flex flex-col gap-6">
+<div class="bg-surface rounded-xl border border-outline-variant overflow-hidden shadow-sm flex flex-col h-full">
+<div class="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h2 class="text-headline-md font-headline-md text-primary">Label Analysis View</h2>
+<div class="flex gap-2">
+<button class="p-1.5 text-on-surface-variant hover:text-primary rounded bg-surface border border-outline-variant hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-primary rounded bg-surface border border-outline-variant hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[20px]">zoom_out</span></button>
+</div>
+</div>
+<div class="p-6 flex-1 bg-surface-container-lowest flex items-center justify-center relative min-h-[400px]">
+<div class="relative max-w-md w-full border border-outline-variant shadow-sm rounded">
+<img alt="Your uploaded label" class="hidden w-full h-auto rounded object-contain" id="report-image"/>
+<div class="flex flex-col items-center justify-center gap-2 text-on-surface-variant p-12" id="report-image-missing">
+<span class="material-symbols-outlined text-4xl">image_not_supported</span>
+<p class="text-body-md">No image preview is available for this revision.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Checklist (Spans 5 cols) -->
+<div class="lg:col-span-5 flex flex-col gap-6">
+<div class="bg-surface rounded-xl border border-outline-variant shadow-sm flex flex-col h-full">
+<div class="p-6 border-b border-outline-variant">
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Compliance Checklist</h2>
+<p class="text-body-md text-on-surface-variant" id="checklist-intro">Every applicable Legal Metrology declaration check for this label, with its extracted value and reasoning.</p>
+<!-- Summary Bar -->
+<div class="mt-4 flex flex-wrap items-center gap-4 bg-surface-container-lowest p-3 rounded-lg border border-outline-variant">
+<div class="flex items-center gap-2">
+<div class="flex items-center justify-center w-12 h-12 rounded-full bg-secondary/10 text-secondary">
+<span class="text-headline-lg font-headline-lg" id="passed-count">0</span>
+</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Passed</div>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<div class="flex items-center justify-center w-12 h-12 rounded-full bg-error/10 text-error">
+<span class="text-headline-lg font-headline-lg" id="failed-count">0</span>
+</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Non-Compliant</div>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<div class="flex items-center justify-center w-12 h-12 rounded-full bg-tertiary-fixed-dim/10 text-tertiary-container">
+<span class="text-headline-lg font-headline-lg" id="review-count">0</span>
+</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Needs Review</div>
+</div>
+<div class="hidden h-8 w-[1px] bg-outline-variant" id="na-divider"></div>
+<div class="hidden items-center gap-2" id="na-chip">
+<div class="flex items-center justify-center w-12 h-12 rounded-full bg-surface-variant text-on-surface-variant">
+<span class="text-headline-lg font-headline-lg" id="na-count">0</span>
+</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Not Applicable</div>
+</div>
+</div>
+</div>
+<div class="p-0 flex-1 overflow-y-auto">
+<!-- Checklist Items -->
+<ul class="flex flex-col" id="checklist-items"></ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script>
+<script>
+    // Root-cause fix (part 1): this page used to read the self-check record
+    // from LL.getSelfCheck() - app.js's localStorage-backed MOCK data store,
+    // part of the pre-backend prototype. The real upload flow
+    // (new-self-check.html -> LLManufacturer.selfCheck() -> POST /api/
+    // manufacturer/self-check) has always written its result into MongoDB
+    // via the real backend, under a "REV-..." id the mock store has never
+    // heard of - so every real upload landed here, found nothing, and
+    // silently showed "Self-Check Report Not Found" (or, if the id query
+    // param happened to be missing, a hardcoded fake demo record). Fixed by
+    // fetching the manufacturer's own revisions from the real API
+    // (GET /api/manufacturer/revisions, already used elsewhere) and finding
+    // the one matching the id in the URL, instead of the mock store.
+    //
+    // Root-cause fix (part 2): even after part 1, the "Label Analysis View"
+    // panel still rendered a hardcoded stock photo with fake bounding boxes
+    // baked directly into this page's HTML - it never showed the actual
+    // image the manufacturer uploaded, because the backend never stored
+    // that image anywhere. Fixed by having POST /api/manufacturer/self-check
+    // persist the uploaded image (GridFS, same mechanism the official
+    // /api/scans flow already uses) against its own revision, exposing it at
+    // GET /api/manufacturer/revisions/{revisionId}/image, and rendering that
+    // real image here instead of the static mockup.
+    var API_ORIGIN = "http://" + (location.hostname || "localhost") + ":8000";
+
+    // Root-cause fix (part 3): the report used to render a hand-rolled
+    // 4-check placeholder (product name / net quantity / MRP / manufacturer)
+    // computed by a throwaway compliance_report() function in
+    // backend/api/manufacturer.py, instead of the real, much more thorough
+    // Legal Metrology rule engine (backend/services/compliance_engine.py)
+    // the official /api/scans flow already uses. The backend now calls that
+    // same engine for self-checks too, so revision.complianceResult is a
+    // real ComplianceResult (rule_results -> required_fields, each with a
+    // PASS/FAIL/PARTIAL/NEEDS_MANUAL_VERIFICATION status, extracted value,
+    // confidence, and explanation) - this rewrite renders that shape
+    // directly instead of the old 4-item placeholder.
+    var FIELD_LABELS = {
+        manufacturer_packer_importer_details: 'Manufacturer / Packer / Importer Details',
+        name_and_address_of_manufacturer_or_packer: 'Name and Address of Manufacturer or Packer',
+        country_of_origin: 'Country of Origin',
+        common_generic_name_of_commodity: 'Common / Generic Name of Commodity',
+        net_quantity: 'Net Quantity',
+        month_and_year_of_manufacture_or_packing: 'Month & Year of Manufacture / Packing',
+        maximum_retail_price_mrp: 'Maximum Retail Price (MRP)',
+        unit_sale_price: 'Unit Sale Price',
+        consumer_care_details: 'Consumer Care Details',
+    };
+    function fieldLabel(key) {
+        return FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+
+    // Covers every FieldStatus (PASS/FAIL/PARTIAL/NEEDS_MANUAL_VERIFICATION/
+    // NOT_DETECTED) and every rule/overall ComplianceStatus (COMPLIANT/
+    // NON_COMPLIANT/PARTIALLY_COMPLIANT/NEEDS_MANUAL_VERIFICATION/
+    // REVIEW_REQUIRED/NOT_APPLICABLE) the engine can return - collapsed to
+    // the three-state vocabulary the report displays, per this task's
+    // explicit requirement, plus NOT APPLICABLE.
+    var STATUS_META = {
+        PASS: { label: 'PASS', icon: 'check_circle', chip: 'bg-secondary/10 text-secondary', bucket: 'passed' },
+        COMPLIANT: { label: 'PASS', icon: 'check_circle', chip: 'bg-secondary/10 text-secondary', bucket: 'passed' },
+        FAIL: { label: 'NON-COMPLIANT', icon: 'cancel', chip: 'bg-error/10 text-error', bucket: 'failed' },
+        PARTIAL: { label: 'NON-COMPLIANT', icon: 'cancel', chip: 'bg-error/10 text-error', bucket: 'failed' },
+        NON_COMPLIANT: { label: 'NON-COMPLIANT', icon: 'cancel', chip: 'bg-error/10 text-error', bucket: 'failed' },
+        PARTIALLY_COMPLIANT: { label: 'NON-COMPLIANT', icon: 'cancel', chip: 'bg-error/10 text-error', bucket: 'failed' },
+        NEEDS_MANUAL_VERIFICATION: { label: 'NEEDS MANUAL VERIFICATION', icon: 'warning', chip: 'bg-tertiary-fixed-dim/10 text-tertiary-container', bucket: 'review' },
+        REVIEW_REQUIRED: { label: 'NEEDS MANUAL VERIFICATION', icon: 'warning', chip: 'bg-tertiary-fixed-dim/10 text-tertiary-container', bucket: 'review' },
+        NOT_DETECTED: { label: 'NEEDS MANUAL VERIFICATION', icon: 'warning', chip: 'bg-tertiary-fixed-dim/10 text-tertiary-container', bucket: 'review' },
+        NOT_APPLICABLE: { label: 'NOT APPLICABLE', icon: 'remove_circle', chip: 'bg-surface-variant text-on-surface-variant', bucket: 'notApplicable' },
+    };
+    function statusMeta(status) {
+        return STATUS_META[status] || { label: String(status || 'UNKNOWN').replace(/_/g, ' '), icon: 'help', chip: 'bg-surface-variant text-on-surface-variant', bucket: 'review' };
+    }
+
+    function adaptRevision(rev) {
+        return {
+            id: rev.revisionId,
+            productId: rev.productId,
+            productName: LL.qs('productName') || rev.imageReference || 'Self-Check',
+            version: rev.version,
+            imageUrl: rev.sourceImageUrl ? API_ORIGIN + rev.sourceImageUrl : null,
+            compliance: rev.complianceResult || null,
+        };
+    }
+
+    // Flattens every rule's checks into one list: a rule with required_fields
+    // (the normal case - LMPC-R6-MANDATORY-DECLARATIONS) contributes one
+    // check per field; a rule with none (e.g. the whole-document
+    // NOT_APPLICABLE case when the image isn't a recognizable product label)
+    // contributes its own rule-level status as a single check - mirrors
+    // exactly how compliance_engine.py's own overall-status aggregation
+    // treats rules, so the badge, the counts, and this list always agree.
+    function flattenChecks(compliance) {
+        var checks = [];
+        (compliance.rule_results || []).forEach(function (rule) {
+            var fieldKeys = Object.keys(rule.required_fields || {});
+            if (fieldKeys.length) {
+                fieldKeys.forEach(function (key) {
+                    var field = rule.required_fields[key];
+                    checks.push({ label: fieldLabel(key), status: field.status, value: field.value, confidence: field.confidence, explanation: field.explanation });
+                });
+            } else {
+                checks.push({ label: rule.rule_name, status: rule.status, value: null, confidence: null, explanation: rule.explanation });
+            }
+        });
+        return checks;
+    }
+
+    if (LL.requireRole('manufacturer')) {
+        var id = LL.qs('id');
+        var historyLink = document.getElementById('sidebar-history-link');
+        var loadingEl = document.getElementById('self-check-loading');
+        var loadErrorEl = document.getElementById('self-check-load-error');
+
+        if (!id) {
+            loadingEl.classList.add('hidden');
+            document.getElementById('self-check-not-found').classList.remove('hidden');
+        } else {
+            LLManufacturer.revisions().then(function (result) {
+                loadingEl.classList.add('hidden');
+                var match = (result.items || []).find(function (rev) { return rev.revisionId === id; });
+                if (!match) {
+                    document.getElementById('self-check-not-found').classList.remove('hidden');
+                    return;
+                }
+                renderRecord(adaptRevision(match));
+            }).catch(function (error) {
+                loadingEl.classList.add('hidden');
+                document.getElementById('self-check-load-error-message').textContent = error.message || 'Could not reach the server.';
+                loadErrorEl.classList.remove('hidden');
+            });
+        }
+
+        function renderRecord(record) {
+            document.getElementById('self-check-header').classList.remove('hidden');
+            document.getElementById('report-content').classList.remove('hidden');
+            historyLink.href = 'revision-history.html?productId=' + encodeURIComponent(record.productId);
+            document.getElementById('report-breadcrumb').textContent = record.productName + ' v' + record.version;
+
+            var reportImage = document.getElementById('report-image');
+            var reportImageMissing = document.getElementById('report-image-missing');
+            if (record.imageUrl) {
+                reportImage.src = record.imageUrl;
+                reportImage.onerror = function () {
+                    reportImage.classList.add('hidden');
+                    reportImageMissing.classList.remove('hidden');
+                };
+                reportImage.classList.remove('hidden');
+                reportImageMissing.classList.add('hidden');
+            } else {
+                reportImage.classList.add('hidden');
+                reportImageMissing.classList.remove('hidden');
+            }
+
+            var compliance = record.compliance;
+            if (!compliance || !Array.isArray(compliance.rule_results)) {
+                document.getElementById('report-subtitle').textContent = record.productName + ' — Version ' + record.version + ' • This older revision was analyzed before the current report format and cannot be displayed in full detail.';
+                document.getElementById('checklist-intro').textContent = 'No detailed compliance data is available for this revision. Re-upload the label to get a full report.';
+                return;
+            }
+
+            var checks = flattenChecks(compliance);
+            var counts = { passed: 0, failed: 0, review: 0, notApplicable: 0 };
+            checks.forEach(function (c) { counts[statusMeta(c.status).bucket] += 1; });
+
+            var scoreText = (compliance.compliance_score === null || compliance.compliance_score === undefined) ? 'Not scored' : Math.round(compliance.compliance_score) + '%';
+            document.getElementById('report-subtitle').textContent = record.productName + ' — Version ' + record.version + ' • Score: ' + scoreText;
+
+            var overallMeta = statusMeta(compliance.overall_status);
+            var badge = document.getElementById('report-overall-badge');
+            badge.textContent = overallMeta.label;
+            badge.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-label-md font-label-md font-bold uppercase tracking-wide ' + overallMeta.chip;
+
+            document.getElementById('passed-count').textContent = counts.passed;
+            document.getElementById('failed-count').textContent = counts.failed;
+            document.getElementById('review-count').textContent = counts.review;
+            if (counts.notApplicable > 0) {
+                document.getElementById('na-count').textContent = counts.notApplicable;
+                document.getElementById('na-chip').classList.remove('hidden');
+                document.getElementById('na-chip').classList.add('flex');
+                document.getElementById('na-divider').classList.remove('hidden');
+            }
+
+            var list = document.getElementById('checklist-items');
+            if (!checks.length) {
+                var emptyLi = document.createElement('li');
+                emptyLi.className = 'p-6 text-body-md text-on-surface-variant';
+                emptyLi.textContent = 'No applicable compliance checks were returned for this image.';
+                list.appendChild(emptyLi);
+            }
+            checks.forEach(function (check, idx) {
+                var meta = statusMeta(check.status);
+                var li = document.createElement('li');
+                li.className = 'p-6 hover:bg-surface-container-lowest transition-colors group' + (idx < checks.length - 1 ? ' border-b border-outline-variant' : '');
+                var valueHtml = check.value ? '<p class="text-body-md text-on-surface mt-1"><span class="font-semibold text-on-surface-variant">Extracted:</span> ' + LL.escapeHtml(String(check.value)) + '</p>' : '';
+                var confidenceHtml = (typeof check.confidence === 'number' && check.confidence > 0) ? '<p class="text-label-md text-on-surface-variant mt-1">OCR confidence: ' + Math.round(check.confidence * 100) + '%</p>' : '';
+                li.innerHTML =
+                    '<div class="flex items-start gap-4">' +
+                        '<div class="mt-0.5"><span class="material-symbols-outlined" style="font-variation-settings: \'FILL\' 1;">' + meta.icon + '</span></div>' +
+                        '<div class="flex-1">' +
+                            '<div class="flex items-center justify-between gap-3 mb-1">' +
+                                '<h3 class="text-body-lg font-headline-md font-semibold text-on-surface">' + LL.escapeHtml(check.label) + '</h3>' +
+                                '<span class="shrink-0 text-label-md font-label-md font-bold uppercase tracking-wide px-2 py-1 rounded ' + meta.chip + '">' + meta.label + '</span>' +
+                            '</div>' +
+                            '<p class="text-body-md text-on-surface-variant">' + LL.escapeHtml(check.explanation || '') + '</p>' +
+                            valueHtml + confidenceHtml +
+                        '</div>' +
+                    '</div>';
+                li.querySelector('.material-symbols-outlined').className += ' ' + meta.chip.split(' ').filter(function (cls) { return cls.indexOf('text-') === 0; }).join(' ');
+                list.appendChild(li);
+            });
+
+            document.getElementById('view-revisions-btn').addEventListener('click', function () {
+                location.href = 'revision-history.html?productId=' + encodeURIComponent(record.productId);
+            });
+            document.getElementById('reupload-btn').addEventListener('click', function () {
+                location.href = 'new-self-check.html?productId=' + encodeURIComponent(record.productId);
+            });
+
+            if (compliance.overall_status === 'COMPLIANT') {
+                var certBtn = document.createElement('button');
+                certBtn.className = 'bg-secondary-container text-on-secondary-container px-6 py-3 rounded-lg font-headline-md text-body-md font-semibold hover:bg-secondary-container/80 transition-colors shadow-sm flex items-center gap-2';
+                certBtn.innerHTML = '<span class="material-symbols-outlined">verified</span> View Compliance Certificate';
+                certBtn.addEventListener('click', function () {
+                    location.href = 'compliance-summary.html?id=' + encodeURIComponent(record.id);
+                });
+                document.getElementById('self-check-header').querySelector('.flex.flex-col.sm\\:flex-row').appendChild(certBtn);
+            }
+        }
+    }
+</script>
+</body></html>
