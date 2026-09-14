@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Review Queue - LegalLens Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#76d6d5",
+                    "surface-container-low": "#f3f4f5",
+                    "secondary-container": "#90efef",
+                    "secondary": "#006a6a",
+                    "surface": "#f8f9fa",
+                    "inverse-surface": "#2e3132",
+                    "primary-fixed": "#d3e4ff",
+                    "secondary-fixed": "#93f2f2",
+                    "on-primary-fixed-variant": "#1c4877",
+                    "primary-fixed-dim": "#a2c9ff",
+                    "surface-tint": "#386090",
+                    "on-primary-fixed": "#001c38",
+                    "on-primary-container": "#82a9dd",
+                    "surface-variant": "#e1e3e4",
+                    "surface-dim": "#d9dadb",
+                    "background": "#f8f9fa",
+                    "on-error-container": "#93000a",
+                    "tertiary-fixed": "#ffdfa0",
+                    "on-tertiary-container": "#d39d00",
+                    "primary": "#00274a",
+                    "outline": "#737780",
+                    "on-background": "#191c1d",
+                    "surface-container-high": "#e7e8e9",
+                    "on-tertiary-fixed": "#261a00",
+                    "on-secondary-fixed": "#002020",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#332300",
+                    "surface-container-highest": "#e1e3e4",
+                    "primary-container": "#0b3d6b",
+                    "on-secondary-container": "#006e6e",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#4e3800",
+                    "on-tertiary-fixed-variant": "#5c4300",
+                    "inverse-primary": "#a2c9ff",
+                    "outline-variant": "#c3c6d0",
+                    "inverse-on-surface": "#f0f1f2",
+                    "tertiary-fixed-dim": "#fbbc00",
+                    "surface-bright": "#f8f9fa",
+                    "on-surface": "#191c1d",
+                    "on-surface-variant": "#42474f",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-secondary-fixed-variant": "#004f4f",
+                    "error-container": "#ffdad6",
+                    "surface-container": "#edeeef",
+                    "on-primary": "#ffffff",
+                    "error": "#ba1a1a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "sidebar-width": "260px",
+                    "container-max": "1440px",
+                    "unit": "4px",
+                    "margin-page": "32px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "headline-md": ["22px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "600"}],
+                    "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased min-h-screen">
+<!-- SideNavBar Component -->
+<aside class="official-sidebar fixed left-0 top-0 h-full w-[260px] bg-primary text-on-primary border-r border-outline-variant flex flex-col py-6 z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-on-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary">policy</span>
+</div>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-on-primary">LegalLens</h1>
+<p class="text-label-md font-label-md text-on-primary/70">Govt. of India Portal</p>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full bg-secondary text-on-secondary py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-label-md text-label-md hover:bg-secondary-fixed-dim transition-colors min-h-[44px]" onclick="location.href='new-compliance-scan.html'">
+<span class="material-symbols-outlined text-[18px]">add</span> New Compliance Scan
+            </button>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="official-dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="new-compliance-scan.html">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+<span class="text-label-md font-label-md">Operations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors" href="scan-history.html">
+<span class="material-symbols-outlined">history</span>
+<span class="text-label-md font-label-md">History</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 border-l-4 border-secondary-fixed-dim bg-on-primary-fixed-variant/10 text-secondary-fixed-dim font-bold opacity-90 transition-opacity" href="review-queue.html">
+<span class="material-symbols-outlined fill">fact_check</span>
+<span class="text-label-md font-label-md">Review Queue</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-1 px-2 pt-4 border-t border-outline-variant/30">
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary/70 hover:text-on-primary hover:bg-on-primary-fixed-variant/5 transition-colors rounded-lg" href="login.html" onclick="window.LL&amp;&amp;LL.logout();">
+<span class="material-symbols-outlined">logout</span>
+<span class="text-label-md font-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="official-page-shell ml-[260px] flex-1 flex flex-col min-h-screen overflow-y-auto bg-background">
+<header class="bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-8 sticky top-0 z-40">
+<div class="flex items-center w-full max-w-md">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full pl-10 pr-4 py-2 border border-outline-variant rounded-full text-body-md font-body-md bg-surface-container-lowest focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-shadow" id="filter-search" placeholder="Product, manufacturer, or revision ID..." type="text"/>
+</div>
+</div>
+</header>
+<div class="flex-1 p-margin-page max-w-container-max w-full mx-auto flex flex-col gap-gutter">
+<nav aria-label="Breadcrumb" class="text-label-md font-label-md text-on-surface-variant flex items-center gap-2">
+<a class="hover:text-primary transition-colors" href="official-dashboard.html">Dashboard</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-primary font-bold">Review Queue</span>
+</nav>
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+<div>
+<h2 class="text-display-lg font-display-lg text-on-background mb-1">Official Review Queue</h2>
+<p class="text-body-md font-body-md text-on-surface-variant">Manufacturer self-checks submitted for Legal Metrology inspector review.</p>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1.5 uppercase tracking-wider">Status</label>
+<select class="border border-outline-variant rounded-lg py-2 pl-3 pr-8 text-body-md font-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-surface min-w-[180px] min-h-[44px] appearance-none cursor-pointer" id="filter-status">
+<option value="open">Pending / Under Review</option>
+<option value="DECISION_RECORDED">Decision Recorded</option>
+</select>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm flex flex-col">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse whitespace-nowrap">
+<thead class="bg-surface-container-low text-primary text-label-md font-label-md border-b border-outline-variant">
+<tr>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider">Product</th>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider">Manufacturer</th>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider">Version</th>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider">Submitted</th>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider">Status</th>
+<th class="py-4 px-6 font-semibold uppercase tracking-wider text-right">Action</th>
+</tr>
+</thead>
+<tbody class="text-body-md font-body-md text-on-surface divide-y divide-outline-variant" id="queue-body"></tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant text-label-md font-label-md text-on-surface-variant" id="queue-summary">Showing 0 of 0 submissions</div>
+</div>
+<div class="h-8"></div>
+</div>
+</main>
+<script src="assets/app.js"></script>
+<script src="assets/auth-client.js"></script>
+<script src="assets/official-header.js"></script>
+<script src="assets/official-client.js"></script>
+<script>
+    if (LL.requireRole('official')) {
+        var searchInput = document.getElementById('filter-search');
+        var statusSelect = document.getElementById('filter-status');
+        var body = document.getElementById('queue-body');
+        var summaryEl = document.getElementById('queue-summary');
+
+        var STATUS_META = {
+            PENDING_OFFICIAL_REVIEW: { icon: 'pending', label: 'Pending Review', cls: 'bg-tertiary-container text-on-tertiary-container' },
+            UNDER_OFFICIAL_REVIEW: { icon: 'visibility', label: 'Under Review', cls: 'bg-secondary-container text-on-secondary-container' },
+            DECISION_RECORDED: { icon: 'gavel', label: 'Decision Recorded', cls: 'bg-surface-variant text-on-surface-variant' },
+        };
+
+        function render(items) {
+            var q = (searchInput.value || '').toLowerCase();
+            var filtered = items.filter(function (item) {
+                if (!q) return true;
+                var haystack = (item.revisionId + ' ' + item.imageReference + ' ' + item.manufacturerName + ' ' + item.manufacturerCompany).toLowerCase();
+                return haystack.indexOf(q) !== -1;
+            });
+
+            body.innerHTML = '';
+            filtered.forEach(function (item) {
+                var meta = STATUS_META[item.reviewStatus] || { icon: 'help', label: item.reviewStatus, cls: 'bg-surface-variant text-on-surface-variant' };
+                var tr = document.createElement('tr');
+                tr.className = 'hover:bg-surface/50 transition-colors group';
+                tr.innerHTML =
+                    '<td class="py-4 px-6"><div class="font-semibold text-on-background">' + LL.escapeHtml(item.imageReference || item.revisionId) + '</div>' +
+                    '<div class="text-on-surface-variant text-label-md font-label-md mt-1">' + LL.escapeHtml(item.revisionId) + '</div></td>' +
+                    '<td class="py-4 px-6"><div class="font-semibold text-on-background">' + LL.escapeHtml(item.manufacturerName || 'Unknown') + '</div>' +
+                    '<div class="text-on-surface-variant text-label-md font-label-md mt-1">' + LL.escapeHtml(item.manufacturerCompany || '') + '</div></td>' +
+                    '<td class="py-4 px-6 text-on-surface-variant">v' + LL.escapeHtml(item.version) + '</td>' +
+                    '<td class="py-4 px-6 text-on-surface-variant">' + LL.fmtDateTime(item.submittedAt) + '</td>' +
+                    '<td class="py-4 px-6"><span class="inline-flex items-center gap-1.5 ' + meta.cls + ' px-3 py-1 rounded-full text-label-md font-label-md"><span class="material-symbols-outlined text-[16px] fill">' + meta.icon + '</span> ' + meta.label + '</span></td>' +
+                    '<td class="py-4 px-6 text-right"><button class="text-primary hover:text-secondary font-medium text-label-md font-label-md flex items-center justify-end gap-1 ml-auto opacity-70 group-hover:opacity-100 transition-opacity">Review Case <span class="material-symbols-outlined text-[18px]">arrow_forward</span></button></td>';
+                tr.querySelector('button').addEventListener('click', function () {
+                    location.href = 'case-details.html?id=' + encodeURIComponent(item.revisionId);
+                });
+                body.appendChild(tr);
+            });
+
+            if (!filtered.length) {
+                body.innerHTML = '<tr><td class="py-8 px-6 text-center text-on-surface-variant" colspan="6">No submissions match this filter.</td></tr>';
+            }
+            summaryEl.textContent = 'Showing ' + filtered.length + ' of ' + items.length + ' submissions';
+        }
+
+        var items = [];
+        function load() {
+            LLOfficial.reviewQueue(statusSelect.value).then(function (result) {
+                items = result;
+                render(items);
+            });
+        }
+        searchInput.addEventListener('input', function () { render(items); });
+        statusSelect.addEventListener('change', load);
+        load();
+    }
+</script>
+</body></html>

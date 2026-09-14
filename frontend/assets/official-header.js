@@ -5,8 +5,9 @@
   var pages = {
     "official-dashboard.html": "Dashboard",
     "new-compliance-scan.html": "New Scan",
-    "case-details.html": "Cases",
-    "log-case-action.html": "Cases",
+    "review-queue.html": "Review Queue",
+    "case-details.html": "Review Queue",
+    "log-case-action.html": "Review Queue",
     "compliance-report.html": "Reports",
     "scan-history.html": "History"
   };
@@ -48,7 +49,7 @@
         '<a href="official-dashboard.html">Dashboard</a>' +
         '<a href="new-compliance-scan.html">New Scan</a>' +
         '<a href="scan-history.html">History</a>' +
-        '<a href="case-details.html">Cases</a>' +
+        '<a href="review-queue.html">Review Queue</a>' +
         '<a href="compliance-report.html">Reports</a>' +
       '</nav>' +
       '<div class="ll-official-actions">' +

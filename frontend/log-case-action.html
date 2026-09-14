@@ -115,10 +115,9 @@
 <div class="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-surface-bright sticky top-0 z-10">
 <div>
 <div class="flex items-center gap-2 mb-1">
-<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-error-container text-on-error-container">High Priority</span>
-<span class="text-body-md font-body-md text-on-surface-variant" id="modal-case-id">Case #LL-2023-0892</span>
+<span class="text-body-md font-body-md text-on-surface-variant" id="modal-case-id">Case</span>
 </div>
-<h2 class="text-headline-md font-headline-md text-primary">Log Enforcement Action</h2>
+<h2 class="text-headline-md font-headline-md text-primary">Record Official Decision</h2>
 </div>
 <button aria-label="Close modal" class="p-2 rounded-full hover:bg-surface-container-low text-on-surface-variant transition-colors" id="close-modal-btn">
 <span class="material-symbols-outlined text-2xl">close</span>
@@ -128,50 +127,24 @@
 <div class="p-8 overflow-y-auto flex-1 flex flex-col gap-6">
 <!-- Status Row -->
 <div class="flex flex-col gap-2">
-<label class="text-label-md font-label-md text-on-surface" for="status-dropdown">Update Case Status</label>
+<label class="text-label-md font-label-md text-on-surface" for="status-dropdown">Decision</label>
 <div class="relative">
 <select class="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 pr-10 text-body-lg font-body-lg text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer transition-shadow" id="status-dropdown">
-<option value="open">Open</option>
-<option value="under_review">Under Review</option>
-<option value="escalated">Escalated</option>
-<option value="closed">Closed</option>
+<option value="APPROVED">Approved</option>
+<option value="REJECTED">Rejected</option>
+<option value="NEEDS_CORRECTION">Needs Correction</option>
+<option value="REQUIRES_PHYSICAL_INSPECTION">Requires Physical Inspection</option>
 </select>
 <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
 </div>
+<p class="text-label-md font-label-md text-on-surface-variant">This decision is the FINAL human judgment on this submission - it is recorded separately from, and never overwrites, the AI/rule-engine assessment shown on the case detail page.</p>
 </div>
-<!-- Notes Section -->
+<!-- Remarks -->
 <div class="flex flex-col gap-2">
-<label class="text-label-md font-label-md text-on-surface" for="inspector-notes">Inspector Notes</label>
-<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-4 text-body-lg font-body-lg text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none transition-shadow" id="inspector-notes" maxlength="1000" placeholder="Detail the enforcement action taken, findings, and next steps..." rows="6"></textarea>
+<label class="text-label-md font-label-md text-on-surface" for="inspector-notes">Remarks</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-4 text-body-lg font-body-lg text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none transition-shadow" id="inspector-notes" maxlength="2000" placeholder="Record the basis for this decision and any next steps..." rows="6"></textarea>
 <div class="text-right">
-<span class="text-[11px] text-on-surface-variant" id="char-counter">0 / 1000 characters</span>
-</div>
-</div>
-<!-- Evidence Upload -->
-<div class="flex flex-col gap-2">
-<span class="text-label-md font-label-md text-on-surface">Attach Evidence Photos</span>
-<div class="border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center gap-4 bg-surface-bright hover:bg-surface-container-low transition-colors cursor-pointer group" id="evidence-drop-zone">
-<input accept="image/*" class="hidden" id="evidence-file-input" type="file"/>
-<div class="p-4 rounded-full bg-primary-fixed text-on-primary-fixed group-hover:scale-105 transition-transform">
-<span class="material-symbols-outlined text-3xl">upload_file</span>
-</div>
-<div class="text-center">
-<p class="text-body-lg font-body-lg text-primary font-semibold mb-1">Click to upload or drag and drop</p>
-<p class="text-body-md font-body-md text-on-surface-variant">SVG, PNG, JPG or GIF (max. 10MB)</p>
-</div>
-</div>
-<!-- Attached file (hidden until a file is chosen) -->
-<div class="hidden mt-2 flex items-center justify-between p-3 border border-outline-variant rounded-lg bg-surface-container-lowest" id="evidence-file-row">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-surface-tint">image</span>
-<div>
-<p class="text-body-md font-body-md text-on-surface font-medium line-clamp-1" id="evidence-file-name">site_inspection_01.jpg</p>
-<p class="text-[11px] text-on-surface-variant" id="evidence-file-size">2.4 MB</p>
-</div>
-</div>
-<button aria-label="Remove file" class="p-2 text-error hover:bg-error-container rounded-full transition-colors" id="remove-evidence-btn">
-<span class="material-symbols-outlined">delete</span>
-</button>
+<span class="text-[11px] text-on-surface-variant" id="char-counter">0 / 2000 characters</span>
 </div>
 </div>
 </div>
@@ -190,60 +163,46 @@
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
 <script src="assets/official-header.js"></script>
+<script src="assets/official-client.js"></script>
 <script>
     if (LL.requireRole('official')) {
-        var caseId = LL.qs('id') || 'CASE-LM2024-089';
-        var caseObj = LL.getCase(caseId);
-        var backUrl = 'case-details.html?id=' + encodeURIComponent(caseId);
+        var revisionId = LL.qs('id');
+        var backUrl = 'case-details.html?id=' + encodeURIComponent(revisionId || '');
 
-        if (!caseObj) {
+        if (!revisionId) {
             document.body.innerHTML = '<div class="max-w-md mx-auto mt-24 text-center bg-surface-container-lowest border border-outline-variant rounded-xl p-10">' +
                 '<span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4">search_off</span>' +
                 '<h2 class="text-headline-md font-headline-md text-primary mb-2">Case Not Found</h2>' +
                 '<p class="text-body-md font-body-md text-on-surface-variant mb-6">We couldn\'t find a case matching that ID.</p>' +
-                '<button class="px-6 py-2.5 rounded bg-primary text-on-primary font-semibold" onclick="location.href=\'scan-history.html\'">Back to Scan History</button></div>';
+                '<button class="px-6 py-2.5 rounded bg-primary text-on-primary font-semibold" onclick="location.href=\'review-queue.html\'">Back to Review Queue</button></div>';
         } else {
-            document.getElementById('modal-case-id').textContent = 'Case #' + caseObj.id;
-            document.getElementById('status-dropdown').value = caseObj.status;
+            document.getElementById('modal-case-id').textContent = 'Case #' + revisionId;
 
             var notes = document.getElementById('inspector-notes');
             var counter = document.getElementById('char-counter');
             notes.addEventListener('input', function () {
-                counter.textContent = notes.value.length + ' / 1000 characters';
-            });
-
-            var chosenFile = null;
-            var fileInput = document.getElementById('evidence-file-input');
-            var dropZone = document.getElementById('evidence-drop-zone');
-            var fileRow = document.getElementById('evidence-file-row');
-            dropZone.addEventListener('click', function () { fileInput.click(); });
-            fileInput.addEventListener('change', function () {
-                if (this.files && this.files.length) {
-                    chosenFile = this.files[0];
-                    document.getElementById('evidence-file-name').textContent = chosenFile.name;
-                    document.getElementById('evidence-file-size').textContent = (chosenFile.size / 1024 / 1024).toFixed(1) + ' MB';
-                    fileRow.classList.remove('hidden');
-                }
-            });
-            document.getElementById('remove-evidence-btn').addEventListener('click', function () {
-                chosenFile = null;
-                fileInput.value = '';
-                fileRow.classList.add('hidden');
+                counter.textContent = notes.value.length + ' / 2000 characters';
             });
 
             document.getElementById('close-modal-btn').addEventListener('click', function () { location.href = backUrl; });
             document.getElementById('cancel-btn').addEventListener('click', function () { location.href = backUrl; });
 
-            document.getElementById('save-action-btn').addEventListener('click', function () {
-                var status = document.getElementById('status-dropdown').value;
-                var noteText = notes.value.trim();
-                if (!noteText) {
+            var saveBtn = document.getElementById('save-action-btn');
+            saveBtn.addEventListener('click', function () {
+                var action = document.getElementById('status-dropdown').value;
+                var remarks = notes.value.trim();
+                if (!remarks) {
                     notes.classList.add('ring-2', 'ring-error');
                     notes.focus();
                     return;
                 }
-                LL.addCaseAction(caseObj.id, { status: status, notes: noteText, fileName: chosenFile ? chosenFile.name : null });
-                location.href = backUrl;
+                saveBtn.disabled = true;
+                LLOfficial.recordDecision(revisionId, { action: action, remarks: remarks }).then(function () {
+                    location.href = backUrl;
+                }).catch(function (error) {
+                    saveBtn.disabled = false;
+                    LL.toast(error.message || 'Failed to record decision.');
+                });
             });
         }
     }

@@ -368,6 +368,14 @@
 </div>
 </div>
 </div>
+<!-- Official Review (read-only for the manufacturer - no official controls
+     are ever exposed here, only the outcome once recorded) -->
+<div class="hidden mt-6 bg-surface rounded-xl border border-outline-variant shadow-sm p-6" id="official-review-card">
+<h2 class="text-headline-md font-headline-md text-primary mb-1 flex items-center gap-2"><span class="material-symbols-outlined">gavel</span> Official Review</h2>
+<p class="text-body-md text-on-surface-variant mb-4">This is the Legal Metrology inspector's own review of this submission - separate from, and never replacing, the automated assessment above.</p>
+<div id="official-review-body"></div>
+</div>
+</div>
 </main>
 <script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script>
 <script>
@@ -451,6 +459,13 @@
             version: rev.version,
             imageUrl: rev.sourceImageUrl ? API_ORIGIN + rev.sourceImageUrl : null,
             compliance: rev.complianceResult || null,
+            // Official review workflow fields - see backend/api/official.py.
+            // Older revisions predating this feature simply lack these keys;
+            // treated uniformly as "not submitted" below (never assumed present).
+            reviewStatus: rev.reviewStatus || null,
+            submittedAt: rev.submittedAt || null,
+            officialDecision: rev.officialDecision || null,
+            decisionHistory: Array.isArray(rev.decisionHistory) ? rev.decisionHistory : [],
         };
     }
 
@@ -596,6 +611,71 @@
                     location.href = 'compliance-summary.html?id=' + encodeURIComponent(record.id);
                 });
                 document.getElementById('self-check-header').querySelector('.flex.flex-col.sm\\:flex-row').appendChild(certBtn);
+            }
+
+            renderOfficialReview(record);
+        }
+
+        var DECISION_LABEL = { APPROVED: 'Approved', REJECTED: 'Rejected', NEEDS_CORRECTION: 'Needs Correction', REQUIRES_PHYSICAL_INSPECTION: 'Requires Physical Inspection' };
+        var DECISION_CHIP = { APPROVED: 'bg-secondary/10 text-secondary', REJECTED: 'bg-error/10 text-error', NEEDS_CORRECTION: 'bg-tertiary-fixed-dim/10 text-tertiary-container', REQUIRES_PHYSICAL_INSPECTION: 'bg-tertiary-fixed-dim/10 text-tertiary-container' };
+
+        // Read-only for the manufacturer: no /api/official/* call is ever
+        // made from this page, and no control here can create or change a
+        // decision - only LLManufacturer.submitForReview (a manufacturer-
+        // scoped endpoint) is called, and only before any submission exists.
+        function renderOfficialReview(record) {
+            document.getElementById('official-review-card').classList.remove('hidden');
+            var body = document.getElementById('official-review-body');
+            body.innerHTML = '';
+
+            if (!record.reviewStatus) {
+                var notSubmitted = document.createElement('div');
+                notSubmitted.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-4';
+                notSubmitted.innerHTML =
+                    '<p class="text-body-md text-on-surface-variant">This revision has not been submitted for official review yet. Submitting sends it to the Legal Metrology inspector review queue.</p>' +
+                    '<button class="shrink-0 bg-primary text-on-primary px-5 py-2.5 rounded-lg font-semibold text-body-md flex items-center gap-2 hover:opacity-90 transition-opacity" id="submit-for-review-btn"><span class="material-symbols-outlined">send</span> Submit for Official Review</button>';
+                body.appendChild(notSubmitted);
+                document.getElementById('submit-for-review-btn').addEventListener('click', function (event) {
+                    var btn = event.currentTarget;
+                    btn.disabled = true;
+                    LLManufacturer.submitForReview(record.id).then(function () {
+                        location.reload();
+                    }).catch(function (error) {
+                        btn.disabled = false;
+                        LL.toast(error.message || 'Failed to submit for review.');
+                    });
+                });
+                return;
+            }
+
+            var statusRow = document.createElement('div');
+            statusRow.className = 'mb-4';
+            if (record.reviewStatus === 'PENDING_OFFICIAL_REVIEW' || record.reviewStatus === 'UNDER_OFFICIAL_REVIEW') {
+                statusRow.innerHTML =
+                    '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-md font-label-md font-bold bg-tertiary-fixed-dim/10 text-tertiary-container"><span class="material-symbols-outlined text-[16px]">pending_actions</span>' +
+                    (record.reviewStatus === 'UNDER_OFFICIAL_REVIEW' ? 'Under Official Review' : 'Awaiting Official Review') + '</span>' +
+                    '<p class="text-label-md text-on-surface-variant mt-2">Submitted ' + LL.fmtDateTime(record.submittedAt) + '. You will see the outcome here once an inspector records a decision.</p>';
+            } else if (record.officialDecision) {
+                var chip = DECISION_CHIP[record.officialDecision.action] || 'bg-surface-variant text-on-surface-variant';
+                statusRow.innerHTML = '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-md font-label-md font-bold ' + chip + '"><span class="material-symbols-outlined text-[16px]">gavel</span>' + (DECISION_LABEL[record.officialDecision.action] || record.officialDecision.action) + '</span>';
+            }
+            body.appendChild(statusRow);
+
+            if (record.decisionHistory.length) {
+                var history = document.createElement('ul');
+                history.className = 'flex flex-col gap-3 mt-2';
+                record.decisionHistory.slice().reverse().forEach(function (entry) {
+                    var li = document.createElement('li');
+                    li.className = 'p-4 rounded-lg border border-outline-variant bg-surface-container-lowest';
+                    li.innerHTML =
+                        '<div class="flex items-center justify-between gap-3 mb-1">' +
+                        '<span class="font-semibold text-on-surface">' + LL.escapeHtml(DECISION_LABEL[entry.action] || entry.action) + '</span>' +
+                        '<span class="text-label-md text-on-surface-variant">' + LL.fmtDateTime(entry.decidedAt) + '</span></div>' +
+                        '<p class="text-body-md text-on-surface-variant">' + LL.escapeHtml(entry.remarks || '') + '</p>' +
+                        '<p class="text-label-md text-on-surface-variant mt-1">Reviewed by ' + LL.escapeHtml(entry.officialName || 'Official') + '</p>';
+                    history.appendChild(li);
+                });
+                body.appendChild(history);
             }
         }
     }

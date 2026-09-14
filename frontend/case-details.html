@@ -224,7 +224,10 @@
                             </h3>
 </div>
 <div class="p-4 bg-surface-container-low">
-<img class="w-full aspect-[4/3] object-cover rounded-lg border border-outline-variant mb-4" data-alt="A macro photograph of a consumer product package showing a non-compliant nutritional label with missing regulatory markers. Harsh, direct lighting emphasizing text clarity, high contrast corporate compliance context." id="case-evidence-image" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUhVxQiEz-CWU3Dx45K9IssW4KMdnLk7cKP_WQ1XB_yEHX54iSK9SlAzbSZBtPBK7W8ZFtgAhUiR9bp2-q8pJ3I7o6MNYV4kU5EnKFvkNiLUezwv3kwG6oSxYaHF7LQkGXquXWaGpsD27V4cuUL6f2LO7kUCEmMEtq-7njS75gN569IcDuoasIEcmauHa0HqIDsvkRIXcizqVAH3XmbF7_37n3QvhtPKNxKSt7ZujhRKpdsm5TiOWS"/>
+<div class="relative w-full rounded-lg border border-outline-variant mb-4 overflow-hidden bg-surface-container-highest">
+<img alt="Submitted product label" class="block w-full h-auto" id="case-evidence-image"/>
+<div aria-label="OCR evidence regions" class="absolute inset-0 pointer-events-none" id="case-evidence-boxes"></div>
+</div>
 <button class="w-full py-2 bg-surface-container text-primary text-body-md font-body-md font-medium border border-outline-variant rounded-md hover:bg-surface-variant transition-colors flex justify-center items-center gap-2" id="view-evidence-btn">
 <span class="material-symbols-outlined text-sm">fullscreen</span>
                                 View High-Res Evidence
@@ -235,30 +238,36 @@
 <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
 <h3 class="text-headline-sm font-headline-sm font-semibold text-primary mb-4 flex items-center gap-2">
 <span class="material-symbols-outlined text-error">assignment_late</span>
-                            Report Summary
+                            Submission Summary
                         </h3>
 <div class="space-y-4">
 <div>
-<p class="text-label-md font-label-md text-on-surface-variant mb-1">Entity</p>
-<p class="text-body-md font-body-md font-semibold text-on-background" id="case-entity">Acme Consumer Goods Ltd.</p>
+<p class="text-label-md font-label-md text-on-surface-variant mb-1">Manufacturer</p>
+<p class="text-body-md font-body-md font-semibold text-on-background" id="case-entity">-</p>
 </div>
 <div>
-<p class="text-label-md font-label-md text-on-surface-variant mb-1">Violation Type</p>
-<p class="text-body-md font-body-md font-semibold text-on-background" id="case-violation-type">Section 14(a) - Missing Net Quantity</p>
+<p class="text-label-md font-label-md text-on-surface-variant mb-1">Product / Revision</p>
+<p class="text-body-md font-body-md font-semibold text-on-background" id="case-product">-</p>
 </div>
 <div>
-<p class="text-label-md font-label-md text-on-surface-variant mb-1">Detected Confidence</p>
+<p class="text-label-md font-label-md text-on-surface-variant mb-1">AI Compliance Assessment <span class="text-label-md font-label-md text-on-surface-variant font-normal">(deterministic rule engine - not an official decision)</span></p>
 <div class="flex items-center gap-3">
-<div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden">
-<div class="h-full bg-error" id="case-confidence-bar" style="width: 94%"></div>
-</div>
-<span class="text-body-md font-body-md font-bold text-error" id="case-confidence-value">94%</span>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-md font-label-md font-bold" id="case-ai-status-badge">-</span>
+<span class="text-body-md font-body-md text-on-surface-variant" id="case-ai-score">-</span>
 </div>
 </div>
-<button class="w-full mt-2 py-2.5 bg-secondary text-on-secondary rounded-md font-semibold text-body-md font-body-md flex items-center justify-center gap-2 hover:bg-secondary/90 transition-colors" id="case-view-report-btn">
-<span class="material-symbols-outlined text-sm">description</span>
-                                View Compliance Report
-                            </button>
+</div>
+</div>
+<!-- Compliance Findings -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
+<h3 class="text-headline-sm font-headline-sm font-semibold text-primary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined">checklist</span>
+                            Compliance Findings
+                        </h3>
+<div class="space-y-3" id="case-findings-list"></div>
+<div class="mt-4 pt-4 border-t border-outline-variant/60 flex items-start gap-2 text-label-md font-label-md text-on-surface-variant" id="case-ai-assist-note">
+<span class="material-symbols-outlined text-[16px]">smart_toy</span>
+<span id="case-ai-assist-text">No AI-assisted fields were used for this analysis - every finding above is from the deterministic rule engine only.</span>
 </div>
 </div>
 </div>
@@ -290,95 +299,137 @@
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
 <script src="assets/official-header.js"></script>
+<script src="assets/official-client.js"></script>
+<script src="assets/compliance-render.js"></script>
 <script>
     if (LL.requireRole('official')) {
-        var caseId = LL.qs('id') || 'CASE-LM2024-089';
-        var caseObj = LL.getCase(caseId);
+        var revisionId = LL.qs('id');
+        var R = LLComplianceRender;
 
-        if (!caseObj) {
+        var DECISION_LABEL = { APPROVED: 'Approved', REJECTED: 'Rejected', NEEDS_CORRECTION: 'Needs Correction', REQUIRES_PHYSICAL_INSPECTION: 'Requires Physical Inspection' };
+        var DECISION_ICON = { APPROVED: 'check_circle', REJECTED: 'cancel', NEEDS_CORRECTION: 'edit_note', REQUIRES_PHYSICAL_INSPECTION: 'domain_verification' };
+
+        function showNotFound(label) {
             document.getElementById('case-content').classList.add('hidden');
             document.getElementById('case-status-badge').classList.add('hidden');
             document.getElementById('case-not-found').classList.remove('hidden');
-            document.getElementById('case-breadcrumb').textContent = 'Case #' + caseId;
+            document.getElementById('case-breadcrumb').textContent = label;
             document.getElementById('case-title').textContent = 'Case Not Found';
+        }
+
+        if (!revisionId) {
+            showNotFound('Case');
         } else {
-            var scan = LL.getScan(caseObj.scanId);
-            document.getElementById('case-breadcrumb').textContent = 'Case #' + caseObj.id;
-            document.getElementById('case-title').textContent = 'Case Detail: #' + caseObj.id;
-            document.getElementById('case-entity').textContent = caseObj.entity;
-            document.getElementById('case-violation-type').textContent = caseObj.violationType;
-            document.getElementById('case-confidence-bar').style.width = caseObj.confidence + '%';
-            document.getElementById('case-confidence-value').textContent = caseObj.confidence + '%';
-
-            var STATUS_LABEL = { open: 'Open', under_review: 'Under Review', escalated: 'Escalated', closed: 'Closed' };
-            document.getElementById('case-status-label').textContent = STATUS_LABEL[caseObj.status] || caseObj.status;
-
-            document.getElementById('view-evidence-btn').addEventListener('click', function () {
-                window.open(document.getElementById('case-evidence-image').src, '_blank');
+            LLOfficial.getRevision(revisionId).then(function (revision) {
+                renderCase(revision);
+            }).catch(function () {
+                showNotFound('Case #' + revisionId);
             });
+        }
 
-            document.getElementById('case-view-report-btn').addEventListener('click', function () {
-                location.href = 'compliance-report.html?id=' + encodeURIComponent(caseObj.scanId);
+        function renderCase(revision) {
+            var compliance = revision.complianceResult || {};
+            document.getElementById('case-breadcrumb').textContent = 'Case #' + revision.revisionId;
+            document.getElementById('case-title').textContent = 'Case Detail: ' + (revision.imageReference || revision.revisionId);
+            document.getElementById('case-entity').textContent = (revision.manufacturerName || 'Unknown') + (revision.manufacturerCompany ? ' (' + revision.manufacturerCompany + ')' : '');
+            document.getElementById('case-product').textContent = (revision.imageReference || revision.revisionId) + ' - Version ' + revision.version;
+
+            var aiMeta = R.statusMeta(compliance.overall_status);
+            var aiBadge = document.getElementById('case-ai-status-badge');
+            aiBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-md font-label-md font-bold ' + aiMeta.chip;
+            aiBadge.innerHTML = '<span class="material-symbols-outlined text-[14px]">' + aiMeta.icon + '</span>' + aiMeta.label;
+            document.getElementById('case-ai-score').textContent = (typeof compliance.compliance_score === 'number' ? compliance.compliance_score + '% score' : 'Score unavailable') + ' - AI assessment only';
+
+            var reviewStatusMeta = { PENDING_OFFICIAL_REVIEW: { label: 'Pending Review', icon: 'pending_actions' }, UNDER_OFFICIAL_REVIEW: { label: 'Under Review', icon: 'visibility' }, DECISION_RECORDED: { label: 'Decision Recorded', icon: 'gavel' } };
+            var rMeta = reviewStatusMeta[revision.reviewStatus] || { label: revision.reviewStatus || 'Unknown', icon: 'help' };
+            document.getElementById('case-status-label').innerHTML = rMeta.label;
+            document.querySelector('#case-status-badge .material-symbols-outlined').textContent = rMeta.icon;
+
+            // Compliance findings - the SAME deterministic engine output the
+            // manufacturer already saw on their own self-check-report.html,
+            // never recomputed here. The manufacturer self-check flow does
+            // not use the backend's vision-AI fallback today, so no field is
+            // ever flagged aiAssisted here - see compliance-render.js's
+            // flattenChecks doc comment for how that would surface if it did.
+            var checks = R.flattenChecks(compliance);
+            var list = document.getElementById('case-findings-list');
+            list.innerHTML = '';
+            checks.forEach(function (check) {
+                var meta = R.statusMeta(check.status);
+                var row = document.createElement('div');
+                row.className = 'flex items-start justify-between gap-3 py-2 border-b border-outline-variant/40 last:border-0';
+                row.innerHTML =
+                    '<div class="flex-1"><p class="text-body-md font-body-md font-medium text-on-background">' + LL.escapeHtml(check.label) + (check.aiAssisted ? ' <span class="text-label-md font-label-md text-secondary">(AI Suggested)</span>' : '') + '</p>' +
+                    '<p class="text-label-md font-label-md text-on-surface-variant mt-0.5">' + LL.escapeHtml(LL.formatComplianceValue(check.value) || check.explanation || '') + '</p></div>' +
+                    '<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label-md font-label-md font-bold ' + meta.chip + '"><span class="material-symbols-outlined text-[14px]">' + meta.icon + '</span>' + meta.label + '</span>';
+                list.appendChild(row);
+            });
+            if (!checks.length) {
+                list.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant">No compliance checks were applicable to this submission.</p>';
+            }
+            var aiAssistedCount = checks.filter(function (c) { return c.aiAssisted; }).length;
+            document.getElementById('case-ai-assist-text').textContent = aiAssistedCount
+                ? aiAssistedCount + ' field(s) above were suggested by AI vision assistance (low-confidence OCR fallback) - shown for reference only, never an official finding.'
+                : 'No AI-assisted fields were used for this analysis - every finding above is from the deterministic rule engine only.';
+
+            // Original scan image + evidence-region overlay.
+            var image = document.getElementById('case-evidence-image');
+            var boxes = document.getElementById('case-evidence-boxes');
+            if (revision.sourceImageUrl) {
+                image.src = LLOfficial.imageUrl(revision.revisionId);
+                image.alt = 'Submitted product label: ' + (revision.imageReference || revision.revisionId);
+                image.addEventListener('load', function () { R.renderEvidenceOverlay(image, boxes, compliance); });
+                if (image.complete && image.naturalWidth) R.renderEvidenceOverlay(image, boxes, compliance);
+            }
+            document.getElementById('view-evidence-btn').addEventListener('click', function () {
+                if (image.src) window.open(image.src, '_blank');
             });
 
             document.getElementById('log-action-btn').addEventListener('click', function () {
-                location.href = 'log-case-action.html?id=' + encodeURIComponent(caseObj.id);
+                location.href = 'log-case-action.html?id=' + encodeURIComponent(revision.revisionId);
             });
 
             document.getElementById('export-log-btn').addEventListener('click', function () {
-                var rows = [['Date', 'Actor', 'Title', 'Description', 'Attachment']];
-                caseObj.timeline.forEach(function (t) { rows.push([LL.fmtDateTime(t.date), t.actor, t.title, t.desc, t.attachment || '']); });
-                LL.exportCSV('case_' + caseObj.id + '_log.csv', rows);
+                var rows = [['Decided At', 'Official', 'Action', 'Remarks']];
+                (revision.decisionHistory || []).forEach(function (d) { rows.push([LL.fmtDateTime(d.decidedAt), d.officialName, d.action, d.remarks]); });
+                LL.exportCSV('case_' + revision.revisionId + '_log.csv', rows);
             });
 
-            var ICONS = { 'Scan uploaded': 'upload', 'Logged as Violation': 'gavel', 'Manufacturer notified': 'mail', 'Manufacturer uploaded revised label': 'description' };
+            // Action Timeline: submission event (always present, since only
+            // submitted revisions ever reach this page) followed by every
+            // recorded decision, oldest first reversed for display (newest on top).
             var timelineEl = document.getElementById('case-timeline');
-            var items = caseObj.timeline.slice().reverse();
-            items.forEach(function (item, idx) {
+            var events = [{ kind: 'submitted', date: revision.submittedAt }];
+            (revision.decisionHistory || []).forEach(function (d) { events.push({ kind: 'decision', date: d.decidedAt, decision: d }); });
+            events = events.slice().reverse();
+            events.forEach(function (event, idx) {
                 var isLatest = idx === 0;
                 var wrap = document.createElement('div');
                 wrap.className = 'relative' + (isLatest ? '' : ' opacity-80');
-                var icon = ICONS[item.title] || 'flag';
                 var dotClass = isLatest ? 'bg-tertiary-fixed' : 'bg-surface-variant';
-                var dotInner = isLatest ? '<span class="w-2 h-2 rounded-full bg-on-tertiary-container animate-pulse"></span>' : '<span class="material-symbols-outlined text-[14px] text-on-surface-variant">' + icon + '</span>';
-
-                var attachmentHtml = '';
-                if (item.attachment) {
-                    attachmentHtml =
-                        '<div class="flex gap-4 p-3 bg-surface-container-low rounded-md border border-outline-variant/50 mt-4">' +
-                        '<span class="material-symbols-outlined text-outline">description</span>' +
-                        '<div class="flex-1"><p class="text-body-md font-body-md font-medium text-primary">' + LL.escapeHtml(item.attachment) + '</p>' +
-                        '<p class="text-label-md font-label-md text-on-surface-variant">Uploaded by ' + LL.escapeHtml(item.actor) + '</p></div>' +
-                        (isLatest ? '<button class="bg-primary text-on-primary px-4 py-1.5 rounded-md text-body-md font-body-md font-medium hover:opacity-90 transition-opacity" id="review-now-btn">Review Now</button>' : '') +
-                        '</div>';
-                }
-
-                if (isLatest) {
-                    wrap.innerHTML =
-                        '<div class="absolute -left-10 mt-1.5 w-6 h-6 rounded-full ' + dotClass + ' border-2 border-surface flex items-center justify-center z-10">' + dotInner + '</div>' +
-                        '<div class="bg-tertiary-fixed/10 border border-tertiary-fixed/30 rounded-lg p-5">' +
-                        '<div class="flex justify-between items-start mb-2">' +
-                        '<h4 class="text-body-lg font-body-lg font-semibold text-on-background">' + LL.escapeHtml(item.title) + '</h4>' +
-                        '<span class="text-label-md font-label-md text-on-surface-variant bg-surface px-2 py-1 rounded border border-outline-variant">' + LL.fmtDateTime(item.date) + '</span></div>' +
-                        '<p class="text-body-md font-body-md text-on-surface-variant mb-1">' + LL.escapeHtml(item.desc) + '</p>' +
-                        '<p class="text-label-md font-label-md text-primary font-medium">Actor: ' + LL.escapeHtml(item.actor) + '</p>' +
-                        attachmentHtml + '</div>';
+                var title, desc, actor, icon;
+                if (event.kind === 'submitted') {
+                    title = 'Submitted for Official Review';
+                    desc = 'Manufacturer submitted this self-check revision for Legal Metrology inspector review.';
+                    actor = revision.manufacturerName || 'Manufacturer';
+                    icon = 'upload';
                 } else {
-                    wrap.innerHTML =
-                        '<div class="absolute -left-10 mt-1.5 w-6 h-6 rounded-full ' + dotClass + ' border-2 border-surface flex items-center justify-center z-10">' + dotInner + '</div>' +
-                        '<div class="flex justify-between items-start">' +
-                        '<div><h4 class="text-body-lg font-body-lg font-semibold text-on-background">' + LL.escapeHtml(item.title) + '</h4>' +
-                        '<p class="text-body-md font-body-md text-on-surface-variant">' + LL.escapeHtml(item.desc) + '</p>' +
-                        '<p class="text-label-md font-label-md text-primary mt-1 font-medium">Actor: ' + LL.escapeHtml(item.actor) + '</p></div>' +
-                        '<span class="text-label-md font-label-md text-on-surface-variant">' + LL.fmtDateTime(item.date) + '</span></div>';
+                    title = 'Decision Recorded: ' + (DECISION_LABEL[event.decision.action] || event.decision.action);
+                    desc = event.decision.remarks || '';
+                    actor = event.decision.officialName || 'Official';
+                    icon = DECISION_ICON[event.decision.action] || 'gavel';
                 }
+                var dotInner = isLatest ? '<span class="w-2 h-2 rounded-full bg-on-tertiary-container animate-pulse"></span>' : '<span class="material-symbols-outlined text-[14px] text-on-surface-variant">' + icon + '</span>';
+                var body =
+                    '<div class="flex justify-between items-start mb-2">' +
+                    '<h4 class="text-body-lg font-body-lg font-semibold text-on-background">' + LL.escapeHtml(title) + '</h4>' +
+                    '<span class="text-label-md font-label-md text-on-surface-variant bg-surface px-2 py-1 rounded border border-outline-variant">' + LL.fmtDateTime(event.date) + '</span></div>' +
+                    '<p class="text-body-md font-body-md text-on-surface-variant mb-1">' + LL.escapeHtml(desc) + '</p>' +
+                    '<p class="text-label-md font-label-md text-primary font-medium">Actor: ' + LL.escapeHtml(actor) + '</p>';
+                wrap.innerHTML =
+                    '<div class="absolute -left-10 mt-1.5 w-6 h-6 rounded-full ' + dotClass + ' border-2 border-surface flex items-center justify-center z-10">' + dotInner + '</div>' +
+                    (isLatest ? '<div class="bg-tertiary-fixed/10 border border-tertiary-fixed/30 rounded-lg p-5">' + body + '</div>' : '<div>' + body + '</div>');
                 timelineEl.appendChild(wrap);
-                var reviewBtn = wrap.querySelector('#review-now-btn');
-                if (reviewBtn) {
-                    reviewBtn.addEventListener('click', function () {
-                        location.href = 'log-case-action.html?id=' + encodeURIComponent(caseObj.id);
-                    });
-                }
             });
         }
     }

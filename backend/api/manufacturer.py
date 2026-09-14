@@ -48,11 +48,29 @@ def public_product(product: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in product.items() if key != "_id" and key != "manufacturerId"}
 
 
+def _public_decision(entry: dict[str, Any] | None) -> dict[str, Any] | None:
+    """officialDecision/decisionHistory entries (see backend/api/official.py's
+    record_decision) carry a raw ObjectId officialId - stringified here since
+    this is the shared shape both this endpoint AND official.py's own views
+    of a revision return, matching this codebase's existing convention of
+    never returning a raw ObjectId (_public_scan, public_user)."""
+    if entry is None:
+        return None
+    entry = dict(entry)
+    if entry.get("officialId") is not None:
+        entry["officialId"] = str(entry["officialId"])
+    return entry
+
+
 def public_revision(revision: dict[str, Any]) -> dict[str, Any]:
     """Strip Mongo-internal fields and attach the URL to fetch this revision's own uploaded image, if any."""
     public = {key: value for key, value in revision.items() if key != "manufacturerId" and key != "_id"}
     if public.get("sourceImageId"):
         public["sourceImageUrl"] = f"/api/manufacturer/revisions/{public['revisionId']}/image"
+    if "officialDecision" in public:
+        public["officialDecision"] = _public_decision(public["officialDecision"])
+    if "decisionHistory" in public:
+        public["decisionHistory"] = [_public_decision(entry) for entry in public["decisionHistory"]]
     return public
 
 
@@ -108,7 +126,17 @@ async def create_self_check(
         product = {"productId": f"PRD-{uuid.uuid4().hex[:12].upper()}", "manufacturerId": user["_id"], "productName": resolved_product_name, "sku": "PENDING", "description": "", "createdAt": now}
         db.products.insert_one(product)
     version = db.productRevisions.count_documents({"productId": product["productId"], "manufacturerId": user["_id"]}) + 1
-    revision = {"revisionId": f"REV-{uuid.uuid4().hex[:12].upper()}", "productId": product["productId"], "manufacturerId": user["_id"], "version": version, "imageReference": result.image, "ocrResult": result.model_dump(), "complianceResult": compliance.model_dump(), "issues": compliance.missing_fields, "suggestions": compliance.recommendations, "complianceScore": compliance.compliance_score, "createdAt": now}
+    revision = {
+        "revisionId": f"REV-{uuid.uuid4().hex[:12].upper()}", "productId": product["productId"], "manufacturerId": user["_id"],
+        "version": version, "imageReference": result.image, "ocrResult": result.model_dump(), "complianceResult": compliance.model_dump(),
+        "issues": compliance.missing_fields, "suggestions": compliance.recommendations, "complianceScore": compliance.compliance_score, "createdAt": now,
+        # Official review workflow (additive, orthogonal to complianceResult above -
+        # never derived from or fed back into the deterministic engine's own
+        # output). None/empty here means "private draft, not yet submitted to
+        # any official" - see backend/api/official.py, which refuses to serve
+        # any revision still in this state.
+        "reviewStatus": None, "submittedAt": None, "officialDecision": None, "decisionHistory": [],
+    }
     # Persist the actual uploaded image against this specific revision (own
     # GridFS bucket, same mechanism /api/scans already uses for the official
     # flow) so the report page can later render the real photo instead of
@@ -133,6 +161,31 @@ async def create_self_check(
     latest_status = "compliant" if compliance.overall_status == "COMPLIANT" else "needs_fix"
     db.products.update_one({"productId": product["productId"], "manufacturerId": user["_id"]}, {"$set": {"latestStatus": latest_status, "latestScore": compliance.compliance_score, "updatedAt": now}})
     db.history.insert_one({"userId": user["_id"], "manufacturerId": user["_id"], "actionType": "self_check_performed", "title": "Self-check completed", "description": f"Revision {version} for {resolved_product_name}", "documentId": revision["revisionId"], "createdAt": now})
+    return {"success": True, "revision": public_revision(revision)}
+
+
+@router.post("/revisions/{revision_id}/submit")
+def submit_revision_for_review(revision_id: str, user: dict[str, Any] = Depends(manufacturer_user)):
+    """Explicitly hand one owned revision to the official review queue.
+
+    Self-checks are a private iteration tool by design (a manufacturer may
+    run several before anything is fit to show an inspector) - so submission
+    is a deliberate, separate action, never automatic on self-check creation.
+    """
+    db = get_database()
+    revision = db.productRevisions.find_one({"revisionId": revision_id, "manufacturerId": user["_id"]})
+    if revision is None:
+        raise HTTPException(status_code=404, detail="Revision not found")
+    if revision.get("reviewStatus") in ("PENDING_OFFICIAL_REVIEW", "UNDER_OFFICIAL_REVIEW"):
+        raise HTTPException(status_code=409, detail="Already submitted and awaiting official review")
+    now = utcnow()
+    db.productRevisions.update_one({"revisionId": revision_id}, {"$set": {"reviewStatus": "PENDING_OFFICIAL_REVIEW", "submittedAt": now}})
+    db.history.insert_one({
+        "userId": user["_id"], "manufacturerId": user["_id"], "actionType": "revision_submitted_for_review",
+        "title": "Submitted for official review", "description": f"Revision {revision.get('version')} ({revision.get('imageReference')})",
+        "documentId": revision_id, "createdAt": now,
+    })
+    revision.update({"reviewStatus": "PENDING_OFFICIAL_REVIEW", "submittedAt": now})
     return {"success": True, "revision": public_revision(revision)}
 
 

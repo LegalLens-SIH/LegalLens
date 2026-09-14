@@ -38,6 +38,7 @@ def connect_to_mongodb() -> Database:
     _database.users.create_index("email", unique=True)
     _database.products.create_index([("manufacturerId", 1), ("updatedAt", -1)])
     _database.productRevisions.create_index([("productId", 1), ("version", -1)])
+    _database.productRevisions.create_index([("reviewStatus", 1), ("submittedAt", -1)])
     _database.scans.create_index([("userId", 1), ("date", -1)])
     _database.sessions.create_index("expiresAt", expireAfterSeconds=0)
     _database.history.create_index([("userId", 1), ("createdAt", -1)])

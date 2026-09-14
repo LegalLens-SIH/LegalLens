@@ -46,6 +46,7 @@
     products: function () { return request(API_ORIGIN + "/api/manufacturer/products"); },
     createProduct: function (data) { return request(API_ORIGIN + "/api/manufacturer/products", { method: "POST", body: JSON.stringify(data) }); },
     revisions: function () { return request(API_ORIGIN + "/api/manufacturer/revisions"); },
+    submitForReview: function (revisionId) { return request(API_ORIGIN + "/api/manufacturer/revisions/" + encodeURIComponent(revisionId) + "/submit", { method: "POST" }); },
     selfCheck: function (file, productId, productName) {
       var formData = new FormData();
       formData.append("file", file, file.name);
