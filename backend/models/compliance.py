@@ -14,11 +14,31 @@ ComplianceStatus = Literal["COMPLIANT", "PARTIALLY_COMPLIANT", "NON_COMPLIANT", 
 FieldStatus = Literal["PASS", "FAIL", "PARTIAL", "NEEDS_MANUAL_VERIFICATION", "NOT_DETECTED"]
 
 
+class RegionEvidence(BaseModel):
+    """One OCR detection that supports a field's resolved value - the
+    authoritative mapping stays "OCR detection -> region_<index>", the SAME
+    addressing backend/services/structured_extraction.py's evidence_region_ids
+    already uses (see compliance_engine.py's _field_regions). bbox is the
+    flat [x1, y1, x2, y2] pixel list, matching backend/ocr/schemas.py's
+    Detection.bbox shape exactly - not a re-encoded/duplicate representation."""
+
+    region_id: str
+    bbox: list[int] = Field(..., min_length=4, max_length=4)
+    text: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
 class NormalizedField(BaseModel):
     value: Any = None
     detected: bool = False
     confidence: float = Field(0, ge=0, le=1)
     source: str = "ocr"
+    # Evidence linking the OCR text/regions that produced `value` - empty
+    # when no specific detection line could be matched (see
+    # compliance_engine.py's _field_regions docstring for the conservative
+    # fallback policy: never invented, only ever a real match or empty).
+    region_ids: list[str] = Field(default_factory=list)
+    regions: list[RegionEvidence] = Field(default_factory=list)
 
 
 class NormalizedOCRResult(BaseModel):
@@ -37,6 +57,14 @@ class FieldResult(BaseModel):
     confidence: float = 0
     missing: list[str] = Field(default_factory=list)
     explanation: str = ""
+    # New, additive, backward-compatible (see task: evidence-region
+    # propagation) - the same evidence NormalizedField already carries,
+    # copied through unchanged so a compliance finding can point back to
+    # the exact OCR detection(s)/bounding box(es) behind it. Never
+    # independently recomputed here - see compliance_engine.py's _field_result
+    # and friends, which just pass `field.region_ids`/`field.regions` through.
+    region_ids: list[str] = Field(default_factory=list)
+    regions: list[RegionEvidence] = Field(default_factory=list)
 
 
 class Evidence(BaseModel):
@@ -44,6 +72,8 @@ class Evidence(BaseModel):
     ocr_evidence: str = "Not detected by OCR"
     validation: str
     result: str
+    region_ids: list[str] = Field(default_factory=list)
+    regions: list[RegionEvidence] = Field(default_factory=list)
 
 
 class RuleResult(BaseModel):

@@ -10,6 +10,7 @@ photos, not aggressive image manipulation.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
 import cv2
@@ -18,6 +19,19 @@ import numpy as np
 logger = logging.getLogger("legallense.ocr.preprocessing")
 
 MAX_SIDE_DEFAULT = 2000
+
+# Master on/off switch for the production OCR path (backend/api/ocr.py's
+# run_ocr) - same read-once-at-import-time pattern as YOLO_ENABLED
+# (backend/ocr/yolo_service.py) and GEMINI_ENABLED (backend/ocr/
+# gemini_service.py), for the same reason documented in backend/main.py's
+# load_dotenv() comment: this must be read AFTER .env is loaded, which
+# main.py already guarantees by loading .env before importing backend.api.ocr
+# (which imports this module in turn). Defaults to "false" - preprocessing
+# stays fully opt-in in production exactly as it already was (this module's
+# own docstring/README already describe it as "off by default, enable
+# selectively"), so setting no env var at all changes nothing about
+# existing behavior.
+PREPROCESSING_ENABLED = os.getenv("OCR_PREPROCESSING_ENABLED", "false").strip().lower() in {"true", "1", "yes"}
 
 
 @dataclass

@@ -1,4 +1,6 @@
-from backend.services.compliance_engine import ComplianceEngine, _aggregate_checks, normalize_ocr_result
+import pytest
+
+from backend.services.compliance_engine import CONFIDENCE_THRESHOLD, ComplianceEngine, _aggregate_checks, _rule_result, load_ruleset, normalize_ocr_result
 
 
 def region(class_name, text, class_id=0, detection_confidence=0.9, text_confidence=0.95):
@@ -25,7 +27,7 @@ def ocr(**overrides):
         "common_generic_name_of_commodity": {"value": "Rice", "detected": True, "confidence": 0.98},
         "net_quantity": {"value": "5 kg", "detected": True, "confidence": 0.98},
         "month_and_year_of_manufacture_or_packing": {"value": "08/2026", "detected": True, "confidence": 0.98},
-        "maximum_retail_price_mrp": {"value": "MRP Rs. 450", "detected": True, "confidence": 0.98},
+        "maximum_retail_price_mrp": {"value": "MRP Rs. 450 (Inclusive of all taxes)", "detected": True, "confidence": 0.98},
         "unit_sale_price": {"value": "Rs. 90/kg", "detected": True, "confidence": 0.98},
         "consumer_care_details": {"value": {"name": "ABC", "address": "Pune", "telephone_number": "1800123456", "email_address": "care@abc.example"}, "detected": True, "confidence": 0.98},
     }
@@ -50,7 +52,7 @@ def test_missing_mrp_is_review_required_not_confirmed_non_compliant():
 
 
 def test_ocr_mrp_without_currency_is_detected():
-    data = ocr(full_text="MRP: 149\nConsumer Care: 1800-123-4567\nEmail: care@example.com")
+    data = ocr(full_text="MRP: 149 (Incl. of all taxes)\nConsumer Care: 1800-123-4567\nEmail: care@example.com")
     data["fields"] = {}
     data["detections"] = [{"confidence": 0.98}]
     result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
@@ -179,7 +181,7 @@ def test_region_with_no_text_is_recorded_as_not_detected():
 def test_regions_absent_falls_back_to_whole_page_alias_matching_unchanged():
     """No 'regions' key at all - single_region/no-YOLO mode - must behave
     exactly as it did before multi-region support existed."""
-    data = ocr(full_text="MRP: Rs. 149\nConsumer Care: 1800-123-4567\nEmail: care@example.com")
+    data = ocr(full_text="MRP: Rs. 149 (Incl. of all taxes)\nConsumer Care: 1800-123-4567\nEmail: care@example.com")
     data["fields"] = {}
     data["detections"] = [{"confidence": 0.98}]
     result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
@@ -193,7 +195,7 @@ def test_supplied_fields_still_override_region_based_extraction():
     data = ocr()  # fields already supplied with MRP "MRP Rs. 450"
     data["regions"] = [region("mrp", "MRP Rs. 1")]
     normalized = normalize_ocr_result(data)
-    assert normalized.fields["maximum_retail_price_mrp"].value == "MRP Rs. 450"
+    assert normalized.fields["maximum_retail_price_mrp"].value == "MRP Rs. 450 (Inclusive of all taxes)"
 
 
 # --- Whole-page alias-matching robustness fixes: real multi-column OCR ---
@@ -343,10 +345,14 @@ def test_country_of_origin_ignores_original_substring():
 
 def test_country_of_origin_matches_valid_declaration_forms():
     """Word-boundaried "origin" must still accept the real, valid ways this
-    declaration is printed on Indian labels."""
+    declaration is printed on Indian labels. The keyword-only case
+    ("Country of Origin" alone, "India" on the next line) is now completed
+    via the nearby-line completion mechanism added for this - deliberately
+    changed from the old bare "Country of Origin" expectation, matching the
+    same precedent as net_quantity's own nearby-line completion."""
     for text, expected_line in [
         ("Country of Origin: India\nNET WEIGHT: 60 g", "Country of Origin: India"),
-        ("Country of Origin\nIndia\nNET WEIGHT: 60 g", "Country of Origin"),
+        ("Country of Origin\nIndia\nNET WEIGHT: 60 g", "Country of Origin India"),
         ("Origin: India\nNET WEIGHT: 60 g", "Origin: India"),
     ]:
         data = ocr(full_text=text)
@@ -654,18 +660,22 @@ def test_mrp_not_detected_is_absent_unconfirmed():
 
 
 def test_mrp_detected_valid_is_present_valid():
-    field, _result = _mrp_field("MRP Rs. 99")
+    field, _result = _mrp_field("MRP Rs. 99 (Inclusive of all taxes)")
     assert field.status == "PASS"
 
 
-def test_mrp_detected_invalid_is_confirmed_non_compliant():
-    """PRESENT_INVALID -> NON_COMPLIANT (FAIL), NOT downgraded to review:
-    the MRP wording is positively identified (strong, confirming evidence
-    this line IS the MRP declaration), and it contains no valid amount at
-    all - a structural defect in the printed declaration itself."""
+def test_mrp_wording_present_amount_unreadable_is_needs_review_not_fail():
+    """P0 fix: MRP wording is positively identified (strong, confirming
+    evidence this line IS the MRP declaration), but no valid amount could
+    be read from it - this must NOT be a confirmed FAIL, since OCR failing
+    to read the numeral (blur, glare, embossed printing) is exactly as
+    plausible as the package genuinely lacking one, and text evidence
+    alone can't distinguish those two cases. Deliberately changed from an
+    earlier version of this test that asserted FAIL here - see
+    _mrp_result's comment for the full reasoning."""
     field, result = _mrp_field("Maximum Retail Price: ABC")
-    assert field.status == "FAIL"
-    assert result.overall_status == "NON_COMPLIANT"
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result.overall_status != "NON_COMPLIANT"
 
 
 def test_mrp_detected_but_ambiguous_wording_stays_needs_review():
@@ -698,14 +708,16 @@ def test_unit_sale_price_detected_valid_is_present_valid():
     assert field.status == "PASS"
 
 
-def test_unit_sale_price_detected_invalid_is_confirmed_non_compliant():
-    """PRESENT_INVALID -> NON_COMPLIANT (FAIL): every unit_sale_price alias
-    is already specific to a per-unit-price context, so detection here is
-    strong evidence this line IS a unit-price declaration attempt - no
-    valid per-unit amount in it is a confirmed defect, not uncertainty."""
+def test_unit_sale_price_wording_present_amount_unreadable_is_needs_review_not_fail():
+    """P0 fix: unit_sale_price wording is specific and strong evidence this
+    line IS a unit-price declaration attempt, but no valid per-unit amount
+    could be read from it - must NOT be a confirmed FAIL, for the same
+    reason as the matching MRP case (OCR-quality vs. genuine absence can't
+    be distinguished from text alone). Deliberately changed from an
+    earlier version of this test that asserted FAIL here."""
     field, result = _unit_price_field("Unit Sale Price: N/A")
-    assert field.status == "FAIL"
-    assert result.overall_status == "NON_COMPLIANT"
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result.overall_status != "NON_COMPLIANT"
 
 
 def test_unit_sale_price_detected_but_low_confidence_stays_needs_review():
@@ -805,6 +817,135 @@ def test_manufactured_by_and_packed_by_still_detected_no_regression():
         field = normalized.fields["manufacturer_packer_importer_details"]
         assert field.detected is True, text
         assert field.value == expected, text
+
+
+# --- ACCURACY FIX #3: "FOR MFG. UNIT SEE..." reversed-order manufacturer
+# declaration (real Pears_back.jpg benchmark wording - a standardized
+# multi-plant FMCG labeling convention), and confirmation that
+# DarkFantasy_back.jpg's consumer-care-office-only text is deliberately
+# NOT recovered (see the audit report and the code comment above
+# _ROLE_HEADING_PATTERNS for the full reasoning).
+
+def _manufacturer_field(full_text: str):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    return normalized.fields["manufacturer_packer_importer_details"]
+
+
+def test_manufacturer_detected_for_mfg_unit_see_real_pears_wording():
+    """The exact real Pears_back.jpg benchmark structure: "FOR MFG. UNIT
+    SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING [symbol]" on one line,
+    the actual company name on the next - the reversed word order
+    ("for" + stem, not stem + "by/for") the existing patterns don't cover."""
+    field = _manufacturer_field(
+        "CITIES/CHANNELS/OUTLETS ONLY.\n"
+        "FOR MFG. UNIT SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING Ø\n"
+        "BELOW. D) HINDUSTAN UNILEVER LTD., C-9, M.I.D.C. AREA,\n"
+        "INGREDIENTS: WATER, SODIUM PALM KERNELATE,"
+    )
+    assert field.detected is True
+    assert "HINDUSTAN UNILEVER LTD" in field.value
+    assert field.value.startswith("FOR MFG. UNIT SEE")
+
+
+def test_manufacturer_for_mfg_unit_see_stays_unresolved_without_nearby_company():
+    """If no genuine entity content is found nearby (only other, unrelated
+    declarations), the field must stay heading-only - never a fabricated
+    value - matching the existing behavior every other role already has."""
+    field = _manufacturer_field(
+        "FOR MFG. UNIT SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING Ø\n"
+        "INGREDIENTS: WATER, SODIUM PALM KERNELATE,\n"
+        "NET WEIGHT: 100 g"
+    )
+    assert field.detected is True
+    assert field.value == "FOR MFG. UNIT SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING Ø"
+    # And the compliance layer must correctly treat a heading-only value as
+    # unconfirmed, not a fabricated PASS - mirrors the existing behavior
+    # already verified for the other roles via _manufacturer_result.
+    data = ocr(full_text=(
+        "FOR MFG. UNIT SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING Ø\n"
+        "INGREDIENTS: WATER, SODIUM PALM KERNELATE,\n"
+        "NET WEIGHT: 100 g"
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    manufacturer_result = result.rule_results[0].required_fields["manufacturer_packer_importer_details"]
+    assert manufacturer_result.status == "NEEDS_MANUAL_VERIFICATION"
+
+
+@pytest.mark.parametrize("text", [
+    "MFG DATE: 01/2024",  # a manufacturing DATE stamp, not a role declaration
+    "FOR MFG DATE SEE BELOW",  # same shape as the real trigger, but "date", not "unit" - must not collide
+    "This is manufactured using modern equipment.",  # bare "manufactured" with no "by"/"for"/"unit see" nearby
+    "FOR BEST RESULTS SEE INSTRUCTIONS BELOW.",  # "for"+"see" shape, but no "mfg"/"unit" at all
+])
+def test_manufacturer_for_mfg_unit_see_rejects_unrelated_mfg_phrasing(text):
+    """Not a broad "for"+"mfg" alias - only the specific "for mfg[.] unit
+    see" phrase triggers detection, so ordinary MFG-date stamps and
+    unrelated "for...see" instruction text must never be mistaken for
+    this declaration. ("manufactured for <X>" bare phrasing is a
+    separate, pre-existing, already-accepted pattern - real Parle-G
+    wording, "MANUFACTURED FOR PARLE BISCUITS PVT. LTD." - unrelated to
+    this fix and deliberately not re-litigated here.)"""
+    field = _manufacturer_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as manufacturer_packer_importer_details"
+
+
+@pytest.mark.parametrize("text", [
+    "CONSUMER CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE",
+    "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER CARE OFFICE, ITC LIMITED",
+    "HINDUSTAN UNILEVER LIMITED (HUL). PEARS IS A REGISTERED TRADEMARK.",
+    "Consumer Care: 1800-123-4567, ABC Foods Pvt Ltd",
+])
+def test_manufacturer_does_not_infer_from_company_name_or_consumer_care_context(text):
+    """CRITICAL SAFETY REQUIREMENT: a company name appearing near "consumer
+    care", in a trademark notice, or in ordinary prose must NEVER be
+    treated as a manufacturer/packer/importer declaration on its own - only
+    an explicit role phrase ("manufactured by"/"packed by"/"for mfg unit
+    see"/...) may trigger detection. This is the exact real
+    DarkFantasy_back.jpg shape (a consumer-care office address that
+    happens to name a company) - see the code comment above
+    _ROLE_HEADING_PATTERNS for the full reasoning on why this stays
+    unresolved rather than being force-matched."""
+    field = _manufacturer_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as manufacturer_packer_importer_details"
+
+
+def test_manufacturer_darkfantasy_real_structure_stays_unresolved():
+    """End-to-end confirmation using the real DarkFantasy_back.jpg
+    benchmark structure (consumer-care office address only, no
+    manufacturer/packer/importer role phrase anywhere) - correctly stays
+    NEEDS_MANUAL_VERIFICATION, never a fabricated PASS."""
+    data = ocr(full_text=(
+        "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER\n"
+        "10th FLOOR, NO. 18, BANASWADI MAIN ROAD,\n"
+        "CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE\n"
+        "BENGALURU-560005.itccares@itc.in\n"
+        "1800 425 444 444. QUALITY GUARANTEED."
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    assert normalized.fields["manufacturer_packer_importer_details"].detected is False
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    manufacturer_result = result.rule_results[0].required_fields["manufacturer_packer_importer_details"]
+    assert manufacturer_result.status == "NEEDS_MANUAL_VERIFICATION"
+
+
+def test_manufacturer_for_mfg_unit_see_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must work correctly for the
+    newly-recognized "for mfg unit see" wording too."""
+    data = _detections_ocr([
+        ("FOR MFG. UNIT SEE THE FIRST CHARACTER(S) OF THE CODE FOLLOWING Ø", 0.97),
+        ("BELOW. D) HINDUSTAN UNILEVER LTD., C-9, M.I.D.C. AREA,", 0.95),
+    ])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["manufacturer_packer_importer_details"]
+    assert field.detected
+    assert field.region_ids
 
 
 def test_mfg_date_accepts_mm_yyyy_and_dotted_formats():
@@ -1119,3 +1260,1142 @@ def test_britannia_and_parle_g_manufacturer_unaffected():
     assert britannia_normalized.fields["manufacturer_packer_importer_details"].value == "MANUFACTURED & MARKETED BY: BRITANNIA INDUSTRIES LTD."
     parle_g_normalized = normalize_ocr_result(_parle_g_ocr())
     assert parle_g_normalized.fields["manufacturer_packer_importer_details"].value == "MANUFACTURED FOR PARLE BISCUITS PVT. LTD."
+
+# --- P0 fixes: MRP/unit-price false-FAIL prevention + field-level confidence ---
+#
+# See compliance_engine.py's _mrp_result/_unit_sale_price_result comments
+# and _field_confidence's docstring for the full reasoning. Reuses the same
+# real Britannia/Parle-G fixtures already defined above where useful, plus
+# targeted synthetic detections for the confidence-isolation cases, which
+# need precisely controlled per-line confidences no single real fixture
+# happens to have.
+
+def _detections_ocr(lines_with_confidence: list[tuple[str, float]]) -> dict:
+    """Build an ocr_result dict with real per-line detections (text +
+    confidence), the same shape PaddleOCRService actually produces -
+    unlike _mrp_field/_unit_price_field's supplied-fields shortcut, this
+    exercises normalize_ocr_result's own text/detection parsing, which is
+    what _field_confidence (the P0 Issue 2 fix) actually runs against."""
+    full_text = "\n".join(text for text, _ in lines_with_confidence)
+    detections = [{"text": text, "confidence": conf} for text, conf in lines_with_confidence]
+    return {"document_id": "DOC-TEST", "product_type": "packaged_commodity", "package_type": "retail", "full_text": full_text, "fields": {}, "detections": detections}
+
+
+# 1. MRP wording + unreadable amount -> NEEDS_MANUAL_VERIFICATION
+#    (test_mrp_wording_present_amount_unreadable_is_needs_review_not_fail, above)
+
+# 2. MRP wording + valid amount -> existing correct result
+#    (test_mrp_detected_valid_is_present_valid, above - unchanged, still passing)
+
+
+def test_mrp_successfully_parsed_degenerate_amount_is_not_independently_validated():
+    """Documents a real, PRE-EXISTING limitation, not introduced or changed
+    by this task: once an amount IS successfully parsed from MRP-labeled
+    text, this engine has no minimum/legal-validity check on its
+    magnitude - "MRP Rs. 0.01" currently PASSes exactly like any other
+    successfully-parsed amount. This is unrelated to the P0 fix (which
+    only changes the "no amount could be parsed at all" case - see
+    test_mrp_wording_present_amount_unreadable_is_needs_review_not_fail).
+    Per this task's explicit instruction not to change legal requirements,
+    no minimum-amount rule is added here. If one is added in a future
+    task, it would produce a confirmed FAIL through the SAME "amount was
+    read and rejected" path this fix deliberately leaves untouched."""
+    field, _result = _mrp_field("MRP Rs. 0.01 (Inclusive of all taxes)")
+    assert field.status == "PASS"
+    assert field.value["normalized_value"] == 0.01
+
+
+# 4. Unit-price wording + unreadable amount -> review/manual verification
+#    (test_unit_sale_price_wording_present_amount_unreadable_is_needs_review_not_fail, above)
+
+
+def test_mrp_confidence_reflects_its_own_region_not_a_low_page_average():
+    """P0 Issue 2, item 5: a low-confidence UNRELATED line elsewhere on the
+    label must not drag down the MRP field's own confidence - it must
+    reflect the MRP line's own (high) OCR confidence instead."""
+    data = _detections_ocr([
+        ("MRP Rs. 149.00", 0.98),
+        ("Some barely-legible ingredient text", 0.20),
+    ])
+    normalized = normalize_ocr_result(data)
+    mrp = normalized.fields["maximum_retail_price_mrp"]
+    assert mrp.value is not None
+    assert mrp.confidence == pytest.approx(0.98, abs=0.001)
+    # Sanity check against the OLD (page-average) behavior this replaces:
+    # (0.98 + 0.20) / 2 = 0.59 - confirm the new value is NOT that.
+    assert mrp.confidence != pytest.approx(0.59, abs=0.02)
+
+
+def test_low_confidence_mrp_region_is_needs_manual_verification_via_existing_threshold():
+    """P0 Issue 2, item 6: the corrected per-field confidence must still
+    correctly trigger the EXISTING CONFIDENCE_THRESHOLD gate when the MRP
+    line itself - not some unrelated line - is genuinely low-confidence."""
+    data = _detections_ocr([
+        ("MRP Rs. 149.00", 0.40),
+        ("Some other clearly legible line", 0.99),
+    ])
+    normalized = normalize_ocr_result(data)
+    mrp = normalized.fields["maximum_retail_price_mrp"]
+    assert mrp.confidence == pytest.approx(0.40, abs=0.001)
+    assert mrp.confidence < CONFIDENCE_THRESHOLD
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    assert result.rule_results[0].required_fields["maximum_retail_price_mrp"].status == "NEEDS_MANUAL_VERIFICATION"
+
+
+def test_net_quantity_confidence_averages_all_contributing_regions():
+    """P0 Issue 2, item 7: multiple OCR lines supporting ONE field (the
+    keyword line + the nearby line where the actual number was found, once
+    multi-column interleaving separates them) must both contribute to that
+    field's confidence - not just one of them, and not an unrelated
+    interleaved line either."""
+    data = _detections_ocr([
+        ("NET WEIGHT:", 0.90),
+        ("Some unrelated interleaved line", 0.99),
+        ("75 g", 0.70),
+    ])
+    normalized = normalize_ocr_result(data)
+    qty = normalized.fields["net_quantity"]
+    assert qty.value == "NET WEIGHT: 75 g"
+    assert qty.confidence == pytest.approx((0.90 + 0.70) / 2, abs=0.01)
+
+
+def test_field_confidence_falls_back_to_page_average_when_no_region_matches():
+    """P0 Issue 2, item 8: conservative, documented fallback - if a field's
+    resolved text can't be matched back to any specific OCR detection
+    line at all, confidence falls back to the whole-page average rather
+    than inventing false precision or crashing. With zero detections
+    supplied, that average is honestly 0, not fabricated."""
+    data = {
+        "document_id": "DOC-TEST", "product_type": "packaged_commodity", "package_type": "retail",
+        "full_text": "MRP Rs. 149.00\nNET WEIGHT: 75 g", "fields": {}, "detections": [],
+    }
+    normalized = normalize_ocr_result(data)
+    mrp = normalized.fields["maximum_retail_price_mrp"]
+    assert mrp.detected is True
+    assert mrp.confidence == 0
+
+
+def test_field_confidence_falls_back_to_nonzero_page_average_when_only_that_field_is_unmatched():
+    """Same fallback as above, but shows it's the real page average (not
+    always 0): one field (net_quantity) has a real matching detection: the
+    other (MRP) exists only in full_text with no detection entry of its
+    own, so it conservatively inherits the page-wide average rather than a
+    fabricated per-field number."""
+    data = _detections_ocr([("NET WEIGHT: 75 g", 0.92)])
+    data["full_text"] = data["full_text"] + "\nMRP Rs. 10.00"
+    normalized = normalize_ocr_result(data)
+    mrp = normalized.fields["maximum_retail_price_mrp"]
+    assert mrp.detected is True
+    assert mrp.confidence == pytest.approx(0.92, abs=0.001)
+
+
+def _real_label_ocr_with_per_line_detections() -> dict:
+    """Same real Britannia text as _real_label_ocr(), but with a genuine
+    per-line detections list (built from REAL_LABEL_LINES, each line given
+    a distinct confidence) instead of _real_label_ocr()'s single
+    no-text confidence stub - needed to actually exercise per-field
+    confidence matching (_field_confidence) against real content, not just
+    its fallback path."""
+    data = ocr(full_text=REAL_LABEL_TEXT)
+    data["fields"] = {}
+    # One deliberately LOW-confidence unrelated line (the nutrition
+    # heading) mixed in with otherwise-high-confidence real lines - if
+    # field confidence were still the page average, every field would be
+    # dragged down by it; if it's genuinely field-specific, only fields
+    # resolved from/near that exact line would be affected.
+    data["detections"] = [
+        {"text": line, "confidence": 0.35 if line == "NUTRITION INFORMATION" else 0.97}
+        for line in REAL_LABEL_LINES
+    ]
+    return data
+
+
+def test_real_britannia_mrp_and_net_quantity_confidence_is_field_specific_not_dragged_down():
+    """Regression guard using real content: confirms the P0 confidence fix
+    genuinely reflects each field's OWN supporting line(s) on a real
+    label, not the page average - net_quantity ("NET WEIGHT:" / "75 g")
+    and the MRP declaration are nowhere near the deliberately-low-confidence
+    "NUTRITION INFORMATION" line, so neither should be dragged down by it."""
+    normalized = normalize_ocr_result(_real_label_ocr_with_per_line_detections())
+    assert normalized.fields["net_quantity"].value == "NET WEIGHT: 75 g"
+    assert normalized.fields["net_quantity"].confidence == pytest.approx(0.97, abs=0.01)
+    mrp = normalized.fields["maximum_retail_price_mrp"]
+    assert mrp.confidence == pytest.approx(0.97, abs=0.01)
+    assert mrp.confidence > 0.9
+
+
+# --- Evidence-region propagation: ComplianceResult -> FieldResult -> Evidence ---
+#
+# Verifies the "OCR detection -> region_<index> -> bbox/text/confidence"
+# chain now reaches the final compliance verdict, not just
+# StructuredExtraction (see backend/services/structured_extraction.py,
+# which was refactored in the same change to REUSE this exact matcher -
+# _matching_detection_indices/_field_confidence - rather than keeping its
+# own independent copy). None of this changes PASS/FAIL/REVIEW_REQUIRED
+# semantics, the confidence threshold, or any rule content - purely
+# additive evidence attached to the SAME verdict the engine already
+# produced.
+
+import copy
+
+from fastapi.testclient import TestClient
+
+
+def test_mrp_compliance_result_contains_correct_region_id():
+    """Item 1."""
+    data = _detections_ocr([("MRP Rs. 149.00", 0.98), ("NET WEIGHT: 250 g", 0.97)])
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert mrp.region_ids == ["region_0"]
+
+
+def test_mrp_region_contains_correct_bbox_text_confidence():
+    """Item 2."""
+    data = _detections_ocr([("MRP Rs. 149.00", 0.98), ("NET WEIGHT: 250 g", 0.97)])
+    data["detections"][0]["bbox"] = [38, 262, 436, 288]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert len(mrp.regions) == 1
+    region = mrp.regions[0]
+    assert region.region_id == "region_0"
+    assert region.bbox == [38, 262, 436, 288]
+    assert region.text == "MRP Rs. 149.00"
+    assert region.confidence == pytest.approx(0.98, abs=0.001)
+
+
+def test_net_quantity_maps_to_correct_ocr_region():
+    """Item 3."""
+    data = _detections_ocr([("MRP Rs. 10.00", 0.90), ("NET WEIGHT: 250 g", 0.95)])
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    qty = result.rule_results[0].required_fields["net_quantity"]
+    assert qty.region_ids == ["region_1"]
+    assert qty.regions[0].text == "NET WEIGHT: 250 g"
+
+
+def test_manufacturer_maps_to_correct_ocr_region():
+    """Item 4."""
+    data = _detections_ocr([
+        ("MANUFACTURED BY ACME FOODS PVT LTD, PUNE", 0.93),
+        ("NET WEIGHT: 250 g", 0.95),
+    ])
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    manufacturer = result.rule_results[0].required_fields["manufacturer_packer_importer_details"]
+    assert manufacturer.region_ids == ["region_0"]
+    assert "ACME FOODS" in manufacturer.regions[0].text
+
+
+def test_multiple_regions_can_support_one_field():
+    """Item 5: net_quantity resolved by JOINING two OCR lines (keyword +
+    nearby amount, once multi-column interleaving separates them) - both
+    must appear as separate regions supporting the same field."""
+    data = _detections_ocr([
+        ("NET WEIGHT:", 0.90),
+        ("Some unrelated interleaved line", 0.99),
+        ("75 g", 0.70),
+    ])
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    qty = result.rule_results[0].required_fields["net_quantity"]
+    assert qty.region_ids == ["region_0", "region_2"]
+    assert len(qty.regions) == 2
+    assert {r.text for r in qty.regions} == {"NET WEIGHT:", "75 g"}
+
+
+def test_missing_evidence_is_empty_list_not_invented():
+    """Item 6: a field with no detections at all (undetected) must get
+    region_ids=[]/regions=[], never a fabricated region."""
+    data = _detections_ocr([("Completely unrelated text with nothing useful", 0.99)])
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert mrp.status == "NEEDS_MANUAL_VERIFICATION"
+    assert mrp.region_ids == []
+    assert mrp.regions == []
+
+
+def test_existing_compliance_statuses_unchanged_for_real_fixtures():
+    """Item 7: real Britannia/Parle-G evaluations must produce the EXACT
+    SAME statuses as before evidence propagation was added - this change
+    is additive evidence only, never a verdict change."""
+    britannia = ComplianceEngine().evaluate(_real_label_ocr(), "e_commerce_product_listing")
+    assert britannia.overall_status == "REVIEW_REQUIRED"
+    parle_g_care = ComplianceEngine().evaluate(_parle_g_ocr(), "e_commerce_product_listing").rule_results[0].required_fields["consumer_care_details"]
+    assert parle_g_care.status == "PASS"
+
+
+def test_existing_ocr_result_is_not_mutated_by_evidence_propagation():
+    """Item 8: normalize_ocr_result/ComplianceEngine.evaluate must never
+    mutate the caller's ocr_result dict while computing evidence regions -
+    same "never mutates" contract normalize_ocr_result's docstring already
+    promises, now re-verified with the new region-matching code path
+    actually exercised."""
+    data = _detections_ocr([("MRP Rs. 149.00", 0.98), ("NET WEIGHT: 250 g", 0.97)])
+    before = copy.deepcopy(data)
+    ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    assert data == before
+
+
+def test_api_compliance_evaluate_serialization_is_backward_compatible():
+    """Item 9: POST /api/compliance/evaluate's response still has every
+    field an existing client already reads (status, value, confidence,
+    explanation), PLUS the new region_ids/regions - additive, not breaking."""
+    from backend.main import app
+
+    data = _detections_ocr([("MRP Rs. 149.00 (Incl. of all taxes)", 0.98), ("NET WEIGHT: 250 g", 0.97)])
+    with TestClient(app) as client:
+        response = client.post("/api/compliance/evaluate", json={"ocr_result": data, "validation_profile": "e_commerce_product_listing"})
+    assert response.status_code == 200
+    body = response.json()
+    mrp = body["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
+    # Pre-existing keys still present and correctly typed.
+    assert mrp["status"] == "PASS"
+    assert isinstance(mrp["value"], dict)
+    assert isinstance(mrp["confidence"], float)
+    assert isinstance(mrp["explanation"], str)
+    # New, additive keys.
+    assert mrp["region_ids"] == ["region_0"]
+    assert mrp["regions"][0]["bbox"] == [0, 0, 0, 0]  # no bbox supplied in this fixture - real, not invented
+    assert mrp["regions"][0]["text"] == "MRP Rs. 149.00 (Incl. of all taxes)"
+
+
+def test_real_britannia_and_parle_g_evidence_mapping():
+    """Item 10: using the real, per-line-detection Britannia fixture (see
+    P0 tests above), confirm evidence mapping is correct for a real label,
+    not just a synthetic one."""
+    normalized_data = _real_label_ocr_with_per_line_detections()
+    result = ComplianceEngine().evaluate(normalized_data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert mrp.status == "PASS"
+    assert len(mrp.region_ids) >= 1
+    assert any("MRP" in r.text.upper() for r in mrp.regions)
+
+    qty = result.rule_results[0].required_fields["net_quantity"]
+    assert qty.region_ids
+    assert any(r.text == "75 g" for r in qty.regions)
+
+
+# --- P1 COMPLIANCE COVERAGE ---------------------------------------------
+# R11 (LMPC-R11-NET-QUANTITY-EXCLUSION): confirmed unreachable from OCR/
+# image input (total_package_weight/wrapper_packaging_weight are physical
+# scale measurements, never produced anywhere in this pipeline) - see the
+# comment above this rule's handler in compliance_engine.py. Deliberately
+# left OUT of every validation_profile rather than wired in with fabricated
+# or perpetually-uncertain data; these tests confirm both halves of that
+# decision stay true.
+
+def test_r11_is_not_evaluated_by_any_validation_profile():
+    """R11 must not be wired into production merely because the code
+    exists - confirms it is absent from every profile's evaluate_rules,
+    i.e. no scan can ever silently pick it up."""
+    ruleset = load_ruleset()
+    for profile_name, profile in ruleset["validation_profiles"].items():
+        assert "LMPC-R11-NET-QUANTITY-EXCLUSION" not in profile.get("evaluate_rules", []), (
+            f"R11 must stay unwired (no OCR-derivable data source); found in profile {profile_name!r}"
+        )
+
+
+def test_r11_direct_evaluation_without_scale_data_is_needs_review_not_fabricated():
+    """If R11 is ever evaluated directly (bypassing profile selection),
+    the required physical-weight metadata is absent (as it always is from
+    an OCR/image-only pipeline) so the result must be
+    NEEDS_MANUAL_VERIFICATION - never a fabricated COMPLIANT/NON_COMPLIANT
+    pass or fail invented from missing measurements. Pre-existing,
+    unmodified behavior - confirms it still holds."""
+    normalized = normalize_ocr_result(ocr())
+    rule = {"rule_id": "LMPC-R11-NET-QUANTITY-EXCLUSION"}
+    result = _rule_result(rule, normalized)
+    assert result.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result.score is None
+
+
+# R24 (LMPC-R24-WHOLESALE-DECLARATIONS): the compliance-engine-level gate
+# (package_type == "wholesale") already existed and is covered by
+# test_wholesale_profile_evaluates_wholesale_rule above; these tests cover
+# what this task actually added - API-level profile selection (see
+# backend/api/test_ocr.py) and the package-count parsing fix below.
+
+def test_wholesale_package_count_wording_is_recognized_not_treated_as_weight():
+    """total_number_of_retail_packages_or_net_quantity's keyword line
+    ("Retail Packages") with no number on it, and the actual count
+    ("Contains 24 retail packages") printed a few lines later - the
+    completion search must recognize this as a PACKAGE COUNT declaration,
+    not require a gram/millilitre match the way plain net_quantity does."""
+    data = ocr(package_type="wholesale", full_text="Retail Packages\nSome unrelated line\nContains 24 retail packages\n")
+    data["fields"] = {}
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["total_number_of_retail_packages_or_net_quantity"]
+    assert field.detected
+    assert "24" in str(field.value)
+
+
+def test_wholesale_package_count_various_wordings_recognized():
+    """A handful of real-world package-count phrasings - "pack of N", "no.
+    of packages: N", "N packs" - not just the one exact wording exercised
+    above."""
+    from backend.services.compliance_engine import _parse_package_count
+
+    assert _parse_package_count("Pack of 20") == 20
+    assert _parse_package_count("No. of Packages: 12") == 12
+    assert _parse_package_count("24 Packs") == 24
+    assert _parse_package_count("10 Pouches") == 10
+    assert _parse_package_count("Net Weight: 500 g") is None
+
+
+def test_net_quantity_completion_unaffected_by_package_count_wording():
+    """Existing retail behavior is unchanged: net_quantity itself must
+    NEVER be completed by package-count wording (a retail package's net
+    quantity is always a weight/volume, never a count) - confirms the
+    wholesale-specific fix above did not alter net_quantity's own,
+    unrelated completion logic."""
+    data = ocr(full_text="Net Weight\nContains 24 retail packages\n")
+    data["fields"] = {}
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["net_quantity"]
+    assert field.detected
+    assert field.value == "Net Weight"  # left keyword-only: no weight/volume candidate found nearby
+
+
+def test_existing_retail_profile_behavior_unchanged_by_wholesale_wiring():
+    """A plain retail e_commerce_product_listing evaluation (package_type
+    defaults to "retail") is byte-for-byte unaffected by the wholesale
+    wiring added in this task."""
+    assert ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing").overall_status == "COMPLIANT"
+
+
+# MRP "inclusive of all taxes" (LMPC-R6 mrp_format.text_requirement) - the
+# three cases from the task description, each with an explicitly-named
+# dedicated test (some incidental coverage already exists from fixture
+# updates elsewhere in this file; these are the canonical, clearly-named
+# ones).
+
+def test_mrp_case_a_amount_and_tax_wording_detected_is_pass():
+    """Case A: amount detected + tax wording detected -> normal PASS."""
+    field, _result = _mrp_field("MRP Rs. 99 (Inclusive of all taxes)")
+    assert field.status == "PASS"
+    assert field.value["normalized_value"] == 99
+
+
+def test_mrp_case_b_amount_detected_tax_wording_absent_is_needs_review():
+    """Case B: amount detected + tax wording absent. Per the engine's
+    existing uncertainty model (OCR non-detection is not confirmed
+    physical absence - same principle as the P0 amount-unreadable fix),
+    this is NEEDS_MANUAL_VERIFICATION, not a fabricated NON_COMPLIANT: the
+    engine cannot distinguish "the qualifier is genuinely missing from the
+    label" from "OCR simply didn't pick up that (often smaller-print)
+    line"."""
+    field, result = _mrp_field("MRP Rs. 99")
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert "inclusive of all taxes" in field.explanation.lower()
+    assert result.overall_status != "NON_COMPLIANT"
+
+
+def test_mrp_case_c_low_confidence_ocr_does_not_produce_false_violation():
+    """Case C: OCR quality prevents determining whether the tax wording
+    exists at all (low-confidence detection) - must not create a false
+    CONFIRMED violation. Falls into the same NEEDS_MANUAL_VERIFICATION
+    path as Case B, which is itself never a confirmed violation."""
+    field, result = _mrp_field("MRP Rs. 99", confidence=0.3)
+    assert field.status != "NON_COMPLIANT"
+    assert result.overall_status != "NON_COMPLIANT"
+
+
+def test_mrp_case_c_unreadable_amount_stays_needs_review_not_fail():
+    """Case C variant: OCR quality prevents reading the amount itself
+    (wording present, digits unreadable) - pre-existing P0 false-FAIL
+    protection, confirmed still intact after the tax-wording check was
+    added alongside it."""
+    field, result = _mrp_field("Maximum Retail Price: ABC (Inclusive of all taxes)")
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result.overall_status != "NON_COMPLIANT"
+
+
+# --- PARSER ROBUSTNESS: net_quantity word order / vocabulary, ------------
+# unit_sale_price bare-substring false-match (real regression benchmark
+# findings - see training/benchmark_results/). Every wording below is
+# either the exact real OCR text a benchmark fixture produced, or a direct
+# variant the task explicitly asked to cover.
+
+def _net_quantity_field(full_text: str):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    return normalized.fields["net_quantity"]
+
+
+@pytest.mark.parametrize("text,expected_grams_or_ml", [
+    ("Net 500 g", 500.0),
+    ("500 g Net", 500.0),
+    ("Net Quantity: 500 g", 500.0),
+    ("500 g Net Quantity", 500.0),
+    ("Net Contents: 250 ml", 250.0),
+    ("Net Contents When Packed: 100 g", 100.0),
+    ("180 ml Net", 180.0),  # the exact real Handwash_back.jpg benchmark wording
+])
+def test_net_quantity_word_order_and_vocabulary_variants_detected(text, expected_grams_or_ml):
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field(text)
+    assert field.detected, f"{text!r} should be detected as net_quantity"
+    parsed = _parse_net_quantity(str(field.value))
+    assert parsed is not None
+    assert parsed[0] == expected_grams_or_ml
+
+
+def test_net_quantity_does_not_confuse_gross_weight():
+    """Do not confuse net quantity with gross weight - a real, legally
+    distinct declaration this engine must never treat as net_quantity."""
+    field = _net_quantity_field("Gross Weight: 600 g")
+    assert not field.detected
+
+
+def test_net_quantity_does_not_confuse_serving_size():
+    field = _net_quantity_field("Serving Size: 30 g")
+    assert not field.detected
+
+
+def test_net_quantity_does_not_confuse_dimensions():
+    field = _net_quantity_field("Dimensions: 12 cm x 8 cm x 5 cm")
+    assert not field.detected
+
+
+def test_net_quantity_does_not_confuse_ingredient_quantity():
+    field = _net_quantity_field("Contains Sugar 500 g per batch")
+    assert not field.detected
+
+
+def test_net_quantity_does_not_confuse_promotional_number():
+    field = _net_quantity_field("Now 500 g EXTRA FREE! Buy 1 Get 1")
+    assert not field.detected
+
+
+def test_net_quantity_ocr_corrupted_weight_stays_unresolved_not_fabricated():
+    """The real Ferrero_back.jpg benchmark case: glare corrupted "NET
+    WEIGHT" into "COSETWEIGHT". No fuzzy recovery is implemented (see the
+    comment in compliance_engine.py right after _parse_net_quantity) -
+    confirms the field stays undetected (never a fabricated quantity) and
+    the compliance layer correctly falls back to NEEDS_MANUAL_VERIFICATION,
+    not a confirmed violation."""
+    field = _net_quantity_field("COSETWEIGHT")
+    assert not field.detected
+    assert field.value is None
+
+    data = ocr(full_text="COSETWEIGHT")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    net_qty_result = result.rule_results[0].required_fields["net_quantity"]
+    assert net_qty_result.status == "NEEDS_MANUAL_VERIFICATION"
+    assert net_qty_result.value is None  # never a fabricated quantity
+
+
+def test_net_quantity_evidence_mapping_correct_for_reordered_wording():
+    """Evidence mapping (region_ids/regions) must still work correctly for
+    the newly-recognized reordered wording - not just for the pre-existing
+    "Net Weight: X" phrasing."""
+    data = _detections_ocr([("180 ml Net", 0.97), ("Some Unrelated Line", 0.9)])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["net_quantity"]
+    assert field.detected
+    assert field.region_ids
+    assert any("180 ml Net" in r.text for r in field.regions)
+
+
+def _unit_sale_price_field(full_text: str):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    return normalized.fields["unit_sale_price"]
+
+
+def test_unit_sale_price_license_code_is_not_false_matched():
+    """The exact real Facewash_back.jpg benchmark bug: the bare "/l" alias
+    matched inside a manufacturing license code, not a per-litre price."""
+    field = _unit_sale_price_field("Mfg. Lic. No. M HIM/COS/L/12/167")
+    assert not field.detected
+
+
+@pytest.mark.parametrize("text", [
+    "₹100 / l",
+    "₹20 / kg",
+    "₹0.20 / g",
+    "₹50 per 100 g",
+    "Rs 0.38 per g",
+    "Unit Sale Price: Rs 5/kg",
+])
+def test_unit_sale_price_legitimate_examples_still_detected(text):
+    field = _unit_sale_price_field(text)
+    assert field.detected, f"{text!r} should still be detected as unit_sale_price"
+
+
+@pytest.mark.parametrize("text", [
+    "Mfg. Lic. No. M HIM/COS/L/12/167",
+    "Batch/G/2024",
+    "ABC/G123 unrelated code",
+    "FSSAI/L/998877",
+    "Model No. XYZ/KG-100",
+])
+def test_unit_sale_price_analogous_substring_traps_not_matched(text):
+    """Not just the exact "/l" case - the underlying matching mechanism
+    (bounded amount+unit pattern, not a bare substring) must reject every
+    unit-suffix-shaped code, not merely the one observed string."""
+    field = _unit_sale_price_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as unit_sale_price"
+
+
+def test_unit_sale_price_license_code_does_not_produce_false_pass():
+    """End-to-end: the license-code false match must not flow through to a
+    confirmed compliance PASS built on the wrong text."""
+    data = ocr(full_text="Mfg. Lic. No. M HIM/COS/L/12/167")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    usp_result = result.rule_results[0].required_fields["unit_sale_price"]
+    assert usp_result.status != "PASS"
+    assert usp_result.value != "Mfg. Lic. No. M HIM/COS/L/12/167"
+
+
+# --- PARSER ROBUSTNESS, continued: "Net Vol." and OCR space-collapsed ----
+# "NETWEIGHT" (real regression benchmark findings, second pass - see
+# training/benchmark_results/). Both real fixture wordings below are the
+# exact OCR text Facewash_back.jpg and Cookie_back.jpg produced.
+
+@pytest.mark.parametrize("text,expected_ml", [
+    ("Net Vol. 100 ml", 100.0),
+    ("Net Vol 100 ml", 100.0),
+    ("Net Volume 100 ml", 100.0),
+])
+def test_net_quantity_net_vol_variants_detected(text, expected_ml):
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field(text)
+    assert field.detected, f"{text!r} should be detected as net_quantity"
+    parsed = _parse_net_quantity(str(field.value))
+    assert parsed is not None
+    assert parsed[0] == expected_ml
+
+
+def test_net_quantity_bare_vol_alone_is_not_a_signal():
+    """Do NOT make "vol" alone a net-quantity signal - only "net vol"
+    (immediately preceded by "net") may trigger detection."""
+    field = _net_quantity_field("Volume Discount Offer 200 g")
+    assert not field.detected
+
+
+def test_net_quantity_net_vol_keyword_only_completes_via_nearby_line():
+    """The exact real Facewash_back.jpg benchmark wording: "Net Vol." on
+    its own line, with no number on that line - must still resolve via the
+    pre-existing nearby-line completion loop, exactly like "Net Weight:"/
+    "Net Contents" already do, without any special-casing."""
+    field = _net_quantity_field("Net Vol.\nSome Unrelated Line\n100 ml")
+    assert field.detected
+    from backend.services.compliance_engine import _parse_net_quantity
+    parsed = _parse_net_quantity(str(field.value))
+    assert parsed == (100.0, "volume")
+
+
+@pytest.mark.parametrize("text,expected_grams", [
+    ("NETWEIGHT: 200 g", 200.0),  # OCR space-collapse, value on the same line
+    ("NET WEIGHT: 200 g", 200.0),
+])
+def test_net_quantity_space_collapsed_netweight_detected(text, expected_grams):
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field(text)
+    assert field.detected, f"{text!r} should be detected as net_quantity"
+    parsed = _parse_net_quantity(str(field.value))
+    assert parsed is not None
+    assert parsed[0] == expected_grams
+
+
+def test_net_quantity_space_collapsed_netweight_keyword_only_completes_via_nearby_line():
+    """The exact real Cookie_back.jpg benchmark structure: "NETWEIGHT:"
+    bare on its own line (OCR space-collapse), with the actual value
+    ("75 g (6 units x 12.5 g)") THREE lines later after multi-column
+    interleaving - not on the same line as the task's simpler illustrative
+    example above. An earlier version of the netweight pattern required a
+    same-line digit, which looked safe in isolation but silently broke this
+    exact real fixture (the field was never even marked detected, so the
+    pre-existing nearby-line completion loop never got a chance to run).
+    Keyword-only detection (matching every other net_quantity alias's
+    design) is required for the completion loop to work here at all."""
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field(
+        "write to us at the mfg. address\n"
+        "NETWEIGHT:\n"
+        "or call +91 9015227230\n"
+        "or\n"
+        "75 g (6 units x 12.5 g)\n"
+        "Lic No:11522998000068"
+    )
+    assert field.detected
+    parsed = _parse_net_quantity(str(field.value))
+    assert parsed == (75.0, "weight")
+
+
+@pytest.mark.parametrize("text", [
+    "gross weight 200 g",
+    "drained weight 200 g",
+    "serving weight 200 g",
+    "weight per serving 200 g",
+])
+def test_net_quantity_does_not_confuse_other_weight_declarations(text):
+    """Do not confuse net quantity with gross/drained/serving weight -
+    real, legally distinct declarations this engine must never treat as
+    net_quantity, even once "netweight" (no space) is recognized."""
+    field = _net_quantity_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as net_quantity"
+
+
+@pytest.mark.parametrize("text", [
+    "Cabinet Specifications 200 g",   # 'net'-shaped fragment ("Cabinet") nowhere near "weight"/"vol"/"contents"/"quantity"
+    "Net Promoter Score 200 g",       # bare "net" with no weight/vol/contents/quantity keyword nearby
+    "Networking Cable 200 g",         # "net" embedded in an unrelated word, no weight/vol/contents keyword
+])
+def test_net_quantity_unrelated_net_substring_not_confused(text):
+    field = _net_quantity_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as net_quantity"
+
+
+def test_net_quantity_unrelated_weight_substring_not_confused():
+    field = _net_quantity_field("Weightlifting Equipment 200 g")
+    assert not field.detected
+
+
+def test_net_quantity_net_vol_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must work correctly for the
+    newly-recognized "Net Vol." wording too."""
+    data = _detections_ocr([("Net Vol. 100 ml", 0.97), ("Some Unrelated Line", 0.9)])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["net_quantity"]
+    assert field.detected
+    assert field.region_ids
+    assert any("Net Vol. 100 ml" in r.text for r in field.regions)
+
+
+def test_net_quantity_netweight_collapsed_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must work correctly for the
+    newly-recognized space-collapsed "NETWEIGHT" wording too."""
+    data = _detections_ocr([("NETWEIGHT: 200 g", 0.96), ("Some Unrelated Line", 0.9)])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["net_quantity"]
+    assert field.detected
+    assert field.region_ids
+    assert any("NETWEIGHT: 200 g" in r.text for r in field.regions)
+
+
+# --- SYSTEMATIC ALIASES AUDIT: "net weight"/"net contents"/"net vol"/
+# "rs."/"made in"/"price per" moved from unbounded plain-substring ALIASES
+# entries to word-boundaried REGEX_ALIASES entries (see the audit report
+# accompanying this change). Each now has: a legitimate-positive test, a
+# substring-collision negative test, and (for net_quantity) a nearby-line
+# completion test, per this task's explicit test requirements.
+
+def test_net_quantity_net_weight_still_detected_after_move_to_regex():
+    """"Net Weight" (spaced) must keep working exactly as before, now that
+    it moved from a plain ALIASES entry to a word-boundaried regex."""
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field("Net Weight: 500 g")
+    assert field.detected
+    assert _parse_net_quantity(str(field.value)) == (500.0, "weight")
+
+
+def test_net_quantity_net_weight_rejects_cabinet_weight_collision():
+    """The exact real collision this task's SPECIAL CASE named: "Cabinet
+    Weight Capacity" must never be treated as a net_quantity declaration -
+    "cabinet" ends in "...net", which a plain substring check for "net
+    weight" could not tell apart from a genuine declaration."""
+    field = _net_quantity_field("Cabinet Weight Capacity 200 g")
+    assert not field.detected
+
+
+def test_net_quantity_net_contents_rejects_cabinet_contents_collision():
+    """Same collision shape as "net weight", for "net contents" (moved
+    alongside it in this audit): "Cabinet Contents List" must never be
+    treated as a net_quantity declaration."""
+    field = _net_quantity_field("Cabinet Contents List 200 g")
+    assert not field.detected
+
+
+def test_net_quantity_net_vol_rejects_cabinet_volume_collision():
+    """Same collision shape again, for "net vol": "Cabinet Volume" must
+    never be treated as a net_quantity declaration."""
+    field = _net_quantity_field("Cabinet Volume 200 g")
+    assert not field.detected
+
+
+def test_net_quantity_net_contents_nearby_line_completion_still_works():
+    """"Net Contents" keyword-only, value on a later line - the exact real
+    Pears_back.jpg benchmark shape - must still resolve via the nearby-line
+    completion loop after moving to a word-boundaried regex."""
+    from backend.services.compliance_engine import _parse_net_quantity
+
+    field = _net_quantity_field("Net Contents\nSome Unrelated Line\n250 ml")
+    assert field.detected
+    assert _parse_net_quantity(str(field.value)) == (250.0, "volume")
+
+
+@pytest.mark.parametrize("text", ["Rs. 45.00", "Rs 45.00", "MRP Rs.50"])
+def test_mrp_rs_prefix_still_detected_after_move_to_regex(text):
+    """"Rs."/"Rs " must keep working exactly as before, now that they moved
+    from plain ALIASES entries to one word-boundaried regex. Uses full_text
+    (not _mrp_field, which supplies the field directly and would never
+    exercise ALIASES/REGEX_ALIASES detection at all) so this genuinely
+    tests the text-scanning path the fix changed."""
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["maximum_retail_price_mrp"]
+    assert field.detected, f"{text!r} should be detected as maximum_retail_price_mrp"
+    assert field.value == text
+
+
+@pytest.mark.parametrize("text", [
+    "Best used within 24 hours.",
+    "Store for up to 2 years.",
+    "Available in 6 colors.",
+])
+def test_mrp_rs_prefix_rejects_trailing_word_collisions(text):
+    """A plain substring check for "rs." matches inside any word ending in
+    "...rs." followed by a period - "hours."/"years."/"colors." are all
+    plausible real label text, not contrived. None of these should ever be
+    treated as an MRP declaration."""
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert mrp.value != text
+    assert mrp.status != "PASS"
+
+
+def _country_of_origin_field(full_text: str):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    return normalized.fields["country_of_origin"]
+
+
+@pytest.mark.parametrize("text,expected_line", [
+    ("Made in India", "Made in India"),
+    ("MADE IN INDIA", "MADE IN INDIA"),
+    ("made in USA", "made in USA"),
+])
+def test_country_of_origin_made_in_still_detected_after_move_to_regex(text, expected_line):
+    """"Made in <country>" must keep working exactly as before, now that it
+    moved from a plain ALIASES entry to a word-boundaried regex."""
+    field = _country_of_origin_field(text)
+    assert field.detected
+    assert field.value == expected_line
+
+
+@pytest.mark.parametrize("text", [
+    "Homemade Ingredients 200 g",
+    "100% Homemade Indian Recipe",
+])
+def test_country_of_origin_made_in_rejects_homemade_collision(text):
+    """A plain substring check for "made in" matches inside "Homemade
+    Ingredients"/"Homemade Indian Recipe" ("homemade" ends in "...made",
+    fused with no boundary to " in..." that follows) - a plausible real
+    snack-packaging phrase, not contrived."""
+    field = _country_of_origin_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as country_of_origin"
+
+
+@pytest.mark.parametrize("text", ["Price per kg: Rs 50", "Unit Sale Price per litre: Rs 90"])
+def test_unit_sale_price_price_per_still_detected_after_move_to_regex(text):
+    """"Price per <unit>" must keep working exactly as before, now that it
+    moved from a plain ALIASES entry to a word-boundaried regex."""
+    field = _unit_sale_price_field(text)
+    assert field.detected, f"{text!r} should be detected as unit_sale_price"
+
+
+@pytest.mark.parametrize("text", [
+    "Special Price Period Offer 200 g",
+    "Reduced Price Period This Week Only",
+])
+def test_unit_sale_price_price_per_rejects_price_period_collision(text):
+    """A plain substring check for "price per" matches inside "Special
+    Price Period"/"Reduced Price Period" ("price" fused with no boundary to
+    " per..." from "period") - a plausible promotional-sticker phrase."""
+    field = _unit_sale_price_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as unit_sale_price"
+
+
+# --- ACCURACY FIX #1: "PRODUCT OF INDIA", "MADEIN" collapse, "For Queries
+# or Feedback", and country_of_origin nearby-line completion (real
+# regression benchmark findings - see the accuracy bottleneck audit report
+# preceding this task). Every wording below is either the exact real OCR
+# text a benchmark fixture produced, or a direct variant the task
+# explicitly asked to cover.
+
+@pytest.mark.parametrize("text", [
+    "PRODUCT OF INDIA",  # the exact real Chips_nutrition.jpg benchmark wording
+    "PRODUCT OF INDIA MADE WITH FRESH INGREDIENTS",
+])
+def test_country_of_origin_product_of_india_detected(text):
+    field = _country_of_origin_field(text)
+    assert field.detected, f"{text!r} should be detected as country_of_origin"
+    assert field.value == text  # already self-contained - must NOT trigger a spurious completion attempt
+
+
+@pytest.mark.parametrize("text", [
+    "PRODUCT INFORMATION",
+    "PRODUCT DETAILS",
+    "INDIAN PRODUCT INFORMATION",
+])
+def test_country_of_origin_product_of_india_rejects_unrelated_product_phrases(text):
+    """Not a broad "product" substring alias - "PRODUCT OF INDIA" is a
+    fixed, self-contained 3-word phrase that does not appear inside any of
+    these real, plausible, unrelated label headings."""
+    field = _country_of_origin_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as country_of_origin"
+
+
+def test_country_of_origin_madein_collapsed_and_nearby_line_completion():
+    """The exact real Cookie_back.jpg benchmark structure: "MADEIN" (OCR
+    space-collapse of "MADE IN") on its own line, with "INDIA" three lines
+    later after nutrition-table interleaving. Confirms both the collapse
+    fix and the new nearby-line completion mechanism together."""
+    field = _country_of_origin_field("MADEIN\nSodium\n50mg\nINDIA")
+    assert field.detected
+    assert field.value == "MADEIN INDIA"
+
+
+def test_country_of_origin_madein_collapsed_bare_still_detected():
+    field = _country_of_origin_field("MADEIN")
+    assert field.detected
+    assert field.value == "MADEIN"
+
+
+def test_country_of_origin_madein_does_not_weaken_existing_made_in_protection():
+    """Adding the zero-space "madein" pattern must not reopen the
+    already-fixed "made in" substring collision (a fully space-collapsed
+    "Homemadeingredients" must still be rejected - no word boundary exists
+    on either side of "madein" inside that fused word)."""
+    field = _country_of_origin_field("Homemadeingredients 200 g")
+    assert not field.detected
+
+
+def test_country_of_origin_nearby_line_completion_skips_nutrition_noise():
+    """A nutrition-table row label (e.g. "Sodium") sitting between the
+    keyword-only country_of_origin line and the actual country name must
+    be skipped, not absorbed as if it were the country - the same
+    protection net_quantity's own completion loop already relies on."""
+    field = _country_of_origin_field("Country of Origin\nProtein\n7g\nIndia")
+    assert field.detected
+    assert field.value == "Country of Origin India"
+
+
+def test_country_of_origin_nearby_line_completion_does_not_absorb_numeric_lines():
+    """A candidate line containing a digit (address, PIN code, batch
+    number, price) must never be absorbed as a country name."""
+    field = _country_of_origin_field("Country of Origin\n560005\nIndia")
+    assert field.detected
+    assert field.value == "Country of Origin India"  # skips the numeric line, finds the real one after it
+
+
+def test_country_of_origin_nearby_line_completion_gives_up_gracefully_if_nothing_found():
+    """If no plausible country-shaped candidate exists within the search
+    window, the field stays keyword-only - never a fabricated value."""
+    field = _country_of_origin_field("Country of Origin\n2024-01-01\n560005 Karnataka")
+    assert field.detected
+    assert field.value == "Country of Origin"
+
+
+def _consumer_care_field(full_text: str):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    return normalized.fields["consumer_care_details"]
+
+
+@pytest.mark.parametrize("text", [
+    "write to us at the mfg. address\nFor Queries or Feedback:\nor call +91 9015227230\nor\ne-mail sayhello@opensecret.in",
+    "FOR QUERIES OR FEEDBACK\ncall 1800-123-4567",
+    "Queries or Feedback:\ncall 1800-123-4567",
+])
+def test_consumer_care_queries_or_feedback_phrase_detected(text):
+    """The exact real Cookie_back.jpg benchmark wording ("For Queries or
+    Feedback:") and close variants - a common, legitimate alternative to a
+    "Consumer Care"/"Helpline" heading this trigger previously had zero
+    coverage for."""
+    field = _consumer_care_field(text)
+    assert field.detected, f"{text!r} should be detected as consumer_care_details"
+
+
+@pytest.mark.parametrize("text", [
+    "We welcome your feedback on our new flavour",
+    "Please share your queries with our team",
+    "Call us to share feedback",
+])
+def test_consumer_care_queries_or_feedback_rejects_unrelated_marketing_copy(text):
+    """Not a broad "queries"/"feedback"/"call"/"email" alias - only the
+    full specific phrase "queries or feedback" together triggers
+    detection, so ordinary marketing copy that happens to use one of those
+    words alone must never be mistaken for a consumer-care declaration."""
+    field = _consumer_care_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as consumer_care_details"
+
+
+def test_consumer_care_existing_phrases_unaffected_by_queries_or_feedback_addition():
+    """Existing consumer-care trigger phrases must keep working exactly as
+    before."""
+    for text in ["Consumer Care: 1800-123-4567", "Customer Care Department", "Toll Free: 1800-999-8888", "Helpline: 1800-111-2222"]:
+        field = _consumer_care_field(text)
+        assert field.detected, f"{text!r} should be detected as consumer_care_details"
+
+
+def test_country_of_origin_nearby_line_completion_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must work correctly for the
+    newly-completed value, not just its own keyword-only line."""
+    data = _detections_ocr([("Country of Origin", 0.97), ("Batch No. AB1234", 0.9), ("India", 0.96)])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["country_of_origin"]
+    assert field.detected
+    assert field.value == "Country of Origin India"
+    assert field.region_ids
+    assert any("India" in r.text for r in field.regions) or any("Country of Origin" in r.text for r in field.regions)
+
+
+def test_consumer_care_queries_or_feedback_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must work correctly for the
+    newly-recognized "For Queries or Feedback" trigger too."""
+    data = _detections_ocr([("For Queries or Feedback:", 0.96), ("call 1800-123-4567", 0.95)])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["consumer_care_details"]
+    assert field.detected
+    assert field.region_ids
+
+
+# --- ACCURACY FIX #4: "CONSUMER" / "CARE OFFICE" heading split across two
+# OCR lines by multi-column interleaving (real DarkFantasy_back.jpg
+# benchmark wording) - see the code comment above
+# _find_split_care_heading for the full reasoning.
+
+def test_consumer_care_split_heading_real_darkfantasy_structure():
+    """The exact real DarkFantasy_back.jpg benchmark structure: "CONSUMER"
+    ends one line, an UNRELATED "Use By:" date declaration interleaves
+    from a different column, then "CARE OFFICE, ITC LIMITED, ITC GREEN
+    CENTRE" three lines later - the single-line trigger can never bridge
+    this. Confirms detection, a genuine (not fabricated) name/address/
+    phone/email, and that the compliance status is a real PASS."""
+    field = _consumer_care_field(
+        "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER\n"
+        "Use By:\n"
+        "12/02/27\n"
+        "CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE\n"
+        "MRP Rs.\n"
+        "10th FLOOR, NO. 18, BANASWADI MAIN ROAD,\n"
+        "BENGALURU-560005. 1800 425 444 444."
+    )
+    assert field.detected
+    assert field.value["name"] == "Consumer Care"
+    assert "ITC LIMITED" in field.value["address"]
+    assert field.value["telephone_number"] == "1800 425 444 444"
+
+
+def test_consumer_care_split_heading_end_to_end_is_confirmed_pass_not_fabricated():
+    """End-to-end via the full compliance engine: a genuinely complete,
+    OCR-evidenced declaration (name + address + phone all confirmed) must
+    reach a real PASS - not merely "detected" with missing sub-fields
+    silently accepted."""
+    data = ocr(full_text=(
+        "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER\n"
+        "Use By:\n"
+        "12/02/27\n"
+        "CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE\n"
+        "MRP Rs.\n"
+        "10th FLOOR, NO. 18, BANASWADI MAIN ROAD,\n"
+        "Phone 1800 425 444 444 Email care@itc.in"
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    care_result = result.rule_results[0].required_fields["consumer_care_details"]
+    assert care_result.status == "PASS"
+
+
+def test_consumer_care_split_heading_does_not_affect_manufacturer_field():
+    """Cross-field independence check: recognizing the split consumer-care
+    heading must never cause "ITC LIMITED" to be mistaken for a
+    manufacturer/packer/importer declaration - manufacturer detection is
+    driven entirely by _ROLE_HEADING_PATTERNS, untouched by this fix, and
+    no "manufactured by"/"packed by"/etc. phrase exists in this text."""
+    data = ocr(full_text=(
+        "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER\n"
+        "Use By:\n"
+        "12/02/27\n"
+        "CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE\n"
+        "MRP Rs.\n"
+        "10th FLOOR, NO. 18, BANASWADI MAIN ROAD,\n"
+        "BENGALURU-560005. 1800 425 444 444."
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.95}]
+    normalized = normalize_ocr_result(data)
+    assert normalized.fields["manufacturer_packer_importer_details"].detected is False
+
+
+@pytest.mark.parametrize("text", [
+    "CONSUMER\nINFORMATION",
+    "CONSUMER\nNOTICE",
+    "This product is designed for the modern consumer.\nABC Foods Pvt Ltd\nNet Weight: 100 g",
+    "Consumer\nCare Instructions: wash before use",
+    "Consumer\nCareful handling required",
+    "Consumer\nCare should be taken while opening",
+    "Net Weight: 100 g\nConsumer Durables Ltd\nRegistered Office",
+    "Consumer\nCare Guarantee: satisfaction assured",
+])
+def test_consumer_care_split_heading_rejects_collision_cases(text):
+    """CRITICAL SAFETY REQUIREMENT: a bare "consumer"/"care" pairing must
+    never become a fabricated consumer-care detection unless the second
+    line genuinely starts with "care" + a real office-designation word
+    (office/cell/department/desk/division/team/centre/center). Covers:
+    unrelated two-line text ("consumer"/"information", "consumer"/
+    "notice"), "consumer" in ordinary prose followed by an unrelated
+    company name, and "care" used in unrelated real phrasing (care
+    instructions, "careful", "care should be taken", a care guarantee) -
+    none of these may be mistaken for the real "CONSUMER" / "CARE OFFICE"
+    declaration shape."""
+    field = _consumer_care_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as consumer_care_details"
+
+
+def test_consumer_care_split_heading_requires_office_word_not_bare_care():
+    """A bare "Care" second line with NO office-designation word at all
+    must not trigger - this is what keeps "Care Instructions:"/"Careful
+    handling" (see the parametrized collision tests above) from matching,
+    verified directly against the exact boundary case."""
+    field = _consumer_care_field("Consumer\nCare")
+    assert not field.detected
+
+
+def test_consumer_care_split_heading_beyond_window_not_absorbed():
+    """The split-heading search is bounded to _CARE_SPLIT_HEADING_WINDOW
+    lines - a "CARE OFFICE" heading far beyond that window must not be
+    linked back to an earlier, unrelated "consumer" mention."""
+    field = _consumer_care_field(
+        "Consumer\n" + "\n".join(f"Unrelated filler line {i}" for i in range(10)) + "\nCare Office, XYZ Ltd"
+    )
+    assert not field.detected
+
+
+def test_consumer_care_split_heading_evidence_mapping_correct():
+    """Evidence mapping (region_ids/regions) must cover both real OCR
+    lines that together justify the split-heading detection."""
+    data = _detections_ocr([
+        ("FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER", 0.96),
+        ("Use By:", 0.9),
+        ("12/02/27", 0.9),
+        ("CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE", 0.95),
+    ])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["consumer_care_details"]
+    assert field.detected
+    assert field.region_ids
+    assert any("CARE OFFICE" in r.text for r in field.regions)

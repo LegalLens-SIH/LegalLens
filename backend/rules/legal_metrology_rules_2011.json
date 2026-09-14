@@ -37,7 +37,8 @@
           "description": "The net quantity declaration must exclude the weight of wrappers or packaging materials.",
           "status": "Mandatory",
           "logic": "net_quantity == total_package_weight - wrapper_packaging_weight",
-          "allowable_error": "Must conform to the statistical tolerances specified in the First and Second Schedules."
+          "allowable_error": "Must conform to the statistical tolerances specified in the First and Second Schedules.",
+          "_implementation_note": "Not included in any validation_profile below. total_package_weight and wrapper_packaging_weight are physical scale measurements (weigh the sealed package, then weigh the empty wrapper), not something derivable from a label photograph via OCR/AI text extraction - see backend/services/compliance_engine.py's _rule_result handler for this rule_id for the full explanation. This key is informational only and is not itself part of the legal ruleset."
         },
         {
           "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",

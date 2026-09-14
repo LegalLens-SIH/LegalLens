@@ -63,7 +63,7 @@ any backend.* import, so this module needs no special handling of its own):
                                    BREVO_API_KEY). Never hardcoded, never
                                    sent to the frontend, never logged in
                                    full (see _redact below).
-    GEMINI_MODEL                  Model id (default: "gemini-2.5-flash").
+    GEMINI_MODEL                  Model id (default: "gemini-3.6-flash").
     GEMINI_CONFIDENCE_THRESHOLD   Fields at/above this OCR confidence are
                                    NOT sent to Gemini (default: 0.75).
     GEMINI_MAX_FIELDS_PER_SCAN    Hard cap on how many ambiguous fields one
@@ -112,7 +112,7 @@ logger = logging.getLogger("legallense.ocr.gemini_service")
 
 GEMINI_ENABLED = os.getenv("GEMINI_ENABLED", "false").strip().lower() not in {"false", "0", "no", ""}
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-2.5-flash"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.6-flash"
 GEMINI_CONFIDENCE_THRESHOLD = float(os.getenv("GEMINI_CONFIDENCE_THRESHOLD", "0.75"))
 GEMINI_MAX_FIELDS_PER_SCAN = max(1, int(os.getenv("GEMINI_MAX_FIELDS_PER_SCAN", "5")))
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "9"))
@@ -191,19 +191,27 @@ def _redact(text: str) -> str:
     return text
 
 
-def find_ambiguous_fields(ocr_result: dict[str, Any]) -> list[str]:
+def find_ambiguous_fields(ocr_result: dict[str, Any], normalized: Optional[Any] = None) -> list[str]:
     """Return up to GEMINI_MAX_FIELDS_PER_SCAN of the 8 LegalLense class
     names whose underlying field(s) the deterministic extractor could not
     confidently resolve - see this module's docstring for the exact
     heuristic. Never raises for a malformed ocr_result; treats anything it
     can't evaluate as ambiguous rather than silently skipping it, since
     "cannot determine" is itself a form of low confidence.
+
+    `normalized` lets a caller that already computed normalize_ocr_result()
+    for this exact ocr_result (e.g. backend/services/structured_extraction.py
+    needs the same NormalizedOCRResult) pass it straight in instead of this
+    function recomputing it - a cheap, pure, CPU-only call either way (no
+    OCR/model re-run), but reusing it avoids even that redundant work.
+    Computed internally if omitted, exactly as before.
     """
-    try:
-        normalized = normalize_ocr_result(ocr_result)
-    except Exception:
-        logger.exception("normalize_ocr_result failed while checking for ambiguous fields")
-        return list(GEMINI_FIELD_NAMES[:GEMINI_MAX_FIELDS_PER_SCAN])
+    if normalized is None:
+        try:
+            normalized = normalize_ocr_result(ocr_result)
+        except Exception:
+            logger.exception("normalize_ocr_result failed while checking for ambiguous fields")
+            return list(GEMINI_FIELD_NAMES[:GEMINI_MAX_FIELDS_PER_SCAN])
 
     ambiguous: list[str] = []
     for class_name in GEMINI_FIELD_NAMES:

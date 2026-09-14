@@ -191,11 +191,32 @@ def test_mrp_suggestion_missing_wording_is_defensively_prefixed():
     reject a perfectly good amount for a solvable formatting gap."""
     data = _ocr_result()
     del data["fields"]["maximum_retail_price_mrp"]
-    suggestion = gs.GeminiFieldSuggestion(field="mrp", value="110.00", confidence=0.9, reason="")
+    # Includes the tax-inclusive qualifier so this test stays focused on
+    # ITS OWN concern (the "MRP" wording prefix shim) without incidentally
+    # tripping the unrelated P1 tax-inclusive-wording check added to
+    # _mrp_result later - see test_mrp_suggestion_missing_wording_and_tax_
+    # phrase_stays_needs_review below for that check's own dedicated test.
+    suggestion = gs.GeminiFieldSuggestion(field="mrp", value="110.00 (Incl. of all taxes)", confidence=0.9, reason="")
     merged = gs.apply_suggestions_to_ocr_result(data, [suggestion])
     assert "MRP" in merged["fields"]["maximum_retail_price_mrp"]["value"]
     result = ComplianceEngine().evaluate(merged, "e_commerce_product_listing")
     assert result.rule_results[0].required_fields["maximum_retail_price_mrp"].status == "PASS"
+
+
+def test_mrp_suggestion_missing_wording_and_tax_phrase_stays_needs_review():
+    """If Gemini returns a bare amount with neither MRP wording nor the
+    tax-inclusive qualifier, the "MRP" prefix shim still fixes the wording
+    half, but the tax-inclusive requirement (rules/legal_metrology_rules_
+    2011.json's mrp_format.text_requirement, enforced in _mrp_result) is a
+    SEPARATE check this shim does not and should not paper over - a
+    genuinely incomplete AI-sourced value correctly stays
+    NEEDS_MANUAL_VERIFICATION, not a fabricated PASS."""
+    data = _ocr_result()
+    del data["fields"]["maximum_retail_price_mrp"]
+    suggestion = gs.GeminiFieldSuggestion(field="mrp", value="110.00", confidence=0.9, reason="")
+    merged = gs.apply_suggestions_to_ocr_result(data, [suggestion])
+    result = ComplianceEngine().evaluate(merged, "e_commerce_product_listing")
+    assert result.rule_results[0].required_fields["maximum_retail_price_mrp"].status == "NEEDS_MANUAL_VERIFICATION"
 
 
 # --- 5. Gemini failure (timeout/error/quota) -> fallback stays functional -

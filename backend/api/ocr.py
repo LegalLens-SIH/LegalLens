@@ -30,9 +30,11 @@ from backend.ocr.gemini_service import (
     find_ambiguous_fields,
 )
 from backend.ocr.paddle_ocr_service import OCRInitializationError, PaddleOCRService
+from backend.ocr.preprocessing import PREPROCESSING_ENABLED, PreprocessOptions
 from backend.ocr.schemas import OCRError, OCRResult
 from backend.ocr.yolo_service import YOLO_ENABLED, YOLOService
-from backend.services.compliance_engine import ComplianceEngine
+from backend.services.compliance_engine import ComplianceEngine, normalize_ocr_result
+from backend.services.structured_extraction import build_structured_extraction
 
 logger = logging.getLogger("legallense.api.ocr")
 
@@ -49,6 +51,22 @@ _compliance_engine = ComplianceEngine()
 # for every request. Disabled entirely via YOLO_ENABLED=false, in which case
 # OCR runs exactly as it did before YOLO26 was introduced.
 _yolo_service = YOLOService() if YOLO_ENABLED else None
+
+# Accuracy Fix #2 A/B flag - OCR_PREPROCESSING_ENABLED=false (default)
+# preserves today's exact baseline behavior (no preprocess_options passed to
+# PaddleOCRService.run() at all, same as before this flag existed). When
+# true, applies denoise + CLAHE contrast enhancement ONLY - resize is
+# deliberately EXCLUDED from this bundle despite being part of this
+# project's own documented "preprocessing enabled" convention (README.md,
+# test_ocr.py's --preprocess flag): 7 of the 10 real benchmark fixtures
+# exceed the 2000px resize threshold and would be downscaled, and resizing
+# down is a SPEED optimization (see resize_if_large's own docstring/
+# README: "keeps inference fast on huge phone photos"), not an accuracy
+# one - it can only ever reduce the pixel density available for the
+# dense/small print this project's OCR failures are already concentrated
+# in. Grayscale is also excluded, matching this project's own existing
+# default (never part of the --preprocess bundle either).
+_preprocess_options = PreprocessOptions(denoise=True, enhance_contrast=True) if PREPROCESSING_ENABLED else None
 
 # Gemini is an AI/vision FALLBACK for ambiguous/low-confidence fields only -
 # see backend/ocr/gemini_service.py. Disabled by default (GEMINI_ENABLED) and
@@ -71,6 +89,31 @@ _UPLOAD_TMP_DIR.mkdir(parents=True, exist_ok=True)
 def _error_response(status_code: int, image: str, code: str, message: str) -> JSONResponse:
     result = OCRResult(success=False, image=image, error=OCRError(code=code, message=message))
     return JSONResponse(status_code=status_code, content=result.model_dump())
+
+
+# There is no frontend control for retail/wholesale/instrument-audit
+# selection anywhere in this project (new-compliance-scan.html hardcodes
+# category to "General"; new-self-check.html's category dropdown is a
+# commodity-TYPE selector - Food & Beverage/Cosmetics/Electronics/Home
+# Care - a different axis entirely) - so this stays API-reachable-only via
+# the `category` form field, matching the pre-existing pos_hardware_audit
+# branch this wholesale branch was added alongside. Extracted to a plain
+# function (rather than left inline in create_scan) purely so the profile-
+# selection decision itself is directly unit-testable without needing to
+# exercise the full multipart upload endpoint, which has no existing test
+# coverage of its own to extend.
+def _select_validation_profile(category: str) -> tuple[str, bool]:
+    """Return (validation_profile, is_wholesale). is_wholesale tells the
+    caller whether ocr_dict["package_type"] must be forced to "wholesale" -
+    normalize_ocr_result (compliance_engine.py) defaults every OCR result to
+    "retail", and LMPC-R24-WHOLESALE-DECLARATIONS is gated on
+    package_type == "wholesale" regardless of which profile is evaluated."""
+    normalized_category = category.strip().lower()
+    if normalized_category in {"weighing_instrument", "instrument", "pos hardware"}:
+        return "pos_hardware_audit", False
+    if normalized_category in {"wholesale", "wholesale_package", "wholesale package"}:
+        return "wholesale_package", True
+    return "e_commerce_product_listing", False
 
 
 def _scan_document(result: OCRResult, product_name: str, category: str, manufacturer: str, file_name: str) -> dict[str, Any]:
@@ -137,7 +180,7 @@ async def run_ocr(file: Optional[UploadFile] = File(None)):
         tmp_path.write_bytes(contents)
         logger.info("Saved upload '%s' (%d bytes) to temp file for OCR", original_name, len(contents))
 
-        result = _service.run(str(tmp_path), yolo_service=_yolo_service)
+        result = _service.run(str(tmp_path), yolo_service=_yolo_service, preprocess_options=_preprocess_options)
         # Swap the temp filename back out for the original, client-facing name,
         # and scrub the server-side temp path out of any error message so no
         # internal filesystem detail reaches the browser.
@@ -190,10 +233,19 @@ async def create_scan(
         return response
 
     ocr_dict = result.model_dump()
+    # Computed once and reused for both the Gemini ambiguous-field check and
+    # structured extraction below (see find_ambiguous_fields' and
+    # build_structured_extraction's `normalized` parameter) - a cheap, pure,
+    # CPU-only function (no OCR/model re-run), but sharing it avoids even
+    # that redundant recomputation in the common case where Gemini doesn't
+    # end up changing anything.
+    normalized = normalize_ocr_result(ocr_dict)
+
     gemini_fields_used: list[str] = []
+    suggestions: list = []
     if _gemini_service is not None and GEMINI_API_KEY:
         try:
-            ambiguous_fields = find_ambiguous_fields(ocr_dict)
+            ambiguous_fields = find_ambiguous_fields(ocr_dict, normalized=normalized)
         except Exception:
             logger.exception("Gemini ambiguous-field detection failed for %s; continuing without Gemini", result.image)
             ambiguous_fields = []
@@ -212,15 +264,22 @@ async def create_scan(
             if suggestions:
                 try:
                     ocr_dict = apply_suggestions_to_ocr_result(ocr_dict, suggestions)
+                    normalized = normalize_ocr_result(ocr_dict)  # re-derive: values just changed
                     gemini_fields_used = [s.field for s in suggestions]
                     logger.info("Gemini fallback supplied %d field(s) for %s: %s", len(suggestions), result.image, gemini_fields_used)
                 except Exception:
                     logger.exception("Failed to merge Gemini suggestions for %s; continuing with existing OCR result", result.image)
 
-    compliance = _compliance_engine.evaluate(
-        ocr_dict,
-        "pos_hardware_audit" if category.strip().lower() in {"weighing_instrument", "instrument", "pos hardware"} else "e_commerce_product_listing",
-    )
+    try:
+        structured_extraction = build_structured_extraction(ocr_dict, normalized=normalized, gemini_suggestions=suggestions or None)
+    except Exception:
+        logger.exception("Structured extraction failed for %s; scan continues without it", result.image)
+        structured_extraction = None
+
+    validation_profile, is_wholesale = _select_validation_profile(category)
+    if is_wholesale:
+        ocr_dict["package_type"] = "wholesale"
+    compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
     scan = _scan_document(result, product_name.strip(), category.strip(), manufacturer.strip(), result.image)
     if gemini_fields_used:
         # Provenance only - never fed back into ComplianceEngine/NormalizedField,
@@ -228,6 +287,14 @@ async def create_scan(
         # the persisted scan record, same spirit as the "audit" block
         # ComplianceResult already attaches.
         scan["geminiFieldsUsed"] = gemini_fields_used
+    if structured_extraction is not None:
+        # New, additive, purely informational (see backend/models/
+        # extraction.py) - never consulted by ComplianceEngine.evaluate()
+        # above, which already ran on ocr_dict directly and is completely
+        # unaware this key exists. Existing frontend code reads specific
+        # known scan keys (compliance, detections, ...) and ignores unknown
+        # ones, so this is backward compatible with no frontend changes.
+        scan["structuredExtraction"] = structured_extraction.model_dump()
     status_map = {
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",

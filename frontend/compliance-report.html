@@ -161,6 +161,13 @@
         .bounding-box-label { position: absolute; left: -2px; top: -24px; max-width: 240px; padding: 2px 5px; color: #fff; background: #00274a; font: 600 10px/14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
         .bounding-box-low-confidence { border-color: #ba1a1a; background-color: rgba(186, 26, 26, 0.12); }
         .bounding-box-low-confidence .bounding-box-label { background: #ba1a1a; }
+        /* Evidence for the ONE field the user is currently inspecting (see
+           highlightEvidenceRegions) - same box/label mechanism as the two
+           rules above, just a visually distinct accent so a focused region
+           doesn't read as just another generic detection. */
+        .bounding-box-focused { border: 3px solid #f97316; background-color: rgba(249, 115, 22, 0.22); z-index: 2; }
+        .bounding-box-focused .bounding-box-label { background: #f97316; top: -26px; }
+        .evidence-toggle-btn.is-active { color: #f97316; }
         #source-evidence-viewer:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #edeeef; z-index: 9999; }
         #source-evidence-viewer.source-evidence-expanded { position: fixed; inset: 0; width: 100vw; height: 100vh; border: 0; border-radius: 0; z-index: 9999; }
         #export-details { display: none; }
@@ -300,7 +307,7 @@
 <!-- Left: Uploaded Image Area -->
 <div class="lg:col-span-7 flex flex-col gap-4">
 <div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex flex-col h-full">
-<div class="flex justify-between items-center mb-4">
+<div class="flex justify-between items-center mb-1">
 <h3 class="text-body-lg font-body-lg font-bold text-primary">Source Evidence</h3>
 <div class="flex gap-2">
 <button aria-label="Zoom in" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-zoom-in" title="Zoom in"><span class="material-symbols-outlined text-[20px]">zoom_in</span></button>
@@ -308,6 +315,11 @@
 <button aria-label="Open original image" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-open-original" title="Open original image"><span class="material-symbols-outlined text-[20px]">open_in_new</span></button>
 <button aria-label="View image fullscreen" class="p-1.5 text-on-surface-variant hover:bg-surface-container-low rounded" id="source-fullscreen" title="View image fullscreen"><span class="material-symbols-outlined text-[20px]">fullscreen</span></button>
 </div>
+</div>
+<div class="hidden mb-2 flex items-center gap-2 text-label-md font-label-md text-[#f97316]" id="source-evidence-status">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+<span id="source-evidence-status-text">Showing evidence for a field</span>
+<button class="ml-1 underline decoration-dotted hover:text-primary" id="source-evidence-show-all" type="button">Show all evidence</button>
 </div>
 <div class="relative w-full h-[500px] bg-surface-container-low rounded border border-outline-variant overflow-auto" id="source-evidence-viewer">
 <!-- Image Container -->
@@ -400,8 +412,87 @@
             var apiOrigin = LLOcr.DEFAULT_BASE_URL;
             sourceImage.src = (scan.sourceImageUrl ? apiOrigin + scan.sourceImageUrl : apiOrigin + '/api/scans/' + encodeURIComponent(scan.id) + '/image');
             sourceImage.alt = scan.fileName ? 'Original product label: ' + scan.fileName : 'Original product label scan';
+                        // null = show every known evidence region (existing default
+                        // behavior, unchanged). A Set of region_ids = "focused evidence
+                        // mode" for ONE compliance finding - see highlightEvidenceRegions
+                        // below, wired to each finding's "View evidence" control.
+                        var highlightedRegionIds = null;
+
+                        // Draws ONE box, in the SAME coordinate system
+                        // new-compliance-scan.html's drawBoundingBoxes already
+                        // established for this bbox shape ([x1,y1,x2,y2] in the
+                        // ORIGINAL, undownscaled image) - but positioned with CSS
+                        // percentages of the natural image size (not px * a computed
+                        // scale factor), so the box stays correctly aligned across
+                        // resize/zoom/responsive layout with no resize listener needed
+                        // at all (this is the existing approach this function already
+                        // used before this change; extended, not replaced).
+                        function drawEvidenceBox(bbox, text, confidence, extraClass, naturalWidth, naturalHeight) {
+                                if (!Array.isArray(bbox) || bbox.length !== 4) return;
+                                var x1 = Math.max(0, Math.min(naturalWidth, Number(bbox[0])));
+                                var y1 = Math.max(0, Math.min(naturalHeight, Number(bbox[1])));
+                                var x2 = Math.max(x1, Math.min(naturalWidth, Number(bbox[2])));
+                                var y2 = Math.max(y1, Math.min(naturalHeight, Number(bbox[3])));
+                                if (x2 <= x1 || y2 <= y1) return;
+                                var box = document.createElement('div');
+                                var lowConfidence = Number(confidence) < 0.7;
+                                box.className = 'bounding-box' + (lowConfidence && !extraClass ? ' bounding-box-low-confidence' : '') + (extraClass ? ' ' + extraClass : '');
+                                box.style.left = (x1 / naturalWidth * 100) + '%';
+                                box.style.top = (y1 / naturalHeight * 100) + '%';
+                                box.style.width = ((x2 - x1) / naturalWidth * 100) + '%';
+                                box.style.height = ((y2 - y1) / naturalHeight * 100) + '%';
+                                box.title = (text || 'Detected text') + ' (' + Math.round(Number(confidence || 0) * 100) + '%)';
+                                var label = document.createElement('span');
+                                label.className = 'bounding-box-label';
+                                label.textContent = text || 'Detected text';
+                                box.appendChild(label);
+                                sourceEvidenceBoxes.appendChild(box);
+                        }
+
+                        // Authoritative evidence: backend/models/compliance.py's
+                        // RegionEvidence, attached to every rule_results[].
+                        // required_fields[name] (see backend/services/
+                        // compliance_engine.py's evidence-region propagation) -
+                        // {region_id, bbox, text, confidence}, already self-contained,
+                        // no cross-referencing against scan.detections needed. Falls
+                        // back to the OLD heuristic detection-matching below only for
+                        // scans persisted before this backend feature existed (no
+                        // field anywhere carries `regions`), so old reports keep
+                        // rendering exactly as before rather than showing nothing.
+                        function collectBackendRegions() {
+                                var byId = {};
+                                (scan.compliance && scan.compliance.rule_results || []).forEach(function (rule) {
+                                        Object.keys(rule.required_fields || {}).forEach(function (name) {
+                                                var regions = rule.required_fields[name].regions;
+                                                if (!Array.isArray(regions)) return;
+                                                regions.forEach(function (region) {
+                                                        if (region && region.region_id) byId[region.region_id] = region;
+                                                });
+                                        });
+                                });
+                                return byId;
+                        }
+
                         function renderSourceEvidenceBoxes() {
                                 sourceEvidenceBoxes.innerHTML = '';
+                                var naturalWidth = sourceImage.naturalWidth;
+                                var naturalHeight = sourceImage.naturalHeight;
+                                if (!naturalWidth || !naturalHeight) return;
+
+                                var backendRegionsById = collectBackendRegions();
+                                var hasBackendRegions = Object.keys(backendRegionsById).length > 0;
+
+                                if (hasBackendRegions) {
+                                        Object.keys(backendRegionsById).forEach(function (regionId) {
+                                                if (highlightedRegionIds && !highlightedRegionIds.has(regionId)) return;
+                                                var region = backendRegionsById[regionId];
+                                                var focused = !!highlightedRegionIds;
+                                                drawEvidenceBox(region.bbox, region.text, region.confidence, focused ? 'bounding-box-focused' : '', naturalWidth, naturalHeight);
+                                        });
+                                        return;
+                                }
+
+                                // --- legacy fallback (pre-evidence-propagation scans only) ---
                                 var detections = Array.isArray(scan.detections) ? scan.detections : ((scan.ocr && scan.ocr.detections) || []);
                                 var rule6 = scan.compliance && Array.isArray(scan.compliance.rule_results)
                                         ? scan.compliance.rule_results.find(function (rule) { return rule.rule_id === 'LMPC-R6-MANDATORY-DECLARATIONS'; })
@@ -441,35 +532,46 @@
                                                 return text.indexOf(value) !== -1 || value.indexOf(text) !== -1;
                                         });
                                 }
-                                var naturalWidth = sourceImage.naturalWidth;
-                                var naturalHeight = sourceImage.naturalHeight;
-                                if (!naturalWidth || !naturalHeight) return;
                                 detections.forEach(function (detection) {
                                         if (!isRule6Detection(detection)) return;
-                                        var bbox = detection.bbox;
-                                        if (!Array.isArray(bbox) || bbox.length !== 4) return;
-                                        var x1 = Math.max(0, Math.min(naturalWidth, Number(bbox[0])));
-                                        var y1 = Math.max(0, Math.min(naturalHeight, Number(bbox[1])));
-                                        var x2 = Math.max(x1, Math.min(naturalWidth, Number(bbox[2])));
-                                        var y2 = Math.max(y1, Math.min(naturalHeight, Number(bbox[3])));
-                                        if (x2 <= x1 || y2 <= y1) return;
-                                        var box = document.createElement('div');
-                                        var lowConfidence = Number(detection.confidence) < 0.7;
-                                        box.className = 'bounding-box' + (lowConfidence ? ' bounding-box-low-confidence' : '');
-                                        box.style.left = (x1 / naturalWidth * 100) + '%';
-                                        box.style.top = (y1 / naturalHeight * 100) + '%';
-                                        box.style.width = ((x2 - x1) / naturalWidth * 100) + '%';
-                                        box.style.height = ((y2 - y1) / naturalHeight * 100) + '%';
-                                        box.title = (detection.text || 'Detected text') + ' (' + Math.round(Number(detection.confidence || 0) * 100) + '%)';
-                                        var label = document.createElement('span');
-                                        label.className = 'bounding-box-label';
-                                        label.textContent = detection.text || 'Detected text';
-                                        box.appendChild(label);
-                                        sourceEvidenceBoxes.appendChild(box);
+                                        drawEvidenceBox(detection.bbox, detection.text, detection.confidence, '', naturalWidth, naturalHeight);
                                 });
                         }
                         sourceImage.addEventListener('load', renderSourceEvidenceBoxes);
                         if (sourceImage.complete) renderSourceEvidenceBoxes();
+
+                        // Focused evidence mode: highlight ONLY the region_ids for the
+                        // finding the user activated, hiding every other evidence box
+                        // (per this task's explicit requirement) - re-renders once per
+                        // click, not on every UI update, reusing the exact same
+                        // drawEvidenceBox/renderSourceEvidenceBoxes already built above.
+                        var evidenceStatusEl = document.getElementById('source-evidence-status');
+                        var evidenceStatusTextEl = document.getElementById('source-evidence-status-text');
+                        function highlightEvidenceRegions(regionIds, fieldLabel) {
+                                highlightedRegionIds = new Set(regionIds || []);
+                                renderSourceEvidenceBoxes();
+                                document.querySelectorAll('.evidence-toggle-btn').forEach(function (btn) {
+                                        btn.classList.toggle('is-active', btn.getAttribute('data-field') === fieldLabel);
+                                });
+                                if (evidenceStatusEl) {
+                                        if (evidenceStatusTextEl) evidenceStatusTextEl.textContent = 'Showing evidence for: ' + fieldLabel;
+                                        evidenceStatusEl.classList.remove('hidden');
+                                }
+                                sourceViewerScrollIntoView();
+                        }
+                        function clearEvidenceHighlight() {
+                                highlightedRegionIds = null;
+                                renderSourceEvidenceBoxes();
+                                document.querySelectorAll('.evidence-toggle-btn.is-active').forEach(function (btn) { btn.classList.remove('is-active'); });
+                                if (evidenceStatusEl) evidenceStatusEl.classList.add('hidden');
+                        }
+                        function sourceViewerScrollIntoView() {
+                                var viewer = document.getElementById('source-evidence-viewer');
+                                if (viewer && viewer.scrollIntoView) viewer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                        var showAllEvidenceBtn = document.getElementById('source-evidence-show-all');
+                        if (showAllEvidenceBtn) showAllEvidenceBtn.addEventListener('click', clearEvidenceHighlight);
+
                         var sourceZoom = 1;
                         function setSourceZoom(nextZoom) {
                                 sourceZoom = Math.max(1, Math.min(4, nextZoom));
@@ -650,24 +752,37 @@
                                         // Low confidence means the evidence is insufficient to say either
                                         // way - an empty value here must not read as "confirmed absent".
                                         var emptyValueText = itemStatus === 'low_confidence' ? 'Evidence was insufficient to confirm whether this declaration is present.' : 'Not detected by OCR';
-                                        persistedFindings.push({ field: field.replace(/_/g, ' '), value: LL.formatComplianceValue(item.value) || emptyValueText, status: itemStatus, note: item.explanation });
+                                        persistedFindings.push({ field: field.replace(/_/g, ' '), value: LL.formatComplianceValue(item.value) || emptyValueText, status: itemStatus, note: item.explanation, regionIds: Array.isArray(item.region_ids) ? item.region_ids : [] });
                                 });
                                 if (!rule.required_fields || !Object.keys(rule.required_fields).length) {
-                                        persistedFindings.push({ field: rule.rule_name, value: rule.explanation, status: findingStatusFor(rule.status), note: rule.recommended_action });
+                                        persistedFindings.push({ field: rule.rule_name, value: rule.explanation, status: findingStatusFor(rule.status), note: rule.recommended_action, regionIds: [] });
                                 }
                         });
                         (persistedFindings.length ? persistedFindings : (scan.findings || [])).forEach(function (f) {
                 var style = FINDING_STYLE[f.status] || FINDING_STYLE.compliant;
                 var row = document.createElement('div');
                 row.className = style.wrap;
+                // Evidence control: only offered when this finding actually has
+                // region_ids from the backend (see backend/models/compliance.py's
+                // FieldResult.region_ids) - never a fake/approximate box for a
+                // finding with no evidence region, per this task's explicit rule.
+                var hasRegions = Array.isArray(f.regionIds) && f.regionIds.length > 0;
+                var evidenceHtml = hasRegions
+                    ? '<button type="button" class="evidence-toggle-btn text-label-md font-label-md text-primary flex items-center gap-1 mt-1.5 hover:underline" data-field="' + LL.escapeHtml(f.field) + '"><span class="material-symbols-outlined text-[14px]">visibility</span>View evidence (' + f.regionIds.length + ')</button>'
+                    : '<span class="text-label-md font-label-md text-on-surface-variant italic mt-1.5 block">Evidence unavailable</span>';
                 row.innerHTML =
                     '<div class="flex flex-col gap-1">' +
                     '<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">' + LL.escapeHtml(f.field) + '</span>' +
                     '<span class="text-body-md font-body-md text-on-surface font-medium' + (f.status !== 'compliant' ? ' italic opacity-70' : '') + '">' + LL.escapeHtml(f.value || '') + '</span>' +
                     (f.note ? '<span class="text-label-md font-label-md text-error flex items-center gap-1 mt-1"><span class="material-symbols-outlined text-[14px]">error</span>' + LL.escapeHtml(f.note) + '</span>' : '') +
+                    evidenceHtml +
                     '</div>' +
                     '<div class="' + style.badge + '"><span class="material-symbols-outlined text-[16px]">' + style.icon + '</span>' + style.label + '</div>';
                 container.appendChild(row);
+                if (hasRegions) {
+                    var evidenceBtn = row.querySelector('.evidence-toggle-btn');
+                    if (evidenceBtn) evidenceBtn.addEventListener('click', function () { highlightEvidenceRegions(f.regionIds, f.field); });
+                }
             });
 
             if (scan.caseId) {

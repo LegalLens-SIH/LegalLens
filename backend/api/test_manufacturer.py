@@ -58,20 +58,28 @@ IMAGE_A_BYTES = (
     b"Consumer Care: 1800-123-4567\n"
     b"Email: care@acmefoods.example\n"
 )
-# A label with a confirmed-invalid MRP declaration (heading present, no
-# valid amount) - independently confirmed to produce a genuine FAIL on
-# maximum_retail_price_mrp and overall_status NON_COMPLIANT, so tests can
-# prove the report surfaces real non-compliant checks, not just passes.
+# A label with:
+#   - an MRP heading present but no readable amount (P0 fix: this is now
+#     NEEDS_MANUAL_VERIFICATION, not a confirmed FAIL - OCR failing to
+#     read the numeral is exactly as plausible as the package genuinely
+#     lacking one; see compliance_engine.py's _mrp_result comment)
+#   - a consumer-care block with a phone number but no email - a
+#     genuinely confirmed shortfall (the block WAS located; a required
+#     sub-field is confirmably absent from it), independently confirmed to
+#     still produce a real PARTIAL/NON_COMPLIANT result even after the MRP
+#     fix, so tests can still prove the report surfaces real non-compliant
+#     checks, not just passes/manual-review.
 IMAGE_B_BYTES = (
     b"IMAGE-B-MARKER\n"
     b"MANUFACTURED BY BETA CORP, 5 BETA LANE, DELHI\n"
     b"Country of Origin: India\n"
     b"NET WEIGHT: 500 g\n"
     b"Maximum Retail Price: ABC\n"
+    b"Consumer Care: 1800-999-0000\n"
 )
 
 
-def _echo_ocr_run(image_path: str, yolo_service=None) -> OCRResult:
+def _echo_ocr_run(image_path: str, yolo_service=None, preprocess_options=None) -> OCRResult:
     """Stand-in for PaddleOCRService.run: echoes back whatever bytes were
     actually written to THIS request's own temp file, instead of a canned
     result - so a test can prove the real uploaded image drove the result,
@@ -79,7 +87,13 @@ def _echo_ocr_run(image_path: str, yolo_service=None) -> OCRResult:
     text line (mirroring what real PaddleOCR output looks like) since
     ComplianceEngine derives its confidence score from `detections`, not
     from `full_text` alone - an empty detections list would make every
-    field NEEDS_MANUAL_VERIFICATION regardless of the text content."""
+    field NEEDS_MANUAL_VERIFICATION regardless of the text content.
+
+    `preprocess_options` accepted (and ignored, like `yolo_service` already
+    was) purely to match backend/api/ocr.py's real run_ocr() call signature
+    (Accuracy Fix #2's OCR_PREPROCESSING_ENABLED flag) - this stand-in reads
+    the temp file's raw bytes directly rather than decoding an actual image,
+    so there is no real image for a preprocessing step to run against here."""
     text = Path(image_path).read_bytes().decode("utf-8", errors="ignore")
     lines = [line for line in text.splitlines() if line.strip()]
     detections = [Detection(text=line, confidence=0.95, bbox=[0, 0, 10, 10], polygon=[[0, 0], [10, 0], [10, 10], [0, 10]]) for line in lines]
@@ -172,7 +186,13 @@ def test_self_check_uses_real_compliance_engine_not_four_field_placeholder(monke
 def test_self_check_surfaces_non_compliant_checks_not_just_passes(monkeypatch):
     """Requirement: the report must show FAILED/non-compliant checks, not
     hide them - and the overall status hierarchy (NON_COMPLIANT >
-    REVIEW_REQUIRED > COMPLIANT) must hold."""
+    REVIEW_REQUIRED > COMPLIANT) must hold. Also exercises the P0 MRP fix:
+    IMAGE_B_BYTES' MRP heading has no readable amount, which must now
+    register as NEEDS_MANUAL_VERIFICATION (not a confirmed violation),
+    while its consumer-care block (phone present, email confirmably
+    absent) still produces a genuine confirmed PARTIAL - proving the
+    report still surfaces real violations after the fix, just not this
+    particular MRP case."""
     monkeypatch.setattr(ocr_module._service, "run", _echo_ocr_run)
     app.dependency_overrides[manufacturer_user] = lambda: FAKE_MANUFACTURER
     try:
@@ -189,9 +209,11 @@ def test_self_check_surfaces_non_compliant_checks_not_just_passes(monkeypatch):
 
                 assert report["overall_status"] == "NON_COMPLIANT"
                 mrp = report["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
-                assert mrp["status"] == "FAIL"
+                assert mrp["status"] == "NEEDS_MANUAL_VERIFICATION"
                 assert mrp["explanation"]
-                assert "maximum_retail_price_mrp" in " ".join(revision["issues"])
+                care = report["rule_results"][0]["required_fields"]["consumer_care_details"]
+                assert care["status"] == "PARTIAL"
+                assert "consumer_care_details" in " ".join(revision["issues"])
             finally:
                 _cleanup(get_database())
     finally:
