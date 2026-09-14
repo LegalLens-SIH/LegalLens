@@ -45,6 +45,7 @@ from backend.api.ocr import router as ocr_router
 from backend.api.auth import router as auth_router
 from backend.api.manufacturer import router as manufacturer_router
 from backend.api.compliance import router as compliance_router
+from backend.api.extraction import router as extraction_router
 from backend.api.official import router as official_router
 from backend.database import close_mongodb, connect_to_mongodb
 
@@ -86,6 +87,7 @@ app.include_router(ocr_router)
 app.include_router(auth_router)
 app.include_router(manufacturer_router)
 app.include_router(compliance_router)
+app.include_router(extraction_router)
 app.include_router(official_router)
 
 
