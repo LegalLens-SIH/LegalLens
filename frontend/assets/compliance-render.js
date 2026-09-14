@@ -63,14 +63,14 @@
         fieldKeys.forEach(function (key) {
           var field = rule.required_fields[key];
           checks.push({
-            key: key, label: fieldLabel(key), status: field.status, value: field.value,
+            key: key, ruleId: rule.rule_id, label: fieldLabel(key), status: field.status, value: field.value,
             confidence: field.confidence, explanation: field.explanation,
             regions: Array.isArray(field.regions) ? field.regions : [],
             aiAssisted: aiFields.indexOf(key) !== -1,
           });
         });
       } else {
-        checks.push({ key: null, label: rule.rule_name, status: rule.status, value: null, confidence: null, explanation: rule.explanation, regions: [], aiAssisted: false });
+        checks.push({ key: null, ruleId: rule.rule_id, label: rule.rule_name, status: rule.status, value: null, confidence: null, explanation: rule.explanation, regions: [], aiAssisted: false });
       }
     });
     return checks;
@@ -128,6 +128,64 @@
     });
   }
 
+  // Renders one finding's Legal Basis panel (specs/001-legal-rag) into
+  // `container` from an already-fetched LegalBasisResult (backend/models/
+  // legal.py) - see frontend/assets/legal-basis-client.js for the fetch.
+  // Deliberately takes ONLY a DOM container + the fetched JSON: this
+  // function has no access to compliance status/score or any
+  // officialDecision DOM, so it structurally cannot influence either
+  // (constitution Principle I/II/IV) - it can only render or stay silent.
+  // Never fabricates legal text: when `result` is missing/malformed or its
+  // status isn't "found" with at least one provision, only the safe
+  // "not verified" state below is shown - no placeholder legal wording.
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function renderLegalBasisInto(container, result) {
+    if (!container) return;
+    container.innerHTML = "";
+    container.className = (container.className ? container.className + " " : "") + "ll-legal-basis";
+
+    var heading = document.createElement("p");
+    heading.className = "ll-legal-basis-heading";
+    heading.textContent = "Legal Basis";
+    container.appendChild(heading);
+
+    var provisions = (result && result.status === "found" && Array.isArray(result.provisions)) ? result.provisions : [];
+    if (!provisions.length) {
+      var empty = document.createElement("p");
+      empty.className = "ll-legal-basis-unavailable";
+      empty.textContent = "Legal basis unavailable / not verified for this finding.";
+      container.appendChild(empty);
+      return;
+    }
+
+    var disclaimer = document.createElement("p");
+    disclaimer.className = "ll-legal-basis-disclaimer";
+    disclaimer.textContent = "Reference only - not an official decision.";
+    container.appendChild(disclaimer);
+
+    var list = document.createElement("ul");
+    list.className = "ll-legal-basis-list";
+    provisions.forEach(function (provision) {
+      var item = document.createElement("li");
+      item.className = "ll-legal-basis-item";
+      var source = provision.source || {};
+      var statusNote = provision.effective_status && provision.effective_status !== "original"
+        ? " <span class=\"ll-legal-basis-effective\">(" + escapeHtml(provision.effective_status) + (provision.is_currently_effective ? "" : ", not currently effective") + ")</span>"
+        : "";
+      item.innerHTML =
+        "<p class=\"ll-legal-basis-clause\">" + escapeHtml(provision.rule_sub_rule_clause) + statusNote + "</p>" +
+        "<p class=\"ll-legal-basis-text\">&ldquo;" + escapeHtml(provision.text) + "&rdquo;</p>" +
+        "<p class=\"ll-legal-basis-source\">" + escapeHtml(source.title) + (source.citation ? ", " + escapeHtml(source.citation) : "") + (source.version ? " (" + escapeHtml(source.version) + ")" : "") + "</p>";
+      list.appendChild(item);
+    });
+    container.appendChild(list);
+  }
+
   // Minimal CSS for the evidence overlay (same visual language as
   // compliance-report.html's .bounding-box, under an ll- prefix so it can't
   // collide with any page-specific styling) - injected once per page.
@@ -135,7 +193,18 @@
     ".ll-evidence-box{border:2px solid #00274a;position:absolute;background-color:rgba(0,39,74,0.1);pointer-events:none}" +
     ".ll-evidence-box-label{position:absolute;left:-2px;top:-24px;max-width:240px;padding:2px 5px;color:#fff;background:#00274a;font:600 10px/14px Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.25)}" +
     ".ll-evidence-box-low{border-color:#ba1a1a;background-color:rgba(186,26,26,0.12)}" +
-    ".ll-evidence-box-low .ll-evidence-box-label{background:#ba1a1a}";
+    ".ll-evidence-box-low .ll-evidence-box-label{background:#ba1a1a}" +
+    ".ll-legal-basis{border-left:3px solid #6b7280;background:#f9fafb;padding:8px 12px;border-radius:4px;font-size:12px}" +
+    ".ll-legal-basis-heading{font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:11px;color:#4b5563;margin:0 0 4px}" +
+    ".ll-legal-basis-unavailable{color:#6b7280;font-style:italic;margin:0}" +
+    ".ll-legal-basis-disclaimer{color:#6b7280;font-size:10px;margin:0 0 6px}" +
+    ".ll-legal-basis-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}" +
+    ".ll-legal-basis-item{border-top:1px solid #e5e7eb;padding-top:6px}" +
+    ".ll-legal-basis-item:first-child{border-top:none;padding-top:0}" +
+    ".ll-legal-basis-clause{font-weight:600;color:#374151;margin:0}" +
+    ".ll-legal-basis-effective{font-weight:400;color:#9a6b00}" +
+    ".ll-legal-basis-text{color:#374151;margin:2px 0}" +
+    ".ll-legal-basis-source{color:#6b7280;font-size:11px;margin:0}";
 
   function injectEvidenceStyles() {
     if (document.getElementById("ll-evidence-style")) return;
@@ -152,5 +221,6 @@
     statusMeta: statusMeta,
     flattenChecks: flattenChecks,
     renderEvidenceOverlay: renderEvidenceOverlay,
+    renderLegalBasisInto: renderLegalBasisInto,
   };
 })(window);

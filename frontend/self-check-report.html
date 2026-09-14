@@ -377,7 +377,7 @@
 </div>
 </div>
 </main>
-<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script>
+<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script><script src="assets/compliance-render.js"></script><script src="assets/legal-basis-client.js"></script>
 <script>
     // Root-cause fix (part 1): this page used to read the self-check record
     // from LL.getSelfCheck() - app.js's localStorage-backed MOCK data store,
@@ -483,10 +483,10 @@
             if (fieldKeys.length) {
                 fieldKeys.forEach(function (key) {
                     var field = rule.required_fields[key];
-                    checks.push({ label: fieldLabel(key), status: field.status, value: field.value, confidence: field.confidence, explanation: field.explanation });
+                    checks.push({ key: key, ruleId: rule.rule_id, label: fieldLabel(key), status: field.status, value: field.value, confidence: field.confidence, explanation: field.explanation });
                 });
             } else {
-                checks.push({ label: rule.rule_name, status: rule.status, value: null, confidence: null, explanation: rule.explanation });
+                checks.push({ key: null, ruleId: rule.rule_id, label: rule.rule_name, status: rule.status, value: null, confidence: null, explanation: rule.explanation });
             }
         });
         return checks;
@@ -593,7 +593,18 @@
                         '</div>' +
                     '</div>';
                 li.querySelector('.material-symbols-outlined').className += ' ' + meta.chip.split(' ').filter(function (cls) { return cls.indexOf('text-') === 0; }).join(' ');
+                // Legal Basis: a separate, clearly-labeled sub-panel appended after
+                // the existing finding content - fetched and rendered only once
+                // this <li> (its status chip/value/confidence) already exists in
+                // the DOM, and never touches it. See compliance-render.js's
+                // renderLegalBasisInto doc comment for the safety invariant.
+                var legalBasisEl = document.createElement('div');
+                legalBasisEl.className = 'mt-3';
+                li.querySelector('.flex-1').appendChild(legalBasisEl);
                 list.appendChild(li);
+                LLLegalBasis.get(check.ruleId, check.key).then(function (result) {
+                    LLComplianceRender.renderLegalBasisInto(legalBasisEl, result);
+                });
             });
 
             document.getElementById('view-revisions-btn').addEventListener('click', function () {

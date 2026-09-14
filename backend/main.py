@@ -47,6 +47,7 @@ from backend.api.manufacturer import router as manufacturer_router
 from backend.api.compliance import router as compliance_router
 from backend.api.extraction import router as extraction_router
 from backend.api.official import router as official_router
+from backend.api.legal_basis import router as legal_basis_router
 from backend.database import close_mongodb, connect_to_mongodb
 
 logging.basicConfig(
@@ -89,6 +90,7 @@ app.include_router(manufacturer_router)
 app.include_router(compliance_router)
 app.include_router(extraction_router)
 app.include_router(official_router)
+app.include_router(legal_basis_router)
 
 
 @app.get("/api/health")

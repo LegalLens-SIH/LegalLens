@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org",
+  "corpus_id": "IN-LM-PACKAGED-COMMODITIES-2011-LEGAL-CORPUS",
+  "description": "Verified legal-provision corpus for LegalLense Legal RAG (specs/001-legal-rag). Covers required scope only: LMPC-R6-MANDATORY-DECLARATIONS and LMPC-R24-WHOLESALE-DECLARATIONS, per the approved specification's stated priority. Every provision below was transcribed from a real, downloaded, government-hosted PDF (not an AI-generated paraphrase) and cross-checked against a second, independent government-hosted compiled/amendment-tracking copy where an amendment applies - except LMPC-R6-11 (unit_sale_price), whose primary Gazette PDF could not be directly fetched from this environment; see that provision's source verification_note for the cross-checking method actually used. Any field with no entry here was deliberately left unresolved rather than filled from a secondary/unverified source - see specs/001-legal-rag/tasks.md Phase 2 notes.",
+  "sources": [
+    {
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+      "citation": "GSR 202(E), dated 7th March 2011, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+      "version": "2011-03-07-original",
+      "acquired_at": "2026-09-14",
+      "is_amendment": false,
+      "amends_source_id": null,
+      "verification_note": "Transcribed via direct PDF text extraction (not AI summarization) from a document hosted at wbconsumers.gov.in (West Bengal Department of Consumer Affairs, a state-government mirror of the central Ministry of Consumer Affairs rules). Full 43-page document read; Rules 1-34 and Schedules One-Seven confirmed present and legible."
+    },
+    {
+      "source_id": "IN-LM-PCR-2011-GSR427E-2012",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011 - as amended by GSR 427(E)",
+      "citation": "GSR 427(E), dated 5th June 2012, w.e.f. 01.11.2012, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+      "version": "2012-06-05-amendment",
+      "acquired_at": "2026-09-14",
+      "is_amendment": true,
+      "amends_source_id": "IN-LM-PCR-2011-GSR202E",
+      "verification_note": "Amendment text and citation confirmed via direct PDF text extraction from a consolidated 'Rules, 2011 (with up-to-date amendments)' document hosted at swcs.rajasthan.gov.in (Rajasthan State Consumer Welfare & Civil Supplies Department, a state-government mirror), which shows the original clause struck through alongside the substituted clause with its exact GSR citation inline."
+    },
+    {
+      "source_id": "IN-LM-PCR-2011-GSR385E-2015",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011 - as amended by GSR 385(E)",
+      "citation": "GSR 385(E), dated 14th May 2015, w.e.f. January 2016, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+      "version": "2015-05-14-amendment",
+      "acquired_at": "2026-09-14",
+      "is_amendment": true,
+      "amends_source_id": "IN-LM-PCR-2011-GSR202E",
+      "verification_note": "Same swcs.rajasthan.gov.in consolidated document as above; this amendment's substituted sub-rule (2) of Rule 6 is shown inline with its GSR citation and effective date."
+    },
+    {
+      "source_id": "IN-LM-PCR-2011-GSR629E-2017",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011 - as amended by GSR 629(E)",
+      "citation": "GSR 629(E), dated 23rd June 2017, w.e.f. 01.01.2018, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+      "version": "2017-06-23-amendment",
+      "acquired_at": "2026-09-14",
+      "is_amendment": true,
+      "amends_source_id": "IN-LM-PCR-2011-GSR202E",
+      "verification_note": "Same swcs.rajasthan.gov.in consolidated document; this is the amendment that inserted clause 6(1)(aa) (country of origin) and substituted clause 6(1)(e) (MRP wording), both shown inline with exact GSR citation and stated effective date (w.e.f. 01.01.2018)."
+    },
+    {
+      "source_id": "IN-LM-PCR-2011-GSR226E-2022",
+      "title": "The Legal Metrology (Packaged Commodities) Rules, 2011 - as amended by GSR 226(E)",
+      "citation": "GSR 226(E), dated 28th March 2022, Ministry of Consumer Affairs, Food and Public Distribution, Government of India - commencement originally stated as 01.10.2022, deferred through successive notifications (including GSR 910(E) dated 29.12.2022) to a final effective date of 01.04.2023",
+      "version": "2022-03-28-amendment",
+      "acquired_at": "2026-09-14",
+      "is_amendment": true,
+      "amends_source_id": "IN-LM-PCR-2011-GSR202E",
+      "verification_note": "The primary Gazette PDF at consumeraffairs.nic.in/sites/default/files/uploads/legal-metrology-acts-rules/GSR226.pdf (the source specified for this verification pass) could not be directly fetched from this environment: consumeraffairs.nic.in refused the connection and consumeraffairs.gov.in returned a certificate error on every attempt, and the Wayback Machine is unreachable from this tool. As a fallback, the substituted Rule 6(11) text, notification number, notification date, issuing ministry, and originally-stated commencement date were cross-checked as verbatim-consistent across four independent secondary legal/compliance sources - TeamLease RegTech, LegitQuest (a legal-database republication of the bare act text), S.S. Rana & Co., and WorldTradeScanner - all reporting an identical notification number, date, and rule text; none contradicted any other. The final effective date (01.04.2023, after commencement was deferred twice from the originally-notified 01.10.2022) is per S.S. Rana & Co.'s deferral timeline, corroborated by a separate secondary source citing the intermediate 29.12.2022 deferral (GSR 910(E)) that pushed commencement to 01.02.2023 before the final deferral to 01.04.2023. This falls short of this corpus's usual direct-primary-PDF-extraction standard (see this file's other sources) and should be re-verified against the primary Gazette PDF once this environment can reach consumeraffairs.nic.in."
+    }
+  ],
+  "provisions": [
+    {
+      "provision_id": "LMPC-R6-1-A",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 6(1)(a)",
+      "text": "the name and address of the manufacturer, or where the manufacturer is not the packer, the name and address of the manufacturer and packer and for any imported package the name and address of the importer shall be mentioned on every package.",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "manufacturer_packer_importer_details"
+    },
+    {
+      "provision_id": "LMPC-R6-1-AA",
+      "source_id": "IN-LM-PCR-2011-GSR629E-2017",
+      "rule_sub_rule_clause": "Rule 6(1)(aa)",
+      "text": "The name of the country of origin or manufacture or assembly in case of imported products shall be mentioned on the package;",
+      "effective_status": "amended",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "country_of_origin"
+    },
+    {
+      "provision_id": "LMPC-R6-1-B",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 6(1)(b)",
+      "text": "The common or generic names of the commodity contained in the package and in case of packages with more than one product, the name and number or quantity of each product shall be mentioned on the package.",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "common_generic_name_of_commodity"
+    },
+    {
+      "provision_id": "LMPC-R6-1-C",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 6(1)(c)",
+      "text": "The net quantity, in terms of the standard unit of weight or measure, of the commodity contained in the package or where the commodity is packed or sold by number, the number of the commodity contained in the package shall be mentioned.",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "net_quantity"
+    },
+    {
+      "provision_id": "LMPC-R6-1-D",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 6(1)(d)",
+      "text": "The month and year in which the commodity is manufactured or pre-packed or imported shall be mentioned in the package.",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "month_and_year_of_manufacture_or_packing"
+    },
+    {
+      "provision_id": "LMPC-R6-1-E",
+      "source_id": "IN-LM-PCR-2011-GSR629E-2017",
+      "rule_sub_rule_clause": "Rule 6(1)(e)",
+      "text": "the retail sale price of the package; shall clearly indicate that it is the maximum retail price inclusive of all taxes and the price in rupees and paise be rounded off to the nearest rupee or 50 paise. Illustrations for declaration of retail sale price: (a) Maximum or Max. retail price Rs. or xx.xx (inclusive of all taxes), or (b) Maximum or Max. retail price Rs. or xx.xx inclusive of all taxes, or (c) MRP Rs. or xx.xx incl. of all taxes, or (d) MRP Rs. or xx.xx (incl. of all taxes).",
+      "effective_status": "amended",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "maximum_retail_price_mrp"
+    },
+    {
+      "provision_id": "LMPC-R6-2",
+      "source_id": "IN-LM-PCR-2011-GSR385E-2015",
+      "rule_sub_rule_clause": "Rule 6(2)",
+      "text": "Every package shall bear the name, address, telephone number, e-mail address of the person who can be or the office which can be contacted in case of complaints.",
+      "effective_status": "amended",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "consumer_care_details"
+    },
+    {
+      "provision_id": "LMPC-R6-11",
+      "source_id": "IN-LM-PCR-2011-GSR226E-2022",
+      "rule_sub_rule_clause": "Rule 6(11)",
+      "text": "The unit sale price in rupees, rounded off to the nearest two decimal place, shall be declared on every pre-packaged commodity in the following manner:- (i) per gram where net quantity is less than one kilogram and per kilogram where net quantity is more than one kilogram; (ii) per centimetre where net length is less than one metre and per metre where net length is more than one metre; (iii) per millilitre where net volume is less than one litre and per litre where net volume is more than one litre; (iv) per number or unit if any item is sold by number or unit: Provided that for packages containing alcoholic beverages or spirituous liquor, the State Excise Laws and the rules made thereunder shall be applicable within the State in which it is manufactured: Provided further that declaration of unit sale price is not required for the pre-packaged commodities in which retail sale price is equal to the unit sale price.",
+      "effective_status": "amended",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+      "linked_field": "unit_sale_price"
+    },
+    {
+      "provision_id": "LMPC-R24-A",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 24(a)",
+      "text": "The name and address of the manufacturer or importer or where the manufacturer or importer is not the packer, of the packer;",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+      "linked_field": "name_and_address_of_manufacturer_or_packer"
+    },
+    {
+      "provision_id": "LMPC-R24-B",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 24(b)",
+      "text": "the identity of the commodity contained in the package; and",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+      "linked_field": "identity_of_commodity"
+    },
+    {
+      "provision_id": "LMPC-R24-C",
+      "source_id": "IN-LM-PCR-2011-GSR202E",
+      "rule_sub_rule_clause": "Rule 24(c)",
+      "text": "the total number of retail package contained in such wholesale package or the net quantity in terms of standard units of weights, measures or number of the commodity contained in wholesale package;",
+      "effective_status": "original",
+      "supersedes_provision_id": null,
+      "is_currently_effective": true,
+      "linked_rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+      "linked_field": "total_number_of_retail_packages_or_net_quantity"
+    }
+  ],
+  "unresolved_fields": []
+}
