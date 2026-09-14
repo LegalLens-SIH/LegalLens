@@ -1,0 +1,627 @@
+{
+  "corpus_provision_count": 11,
+  "source_corpus": "legal_metrology_packaged_commodities_2011.json",
+  "queries": [
+    {
+      "id": "exact-manufacturer_packer_importer_details",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(a) require about manufacturer or packer details?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "clause": "Rule 6(1)(a)"
+        }
+      ]
+    },
+    {
+      "id": "exact-country_of_origin",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(aa) require regarding country of origin?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "clause": "Rule 6(1)(aa)"
+        }
+      ]
+    },
+    {
+      "id": "exact-common_generic_name_of_commodity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(b) require about the common or generic name?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "clause": "Rule 6(1)(b)"
+        }
+      ]
+    },
+    {
+      "id": "exact-net_quantity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(c) require about net quantity?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "clause": "Rule 6(1)(c)"
+        }
+      ]
+    },
+    {
+      "id": "exact-month_and_year_of_manufacture_or_packing",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(d) require about the month and year of manufacture?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "clause": "Rule 6(1)(d)"
+        }
+      ]
+    },
+    {
+      "id": "exact-maximum_retail_price_mrp",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(e) require about the maximum retail price?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        }
+      ]
+    },
+    {
+      "id": "exact-unit_sale_price",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(11) require regarding unit sale price?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "exact-consumer_care_details",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(2) require about consumer care details?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "clause": "Rule 6(2)"
+        }
+      ]
+    },
+    {
+      "id": "exact-name_and_address_of_manufacturer_or_packer",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(a) require about manufacturer name and address?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "clause": "Rule 24(a)"
+        }
+      ]
+    },
+    {
+      "id": "exact-identity_of_commodity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(b) require about identity of the commodity?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "clause": "Rule 24(b)"
+        }
+      ]
+    },
+    {
+      "id": "exact-total_number_of_retail_packages_or_net_quantity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(c) require about the number of retail packages?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "clause": "Rule 24(c)"
+        }
+      ]
+    },
+    {
+      "id": "topic-manufacturer_packer_importer_details",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers who made or packed a retail product?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "clause": "Rule 6(1)(a)"
+        }
+      ]
+    },
+    {
+      "id": "topic-country_of_origin",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers country of origin for an imported product?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "clause": "Rule 6(1)(aa)"
+        }
+      ]
+    },
+    {
+      "id": "topic-common_generic_name_of_commodity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers stating what a product actually is, in plain terms?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "clause": "Rule 6(1)(b)"
+        }
+      ]
+    },
+    {
+      "id": "topic-net_quantity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers how much product is inside a retail package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "clause": "Rule 6(1)(c)"
+        }
+      ]
+    },
+    {
+      "id": "topic-month_and_year_of_manufacture_or_packing",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers when a retail product was made or packed?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "clause": "Rule 6(1)(d)"
+        }
+      ]
+    },
+    {
+      "id": "topic-maximum_retail_price_mrp",
+      "style": "topic_phrased",
+      "query_text": "Show me the legal provisions related to MRP.",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        }
+      ]
+    },
+    {
+      "id": "topic-unit_sale_price",
+      "style": "topic_phrased",
+      "query_text": "Which provision requires showing a price per kilogram or per litre?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "topic-consumer_care_details",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers a customer complaint phone number or email?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "clause": "Rule 6(2)"
+        }
+      ]
+    },
+    {
+      "id": "topic-name_and_address_of_manufacturer_or_packer",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers manufacturer identity on a bulk/wholesale package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "clause": "Rule 24(a)"
+        }
+      ]
+    },
+    {
+      "id": "topic-identity_of_commodity",
+      "style": "topic_phrased",
+      "query_text": "Which provision requires identifying the commodity on a wholesale package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "clause": "Rule 24(b)"
+        }
+      ]
+    },
+    {
+      "id": "topic-total_number_of_retail_packages_or_net_quantity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers how many retail units are inside a wholesale carton?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "clause": "Rule 24(c)"
+        }
+      ]
+    },
+    {
+      "id": "hist-r6-2022",
+      "style": "amendment_history",
+      "query_text": "What changed in Rule 6 after the 2022 amendment?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "hist-mrp-2017",
+      "style": "amendment_history",
+      "query_text": "How did the MRP declaration requirement change in 2017?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        }
+      ]
+    },
+    {
+      "id": "hist-country-origin-amend",
+      "style": "amendment_history",
+      "query_text": "Is the country of origin requirement an original 2011 rule or a later amendment?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "clause": "Rule 6(1)(aa)"
+        }
+      ]
+    },
+    {
+      "id": "hist-unit-sale-price-effective-date",
+      "style": "amendment_history",
+      "query_text": "As of today, is the unit sale price declaration requirement actually in force?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-netqty-retail",
+      "style": "adversarial_confusable",
+      "query_text": "What must be declared about net quantity on a RETAIL package sold directly to a consumer?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "clause": "Rule 6(1)(c)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-netqty-wholesale",
+      "style": "adversarial_confusable",
+      "query_text": "What must be declared about net quantity on a WHOLESALE package sold to a retailer, not a consumer?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "clause": "Rule 24(c)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-mfr-retail",
+      "style": "adversarial_confusable",
+      "query_text": "Whose name and address must appear on a RETAIL package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "clause": "Rule 6(1)(a)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-mfr-wholesale",
+      "style": "adversarial_confusable",
+      "query_text": "Whose name and address must appear on a WHOLESALE package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "clause": "Rule 24(a)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-identity-vs-genericname",
+      "style": "adversarial_confusable",
+      "query_text": "For a wholesale package, what counts as identifying the commodity itself?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "clause": "Rule 24(b)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-genericname-vs-identity",
+      "style": "adversarial_confusable",
+      "query_text": "For a retail package, what common or generic name must be shown for the product?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "clause": "Rule 6(1)(b)"
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-price-vs-unit-price",
+      "style": "adversarial_confusable",
+      "query_text": "Is the requirement to show price per kilogram the same as the requirement to show the maximum retail price?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-price",
+      "style": "adversarial_generic",
+      "query_text": "What are the price declaration requirements for a package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-labeling",
+      "style": "adversarial_generic",
+      "query_text": "What labeling requirements apply to a packaged commodity?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "clause": "Rule 6(1)(a)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "clause": "Rule 6(1)(aa)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "clause": "Rule 6(1)(b)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "clause": "Rule 6(1)(c)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "clause": "Rule 6(1)(d)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "clause": "Rule 6(11)"
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "clause": "Rule 6(2)"
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-wholesale-labeling",
+      "style": "adversarial_generic",
+      "query_text": "What must a wholesale package's label show?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "clause": "Rule 24(a)"
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "clause": "Rule 24(b)"
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "clause": "Rule 24(c)"
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-origin-mfr",
+      "style": "adversarial_multi",
+      "query_text": "What are the requirements for both country of origin and manufacturer details together on a retail package?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "clause": "Rule 6(1)(aa)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "clause": "Rule 6(1)(a)"
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-price-date",
+      "style": "adversarial_multi",
+      "query_text": "What must be shown about the maximum retail price and the manufacturing date together?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "clause": "Rule 6(1)(e)"
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "clause": "Rule 6(1)(d)"
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-wholesale-identity-qty",
+      "style": "adversarial_multi",
+      "query_text": "For a wholesale package, what must be shown about both the commodity's identity and the number of retail packages inside?",
+      "expected": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "clause": "Rule 24(b)"
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "clause": "Rule 24(c)"
+        }
+      ]
+    },
+    {
+      "id": "adv-none-expiry",
+      "style": "adversarial_no_result",
+      "query_text": "What is the expiry date or best-before date declaration requirement for a package?",
+      "expected": []
+    },
+    {
+      "id": "adv-none-verification-interval",
+      "style": "adversarial_no_result",
+      "query_text": "What are the verification interval requirements for a weighing or measuring instrument?",
+      "expected": []
+    },
+    {
+      "id": "adv-none-unrelated-companies-act",
+      "style": "adversarial_no_result",
+      "query_text": "What is the penalty for a violation under the Companies Act?",
+      "expected": []
+    },
+    {
+      "id": "adv-none-standard-package-size",
+      "style": "adversarial_no_result",
+      "query_text": "What are the standard package sizes a commodity must be packed in?",
+      "expected": []
+    },
+    {
+      "id": "adv-none-consumer-protection-act",
+      "style": "adversarial_no_result",
+      "query_text": "What remedies does a consumer have under the Consumer Protection Act for a mislabeled product?",
+      "expected": []
+    },
+    {
+      "id": "adv-none-import-duty",
+      "style": "adversarial_no_result",
+      "query_text": "What import duty applies to a packaged commodity entering India?",
+      "expected": []
+    }
+  ]
+}

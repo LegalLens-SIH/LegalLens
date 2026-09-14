@@ -1,0 +1,1581 @@
+{
+  "model": "BAAI/bge-small-en-v1.5",
+  "avg_latency_ms": 23.004675556148868,
+  "results": [
+    {
+      "id": "exact-manufacturer_packer_importer_details",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.7840739488601685
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.7782495021820068
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7662663459777832
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.7228174209594727
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.6755159497261047
+        }
+      ]
+    },
+    {
+      "id": "exact-country_of_origin",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.8660790920257568
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6631381511688232
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6471771597862244
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6291772127151489
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.5583813786506653
+        }
+      ]
+    },
+    {
+      "id": "exact-common_generic_name_of_commodity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7514573335647583
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7079078555107117
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6662946939468384
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.6347929239273071
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6309237480163574
+        }
+      ]
+    },
+    {
+      "id": "exact-net_quantity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.8025709390640259
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7173500061035156
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.7032591104507446
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.664389431476593
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6461297869682312
+        }
+      ]
+    },
+    {
+      "id": "exact-month_and_year_of_manufacture_or_packing",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.8119031190872192
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7422071695327759
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6307224035263062
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6199793219566345
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.6123791337013245
+        }
+      ]
+    },
+    {
+      "id": "exact-maximum_retail_price_mrp",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.7725418210029602
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.6605199575424194
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.6325664520263672
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6320379972457886
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6066194772720337
+        }
+      ]
+    },
+    {
+      "id": "exact-unit_sale_price",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.7725057601928711
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.7119537591934204
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6644058227539062
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.6623460650444031
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6508396863937378
+        }
+      ]
+    },
+    {
+      "id": "exact-consumer_care_details",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.6353006362915039
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6323249340057373
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.6314551830291748
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6142606139183044
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.595684826374054
+        }
+      ]
+    },
+    {
+      "id": "exact-name_and_address_of_manufacturer_or_packer",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.8513748049736023
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.7875254154205322
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7488455772399902
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7223676443099976
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.6904901266098022
+        }
+      ]
+    },
+    {
+      "id": "exact-identity_of_commodity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.8990206718444824
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7054177522659302
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.7039071917533875
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6989483833312988
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6652337312698364
+        }
+      ]
+    },
+    {
+      "id": "exact-total_number_of_retail_packages_or_net_quantity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.836264967918396
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7834328413009644
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.727831244468689
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.7026411294937134
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6874488592147827
+        }
+      ]
+    },
+    {
+      "id": "topic-manufacturer_packer_importer_details",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.6496701240539551
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6359089612960815
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6285557150840759
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.625769317150116
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6131829023361206
+        }
+      ]
+    },
+    {
+      "id": "topic-country_of_origin",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.699255645275116
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6415234804153442
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6368228793144226
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.599770188331604
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.570967972278595
+        }
+      ]
+    },
+    {
+      "id": "topic-common_generic_name_of_commodity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6901331543922424
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6369963884353638
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.631364643573761
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6270722150802612
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6196986436843872
+        }
+      ]
+    },
+    {
+      "id": "topic-net_quantity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7292969226837158
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6750212907791138
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.656852126121521
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6483663320541382
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.644981324672699
+        }
+      ]
+    },
+    {
+      "id": "topic-month_and_year_of_manufacture_or_packing",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7020242810249329
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6982277631759644
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6691929697990417
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6676136255264282
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6542832851409912
+        }
+      ]
+    },
+    {
+      "id": "topic-maximum_retail_price_mrp",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5863004922866821
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.5821296572685242
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5762142539024353
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.5591491460800171
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.5505658388137817
+        }
+      ]
+    },
+    {
+      "id": "topic-unit_sale_price",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.6660898327827454
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.5837152004241943
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.5658262372016907
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5483289957046509
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.5403221845626831
+        }
+      ]
+    },
+    {
+      "id": "topic-consumer_care_details",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.6468192338943481
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5348235368728638
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.533758282661438
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.527016818523407
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.5156384706497192
+        }
+      ]
+    },
+    {
+      "id": "topic-name_and_address_of_manufacturer_or_packer",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6834138035774231
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6549873948097229
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6531120538711548
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6466687917709351
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.6398066282272339
+        }
+      ]
+    },
+    {
+      "id": "topic-identity_of_commodity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7671424150466919
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7364404201507568
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7291291356086731
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6766862869262695
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6760926842689514
+        }
+      ]
+    },
+    {
+      "id": "topic-total_number_of_retail_packages_or_net_quantity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.713006854057312
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6039100885391235
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.576585590839386
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5658841133117676
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5619100332260132
+        }
+      ]
+    },
+    {
+      "id": "hist-r6-2022",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.620465874671936
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.6143914461135864
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.5542047023773193
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.5498127937316895
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.5228378772735596
+        }
+      ]
+    },
+    {
+      "id": "hist-mrp-2017",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5569496750831604
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5181944370269775
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.5149745345115662
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.5142784714698792
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5029370188713074
+        }
+      ]
+    },
+    {
+      "id": "hist-country-origin-amend",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7429578304290771
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6369957327842712
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.603556752204895
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.5880798697471619
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.5627899765968323
+        }
+      ]
+    },
+    {
+      "id": "hist-unit-sale-price-effective-date",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.7573843002319336
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.6837809085845947
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6084405183792114
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.598753809928894
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5817350149154663
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-netqty-retail",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.7759639024734497
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7532318830490112
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.7443743944168091
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.7214191555976868
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6844751834869385
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-netqty-wholesale",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7823918461799622
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.7632089257240295
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.7152860760688782
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6866521835327148
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6833687424659729
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-mfr-retail",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.7584418058395386
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.7533336877822876
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6798502206802368
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6761350631713867
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6659878492355347
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-mfr-wholesale",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.7552458643913269
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.7366132736206055
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.71642005443573
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6717696189880371
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6627134084701538
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-identity-vs-genericname",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7854180335998535
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7770107388496399
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7532517910003662
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.7215293049812317
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.7015577554702759
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-genericname-vs-identity",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7939759492874146
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6884380578994751
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.6559826135635376
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.6511561870574951
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6382005214691162
+        }
+      ]
+    },
+    {
+      "id": "adv-conf-price-vs-unit-price",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.7319231033325195
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.6971766948699951
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6020124554634094
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.5823748111724854
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.5681445598602295
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-price",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.6946885585784912
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6828387975692749
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.6805264949798584
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6498093008995056
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.648358166217804
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-labeling",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7597541809082031
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7202726602554321
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.7005743980407715
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6838549375534058
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.6766064167022705
+        }
+      ]
+    },
+    {
+      "id": "adv-generic-wholesale-labeling",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7184498310089111
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7103254795074463
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6991196870803833
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6644941568374634
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6458956599235535
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-origin-mfr",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.7254084348678589
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.6497507691383362
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6251965165138245
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.6020951271057129
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.5862066745758057
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-price-date",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.71598881483078
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6016388535499573
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5965333580970764
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.5663063526153564
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5602180361747742
+        }
+      ]
+    },
+    {
+      "id": "adv-multi-wholesale-identity-qty",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7806766629219055
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.7586618661880493
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.7266828417778015
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6923773884773254
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6392443180084229
+        }
+      ]
+    },
+    {
+      "id": "adv-none-expiry",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6717784404754639
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6041563749313354
+        },
+        {
+          "provision_id": "LMPC-R6-2",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "consumer_care_details",
+          "score": 0.599190890789032
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5827914476394653
+        },
+        {
+          "provision_id": "LMPC-R6-1-E",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "maximum_retail_price_mrp",
+          "score": 0.5788449048995972
+        }
+      ]
+    },
+    {
+      "id": "adv-none-verification-interval",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.5756222009658813
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5543677806854248
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.552688717842102
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5489888191223145
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.523051917552948
+        }
+      ]
+    },
+    {
+      "id": "adv-none-unrelated-companies-act",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5767237544059753
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.5694641470909119
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.5619596242904663
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.5586005449295044
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.5578164458274841
+        }
+      ]
+    },
+    {
+      "id": "adv-none-standard-package-size",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.736315131187439
+        },
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.716497540473938
+        },
+        {
+          "provision_id": "LMPC-R24-C",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "total_number_of_retail_packages_or_net_quantity",
+          "score": 0.7040797472000122
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6998867988586426
+        },
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.6794407367706299
+        }
+      ]
+    },
+    {
+      "id": "adv-none-consumer-protection-act",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-B",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "common_generic_name_of_commodity",
+          "score": 0.5992434024810791
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.5871701240539551
+        },
+        {
+          "provision_id": "LMPC-R6-1-A",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "manufacturer_packer_importer_details",
+          "score": 0.5718450546264648
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.5663881301879883
+        },
+        {
+          "provision_id": "LMPC-R24-A",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "name_and_address_of_manufacturer_or_packer",
+          "score": 0.5565018653869629
+        }
+      ]
+    },
+    {
+      "id": "adv-none-import-duty",
+      "ranked_top5": [
+        {
+          "provision_id": "LMPC-R6-1-D",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "month_and_year_of_manufacture_or_packing",
+          "score": 0.7292128205299377
+        },
+        {
+          "provision_id": "LMPC-R24-B",
+          "rule_id": "LMPC-R24-WHOLESALE-DECLARATIONS",
+          "field": "identity_of_commodity",
+          "score": 0.6881101131439209
+        },
+        {
+          "provision_id": "LMPC-R6-11",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "unit_sale_price",
+          "score": 0.681516706943512
+        },
+        {
+          "provision_id": "LMPC-R6-1-AA",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "country_of_origin",
+          "score": 0.677099347114563
+        },
+        {
+          "provision_id": "LMPC-R6-1-C",
+          "rule_id": "LMPC-R6-MANDATORY-DECLARATIONS",
+          "field": "net_quantity",
+          "score": 0.6655237674713135
+        }
+      ]
+    }
+  ]
+}

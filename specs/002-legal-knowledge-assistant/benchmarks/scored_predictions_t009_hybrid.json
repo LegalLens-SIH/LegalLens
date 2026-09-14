@@ -1,0 +1,836 @@
+{
+  "headline": {
+    "model": "hybrid-bm25+bge-small-rrf",
+    "avg_latency_ms": 23.317695556357243,
+    "applicable_queries": 39,
+    "no_result_queries": 6,
+    "top1_accuracy": 0.8462,
+    "top3_recall": 0.9231,
+    "wrong_rule_rate": 0.0769,
+    "wrong_field_rate": 0.0769,
+    "adversarial_class_b_rate": 0.1538
+  },
+  "by_style": {
+    "exact_citation": "11/11",
+    "topic_phrased": "8/11",
+    "amendment_history": "3/4",
+    "adversarial_confusable": "6/7",
+    "adversarial_generic": "2/3",
+    "adversarial_multi": "3/3"
+  },
+  "by_threshold": {
+    "0.55": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    },
+    "0.6": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    },
+    "0.65": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    },
+    "0.7": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    },
+    "0.75": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    },
+    "0.8": {
+      "no_result_correctly_abstained": 6,
+      "no_result_total": 6,
+      "correct_top1_retained_above_threshold": 0,
+      "correct_top1_wrongly_withheld_below_threshold": 33
+    }
+  },
+  "per_query": [
+    {
+      "id": "exact-manufacturer_packer_importer_details",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(a) require about manufacturer or packer details?",
+      "expected_ids": [
+        "LMPC-R6-1-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-country_of_origin",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(aa) require regarding country of origin?",
+      "expected_ids": [
+        "LMPC-R6-1-AA"
+      ],
+      "top1_id": "LMPC-R6-1-AA",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-common_generic_name_of_commodity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(b) require about the common or generic name?",
+      "expected_ids": [
+        "LMPC-R6-1-B"
+      ],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-net_quantity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(c) require about net quantity?",
+      "expected_ids": [
+        "LMPC-R6-1-C"
+      ],
+      "top1_id": "LMPC-R6-1-C",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-month_and_year_of_manufacture_or_packing",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(d) require about the month and year of manufacture?",
+      "expected_ids": [
+        "LMPC-R6-1-D"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-maximum_retail_price_mrp",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(1)(e) require about the maximum retail price?",
+      "expected_ids": [
+        "LMPC-R6-1-E"
+      ],
+      "top1_id": "LMPC-R6-1-E",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-unit_sale_price",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(11) require regarding unit sale price?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-11",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-consumer_care_details",
+      "style": "exact_citation",
+      "query_text": "What does Rule 6(2) require about consumer care details?",
+      "expected_ids": [
+        "LMPC-R6-2"
+      ],
+      "top1_id": "LMPC-R6-2",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-name_and_address_of_manufacturer_or_packer",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(a) require about manufacturer name and address?",
+      "expected_ids": [
+        "LMPC-R24-A"
+      ],
+      "top1_id": "LMPC-R24-A",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-identity_of_commodity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(b) require about identity of the commodity?",
+      "expected_ids": [
+        "LMPC-R24-B"
+      ],
+      "top1_id": "LMPC-R24-B",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "exact-total_number_of_retail_packages_or_net_quantity",
+      "style": "exact_citation",
+      "query_text": "What does Rule 24(c) require about the number of retail packages?",
+      "expected_ids": [
+        "LMPC-R24-C"
+      ],
+      "top1_id": "LMPC-R24-C",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-manufacturer_packer_importer_details",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers who made or packed a retail product?",
+      "expected_ids": [
+        "LMPC-R6-1-A"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03225806451612903,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "topic-country_of_origin",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers country of origin for an imported product?",
+      "expected_ids": [
+        "LMPC-R6-1-AA"
+      ],
+      "top1_id": "LMPC-R6-1-AA",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-common_generic_name_of_commodity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers stating what a product actually is, in plain terms?",
+      "expected_ids": [
+        "LMPC-R6-1-B"
+      ],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-net_quantity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers how much product is inside a retail package?",
+      "expected_ids": [
+        "LMPC-R6-1-C"
+      ],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "topic-month_and_year_of_manufacture_or_packing",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers when a retail product was made or packed?",
+      "expected_ids": [
+        "LMPC-R6-1-D"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-maximum_retail_price_mrp",
+      "style": "topic_phrased",
+      "query_text": "Show me the legal provisions related to MRP.",
+      "expected_ids": [
+        "LMPC-R6-1-E"
+      ],
+      "top1_id": "LMPC-R6-1-E",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-unit_sale_price",
+      "style": "topic_phrased",
+      "query_text": "Which provision requires showing a price per kilogram or per litre?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-11",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-consumer_care_details",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers a customer complaint phone number or email?",
+      "expected_ids": [
+        "LMPC-R6-2"
+      ],
+      "top1_id": "LMPC-R6-2",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-name_and_address_of_manufacturer_or_packer",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers manufacturer identity on a bulk/wholesale package?",
+      "expected_ids": [
+        "LMPC-R24-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    },
+    {
+      "id": "topic-identity_of_commodity",
+      "style": "topic_phrased",
+      "query_text": "Which provision requires identifying the commodity on a wholesale package?",
+      "expected_ids": [
+        "LMPC-R24-B"
+      ],
+      "top1_id": "LMPC-R24-B",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "topic-total_number_of_retail_packages_or_net_quantity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers how many retail units are inside a wholesale carton?",
+      "expected_ids": [
+        "LMPC-R24-C"
+      ],
+      "top1_id": "LMPC-R24-C",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "hist-r6-2022",
+      "style": "amendment_history",
+      "query_text": "What changed in Rule 6 after the 2022 amendment?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "hist-mrp-2017",
+      "style": "amendment_history",
+      "query_text": "How did the MRP declaration requirement change in 2017?",
+      "expected_ids": [
+        "LMPC-R6-1-E"
+      ],
+      "top1_id": "LMPC-R6-1-E",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "hist-country-origin-amend",
+      "style": "amendment_history",
+      "query_text": "Is the country of origin requirement an original 2011 rule or a later amendment?",
+      "expected_ids": [
+        "LMPC-R6-1-AA"
+      ],
+      "top1_id": "LMPC-R6-1-AA",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "hist-unit-sale-price-effective-date",
+      "style": "amendment_history",
+      "query_text": "As of today, is the unit sale price declaration requirement actually in force?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-11",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-netqty-retail",
+      "style": "adversarial_confusable",
+      "query_text": "What must be declared about net quantity on a RETAIL package sold directly to a consumer?",
+      "expected_ids": [
+        "LMPC-R6-1-C"
+      ],
+      "top1_id": "LMPC-R6-1-C",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-netqty-wholesale",
+      "style": "adversarial_confusable",
+      "query_text": "What must be declared about net quantity on a WHOLESALE package sold to a retailer, not a consumer?",
+      "expected_ids": [
+        "LMPC-R24-C"
+      ],
+      "top1_id": "LMPC-R24-C",
+      "top1_score": 0.032018442622950824,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-mfr-retail",
+      "style": "adversarial_confusable",
+      "query_text": "Whose name and address must appear on a RETAIL package?",
+      "expected_ids": [
+        "LMPC-R6-1-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-mfr-wholesale",
+      "style": "adversarial_confusable",
+      "query_text": "Whose name and address must appear on a WHOLESALE package?",
+      "expected_ids": [
+        "LMPC-R24-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    },
+    {
+      "id": "adv-conf-identity-vs-genericname",
+      "style": "adversarial_confusable",
+      "query_text": "For a wholesale package, what counts as identifying the commodity itself?",
+      "expected_ids": [
+        "LMPC-R24-B"
+      ],
+      "top1_id": "LMPC-R24-B",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-genericname-vs-identity",
+      "style": "adversarial_confusable",
+      "query_text": "For a retail package, what common or generic name must be shown for the product?",
+      "expected_ids": [
+        "LMPC-R6-1-B"
+      ],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-conf-price-vs-unit-price",
+      "style": "adversarial_confusable",
+      "query_text": "Is the requirement to show price per kilogram the same as the requirement to show the maximum retail price?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-11",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-generic-price",
+      "style": "adversarial_generic",
+      "query_text": "What are the price declaration requirements for a package?",
+      "expected_ids": [
+        "LMPC-R6-1-E",
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-1-E",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-generic-labeling",
+      "style": "adversarial_generic",
+      "query_text": "What labeling requirements apply to a packaged commodity?",
+      "expected_ids": [
+        "LMPC-R6-1-A",
+        "LMPC-R6-1-AA",
+        "LMPC-R6-1-B",
+        "LMPC-R6-1-C",
+        "LMPC-R6-1-D",
+        "LMPC-R6-1-E",
+        "LMPC-R6-11",
+        "LMPC-R6-2"
+      ],
+      "top1_id": "LMPC-R24-B",
+      "top1_score": 0.0315136476426799,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    },
+    {
+      "id": "adv-generic-wholesale-labeling",
+      "style": "adversarial_generic",
+      "query_text": "What must a wholesale package's label show?",
+      "expected_ids": [
+        "LMPC-R24-A",
+        "LMPC-R24-B",
+        "LMPC-R24-C"
+      ],
+      "top1_id": "LMPC-R24-C",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-multi-origin-mfr",
+      "style": "adversarial_multi",
+      "query_text": "What are the requirements for both country of origin and manufacturer details together on a retail package?",
+      "expected_ids": [
+        "LMPC-R6-1-A",
+        "LMPC-R6-1-AA"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-multi-price-date",
+      "style": "adversarial_multi",
+      "query_text": "What must be shown about the maximum retail price and the manufacturing date together?",
+      "expected_ids": [
+        "LMPC-R6-1-D",
+        "LMPC-R6-1-E"
+      ],
+      "top1_id": "LMPC-R6-1-E",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-multi-wholesale-identity-qty",
+      "style": "adversarial_multi",
+      "query_text": "For a wholesale package, what must be shown about both the commodity's identity and the number of retail packages inside?",
+      "expected_ids": [
+        "LMPC-R24-B",
+        "LMPC-R24-C"
+      ],
+      "top1_id": "LMPC-R24-C",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": true,
+      "top3_hit": true,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": "A"
+    },
+    {
+      "id": "adv-none-expiry",
+      "style": "adversarial_no_result",
+      "query_text": "What is the expiry date or best-before date declaration requirement for a package?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    },
+    {
+      "id": "adv-none-verification-interval",
+      "style": "adversarial_no_result",
+      "query_text": "What are the verification interval requirements for a weighing or measuring instrument?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R6-1-C",
+      "top1_score": 0.03177805800756621,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    },
+    {
+      "id": "adv-none-unrelated-companies-act",
+      "style": "adversarial_no_result",
+      "query_text": "What is the penalty for a violation under the Companies Act?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R24-A",
+      "top1_score": 0.03225806451612903,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    },
+    {
+      "id": "adv-none-standard-package-size",
+      "style": "adversarial_no_result",
+      "query_text": "What are the standard package sizes a commodity must be packed in?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R6-1-C",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    },
+    {
+      "id": "adv-none-consumer-protection-act",
+      "style": "adversarial_no_result",
+      "query_text": "What remedies does a consumer have under the Consumer Protection Act for a mislabeled product?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    },
+    {
+      "id": "adv-none-import-duty",
+      "style": "adversarial_no_result",
+      "query_text": "What import duty applies to a packaged commodity entering India?",
+      "expected_ids": [],
+      "top1_id": "LMPC-R6-11",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": null,
+      "top3_hit": null,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": false,
+      "sc009_class": null
+    }
+  ],
+  "wrong_cases": [
+    {
+      "id": "topic-manufacturer_packer_importer_details",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers who made or packed a retail product?",
+      "expected_ids": [
+        "LMPC-R6-1-A"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03225806451612903,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "topic-net_quantity",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers how much product is inside a retail package?",
+      "expected_ids": [
+        "LMPC-R6-1-C"
+      ],
+      "top1_id": "LMPC-R6-1-B",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "topic-name_and_address_of_manufacturer_or_packer",
+      "style": "topic_phrased",
+      "query_text": "Which provision covers manufacturer identity on a bulk/wholesale package?",
+      "expected_ids": [
+        "LMPC-R24-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.032266458495966696,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    },
+    {
+      "id": "hist-r6-2022",
+      "style": "amendment_history",
+      "query_text": "What changed in Rule 6 after the 2022 amendment?",
+      "expected_ids": [
+        "LMPC-R6-11"
+      ],
+      "top1_id": "LMPC-R6-1-D",
+      "top1_score": 0.03278688524590164,
+      "top1_correct": false,
+      "top3_hit": false,
+      "top1_wrong_rule": false,
+      "top1_wrong_field": true,
+      "sc009_class": "B"
+    },
+    {
+      "id": "adv-conf-mfr-wholesale",
+      "style": "adversarial_confusable",
+      "query_text": "Whose name and address must appear on a WHOLESALE package?",
+      "expected_ids": [
+        "LMPC-R24-A"
+      ],
+      "top1_id": "LMPC-R6-1-A",
+      "top1_score": 0.03252247488101534,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    },
+    {
+      "id": "adv-generic-labeling",
+      "style": "adversarial_generic",
+      "query_text": "What labeling requirements apply to a packaged commodity?",
+      "expected_ids": [
+        "LMPC-R6-1-A",
+        "LMPC-R6-1-AA",
+        "LMPC-R6-1-B",
+        "LMPC-R6-1-C",
+        "LMPC-R6-1-D",
+        "LMPC-R6-1-E",
+        "LMPC-R6-11",
+        "LMPC-R6-2"
+      ],
+      "top1_id": "LMPC-R24-B",
+      "top1_score": 0.0315136476426799,
+      "top1_correct": false,
+      "top3_hit": true,
+      "top1_wrong_rule": true,
+      "top1_wrong_field": false,
+      "sc009_class": "B"
+    }
+  ]
+}
