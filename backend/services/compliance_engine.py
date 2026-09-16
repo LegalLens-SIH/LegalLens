@@ -303,15 +303,47 @@ _MRP_TAX_INCLUSIVE_PATTERN = re.compile(r"incl(?:usive|\.)?\s*(?:of\s*)?all\s*ta
 _DATE_PATTERN = re.compile(
     r"\b(?:[0-3]?[0-9][/\-.][0-1]?[0-9][/\-.][0-9]{2,4}"
     r"|[0-1]?[0-9][/\-.][0-9]{4}"
+    # 2-digit-year MM/YY (e.g. "01/26") - a real, standard compact date-
+    # coding convention on Indian FMCG packaging (real Handwash_back.jpg
+    # benchmark wording), distinct from the 4-digit-year alternative above.
+    # Deliberately narrower than that alternative: slash-only (no "-"/"."),
+    # since a dash/dot-separated 2-digit/2-digit pair is far more likely to
+    # be an unrelated code/ratio, not a date - and this whole pattern is
+    # only ever consulted within an already _DATE_KEYWORD_PATTERN-anchored
+    # line or its NEARBY_LINE_WINDOW (see normalize_ocr_result's date
+    # block), never scanned generically across the page, which is the
+    # primary thing keeping the 4-digit-year alternative safe too.
+    r"|[0-1]?[0-9]/[0-9]{2}\b(?!/)"
     r"|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+[0-9]{2,4})\b",
     re.I,
 )
 # Keywords considered when searching for the manufacture/packing DATE line
 # specifically (separate from ALIASES' broader, unvalidated match) - "pkd"
 # is a common Indian packaged-goods abbreviation for "packed [on]", not
-# text specific to any one product.
+# text specific to any one product. "mfd" (distinct from "mfg") is the
+# real Handwash_back.jpg benchmark wording ("...Batch, Mfd.(*), Use
+# before(#)...") - the entity-role heading pattern already accepted "MFD
+# BY" for the manufacturer field (_ROLE_HEADING_PATTERNS' "mf[dgr]"), but
+# this separate date-keyword pattern had no "mfd" coverage at all.
+#
+# \bbatch\s*mfd\b is a SEPARATE, narrower addition for a different real
+# failure mode on the same fixture: PaddleOCR fused "Batch" directly into
+# "Mfd" with no space at all ("...BatchMfd.(),Usebefore(#)...") - \bmfd\b
+# above never matches this, since there is no word boundary between
+# "Batch" and "Mfd" once fused. \s* (zero or more spaces) covers both the
+# real fused form ("BatchMfd.") and the single-space form ("Batch Mfd.")
+# in one pattern. This does NOT widen "mfd" into an unbounded substring
+# search: \bbatch still requires "batch" to be its own word (rejects
+# "Rebatching"/"Nonbatch" the same way \borigin\b already rejects
+# "Original" elsewhere in this file), the trailing \b still requires "mfd"
+# to end cleanly (rejects "MfdDate" - "d"/"D" are fused with no boundary,
+# unchanged from \bmfd\b's existing behavior), and \s* permits ONLY
+# whitespace between "batch" and "mfd" - "Batch No. 12345 Mfd" does NOT
+# match this alternative (no generic "batch...mfd nearby" proximity
+# search is introduced; standalone \bmfd\b may still separately match the
+# bare "Mfd" token in such text on its own merits, exactly as before).
 _DATE_KEYWORD_PATTERN = re.compile(
-    r"date\s+of\s+manufacture|manufactur\w*|\bmfg\b|packed?\s+on|packing\s+date|\bpkd\b", re.I,
+    r"date\s+of\s+manufacture|manufactur\w*|\bmfg\b|\bmfd\b|\bbatch\s*mfd\b|packed?\s+on|packing\s+date|\bpkd\b", re.I,
 )
 
 # Maps a YOLO26 declaration-region class (backend/ocr/yolo_service.py's
@@ -725,7 +757,19 @@ _CARE_TRIGGER_PATTERN = re.compile(
     # "email" alias, any of which would be far too broad and risk matching
     # unrelated marketing copy ("we welcome your feedback on our new
     # flavour") that has nothing to do with a consumer-care declaration.
-    r"|(?:for\s+)?queries\s+or\s+feedback",
+    r"|(?:for\s+)?queries\s+or\s+feedback"
+    # Real observed fixture wording (Chips_back.jpg's benchmark OCR text:
+    # "...call Mon-Sat 10:00AM TO 6:00PM OR E-MAIL / CONTACT@BALAJIWAFERS.
+    # COM...") - an operating-hours time range immediately followed by
+    # "or e-mail" is a standard Indian-label consumer-care disclosure
+    # shape. Deliberately narrow, same discipline as "queries or feedback"
+    # above: requires BOTH a full HH(:MM) AM/PM - TO/dash - HH(:MM) AM/PM
+    # time range AND the literal "or e-mail"/"or email" immediately after
+    # it, together - a bare operating-hours mention alone (e.g. "Open
+    # 9:00 AM to 6:00 PM daily") never matches, so this cannot be
+    # mistaken for an ordinary store-hours notice unrelated to consumer
+    # care.
+    r"|[0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM)\s*(?:TO|-|–)\s*[0-9]{1,2}(?::[0-9]{2})?\s*(?:AM|PM)\s*OR\s*E[\s-]?MAIL",
     re.I,
 )
 
@@ -968,6 +1012,31 @@ def _care_block(lines: list[str], start: int) -> str:
     return "\n".join(block)
 
 
+_PHONE_CANDIDATE_PATTERN = re.compile(r"(?:\+91[\s-]?)?[0-9][0-9\s-]{6,14}[0-9]")
+
+# A genuine phone number, once grouped digits are stripped down to just the
+# digits themselves, is either short (a standard 10-digit Indian mobile/
+# toll-free number, or 11 with a leading trunk "0" - a well-known, generic
+# telecom convention, not specific to any one fixture) OR printed WITH
+# internal grouping (a space or dash breaking it into recognizable chunks -
+# "1800-123-4567", "022-6691 6929", "1800 425 444 444", every real phone
+# number this project's own fixtures/tests already cover). A real observed
+# false match (Chips_back.jpg's benchmark license/registration number,
+# "10012021000039" - 14 unbroken digits, no internal grouping at all) has
+# neither property: too long to be a bare number, and never grouped the way
+# an actual printed phone number would be. This is a SHAPE distinction
+# (unbroken length vs. grouped), not a value blacklist - it rejects any
+# sufficiently long ungrouped digit run near a consumer-care trigger, not
+# just this one specific number.
+_PHONE_MAX_UNGROUPED_DIGITS = 11
+
+
+def _looks_like_phone_number(candidate: str) -> bool:
+    if re.search(r"[\s\-]", candidate):
+        return True
+    return len(re.sub(r"[^0-9]", "", candidate)) <= _PHONE_MAX_UNGROUPED_DIGITS
+
+
 def _care_contact(lines: list[str], start: int) -> tuple[str | None, str | None]:
     """Search CONSUMER_CARE_CONTACT_WINDOW lines from the "consumer care"
     trigger for a phone number and/or email address PATTERN, independent of
@@ -980,9 +1049,10 @@ def _care_contact(lines: list[str], start: int) -> tuple[str | None, str | None]
     search_end = min(len(lines), start + CONSUMER_CARE_CONTACT_WINDOW)
     for line in lines[start:search_end]:
         if phone is None:
-            found = re.search(r"(?:\+91[\s-]?)?[0-9][0-9\s-]{6,14}[0-9]", line)
-            if found:
-                phone = found.group(0)
+            for found in _PHONE_CANDIDATE_PATTERN.finditer(line):
+                if _looks_like_phone_number(found.group(0)):
+                    phone = found.group(0)
+                    break
         if email is None:
             found = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", line)
             if found:
@@ -1471,13 +1541,32 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
             tax_line = next((line for line in lines if _MRP_TAX_INCLUSIVE_PATTERN.search(line)), None)
             if tax_line and tax_line not in mrp_line:
                 mrp_line = f"{mrp_line} {tax_line}"
-    if mrp_line:
+    if mrp_line and _mrp_amounts(mrp_line):
         _mrp_confidence, _mrp_region_ids, _mrp_regions = _field_evidence(ocr_result, mrp_line, average_confidence)
         fields["maximum_retail_price_mrp"] = NormalizedField(
             value=mrp_line, detected=True, confidence=_mrp_confidence,
             region_ids=_mrp_region_ids, regions=_mrp_regions,
         )
-    elif len(re.findall(r"(?:₹|Rs\.?|INR)\s*[0-9]+(?:[.,][0-9]{1,2})?", raw_text, re.I)) != 1 or re.search(r"unit\s+sale|price\s+per|/kg|/g|/l", raw_text, re.I):
+    elif mrp_line and not _mrp_amounts(mrp_line):
+        # Keyword ("MRP"/"Maximum Retail Price") was found, and the
+        # amount search above (which already tries the keyword's own line,
+        # then a NEARBY_LINE_WINDOW of candidate lines, via this same
+        # _mrp_amounts check) still found no genuine parseable amount
+        # anywhere nearby - e.g. the real Handwash_back.jpg benchmark
+        # false positive, a boilerplate notice sentence that uses the
+        # words "MRP"/"incl. of all taxes" while pointing the reader
+        # elsewhere ("...see coding on pack") rather than stating a price
+        # itself. Explicitly left undetected rather than reporting this
+        # keyword-only text as a found MRP value - matches the same "an
+        # explicit not-detected is more honest than a guess" policy this
+        # file already applies elsewhere (see common_generic_name_of_
+        # commodity's identical reasoning above, and _mrp_result's own
+        # downstream NEEDS_MANUAL_VERIFICATION-not-PASS handling of this
+        # same "wording present, amount unreadable" shape one layer
+        # later - this closes the SAME gap one step earlier, at
+        # detection, rather than leaving it to reach a wrong "detected".
+        fields["maximum_retail_price_mrp"] = NormalizedField()
+    elif not mrp_line and (len(re.findall(r"(?:₹|Rs\.?|INR)\s*[0-9]+(?:[.,][0-9]{1,2})?", raw_text, re.I)) != 1 or re.search(r"unit\s+sale|price\s+per|/kg|/g|/l", raw_text, re.I)):
         fields["maximum_retail_price_mrp"] = NormalizedField()
 
     # month_and_year_of_manufacture_or_packing: dedicated handling, mirrors

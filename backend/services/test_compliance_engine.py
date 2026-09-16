@@ -2399,3 +2399,479 @@ def test_consumer_care_split_heading_evidence_mapping_correct():
     assert field.detected
     assert field.region_ids
     assert any("CARE OFFICE" in r.text for r in field.regions)
+
+
+# --- POST-OCR PATTERN RECOVERY EXPERIMENT (audit-driven, narrow additions) --
+#
+# Four narrow, deterministic additions identified by the post-OCR structured
+# pattern-recovery audit (see the audit's field-by-field analysis) -
+# 1) "Mfd" alongside the existing "Mfg" date keyword, 2) a 2-digit-year
+# MM/YY date format, 3) an operating-hours + "or e-mail" consumer-care
+# trigger, 4) requiring a genuine parsed MRP amount before
+# maximum_retail_price_mrp is marked detected. No fuzzy matching, no
+# character invention, no generic proximity widening - each is a narrow,
+# specific pattern extension tied to a real observed fixture (Handwash_
+# back.jpg / Chips_back.jpg), added and tested exactly like every prior
+# narrow addition in this file (e.g. the "queries or feedback" trigger,
+# the split consumer-care heading).
+
+def test_mfg_date_accepts_mfd_keyword_alongside_mfg():
+    """Real Handwash_back.jpg benchmark wording ("...Batch, Mfd.(*), Use
+    before(#) & Net Volume(^) see coding on pack...") uses "Mfd." - a
+    standard Indian-label abbreviation distinct from "Mfg." that
+    _DATE_KEYWORD_PATTERN previously had zero coverage for (the entity-role
+    heading pattern already accepted "MFD BY" for the manufacturer field -
+    see test_short_form_abbreviations_mfd_mfg_mfr_pkd_imp - but the
+    SEPARATE date-keyword pattern used for month_and_year_of_manufacture_
+    or_packing did not)."""
+    for text in ("Mfd.: 05/2024\nNET WEIGHT: 100 g", "MFD ON 05/2024\nNET WEIGHT: 100 g"):
+        data = ocr(full_text=text)
+        data["fields"] = {}
+        data["detections"] = [{"confidence": 0.98}]
+        normalized = normalize_ocr_result(data)
+        assert normalized.fields["month_and_year_of_manufacture_or_packing"].detected is True, text
+
+
+def test_mfg_date_mfd_keyword_does_not_affect_existing_mfg_pkd_manufactured_coverage():
+    """Regression guard: adding "mfd" must not disturb the pre-existing
+    "mfg"/"pkd"/"manufactured" keyword coverage."""
+    for text in ("MFG: 05/2024\nNET WEIGHT: 100 g", "PKD 05/2024\nNET WEIGHT: 100 g", "Manufactured on 05/2024\nNET WEIGHT: 100 g"):
+        data = ocr(full_text=text)
+        data["fields"] = {}
+        data["detections"] = [{"confidence": 0.98}]
+        normalized = normalize_ocr_result(data)
+        assert normalized.fields["month_and_year_of_manufacture_or_packing"].detected is True, text
+
+
+def test_mfg_date_accepts_2digit_year_mm_yy_format():
+    """Real Handwash_back.jpg benchmark wording prints the manufacture/
+    expiry date codes as 2-digit-year MM/YY ("01/26"), not the 4-digit-year
+    formats _DATE_PATTERN already covered - a real, standard compact-coding
+    convention on Indian FMCG packaging (not a contrived format). Isolated
+    from the "mfd" keyword change above by using the pre-existing "MFG"
+    keyword."""
+    data = ocr(full_text="MFG: 01/26\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["month_and_year_of_manufacture_or_packing"]
+    assert field.detected is True
+    assert "01/26" in field.value
+
+
+def test_mfg_date_2digit_year_does_not_affect_existing_4digit_formats():
+    """Regression guard: the new 2-digit-year alternative must not change
+    how the pre-existing DD/MM/YYYY, MM/YYYY, dotted, and month-name
+    formats are matched."""
+    for text in (
+        "MFG: 12/05/2024\nNET WEIGHT: 100 g",
+        "MFG: 05/2024\nNET WEIGHT: 100 g",
+        "Packed on 05.2024\nNET WEIGHT: 100 g",
+        "Manufactured Jan 2024\nNET WEIGHT: 100 g",
+    ):
+        data = ocr(full_text=text)
+        data["fields"] = {}
+        data["detections"] = [{"confidence": 0.98}]
+        normalized = normalize_ocr_result(data)
+        assert normalized.fields["month_and_year_of_manufacture_or_packing"].detected is True, text
+
+
+def test_mfg_date_combined_mfd_keyword_and_2digit_year_real_handwash_shape():
+    """End-to-end reproduction of the real Handwash_back.jpg date-coding
+    line shape: "Mfd." keyword together with a 2-digit-year value."""
+    data = ocr(full_text="Mfd.: 01/26\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["month_and_year_of_manufacture_or_packing"]
+    assert field.detected is True
+    assert "01/26" in field.value
+
+
+@pytest.mark.parametrize("text", [
+    "call us 10:00AM TO 6:00PM OR E-MAIL\nCONTACT@EXAMPLE.COM",
+    "Mon-Sat 9:00 AM to 6:00 PM or email\nsupport@example.com",
+])
+def test_consumer_care_operating_hours_or_email_trigger_detected(text):
+    """Real Chips_back.jpg benchmark wording ("...call Mon-Sat 10:00AM TO
+    6:00PM OR E-MAIL / CONTACT@BALAJIWAFERS.COM...") - a common, standard
+    Indian-label consumer-care disclosure shape (an operating-hours window
+    immediately followed by "or e-mail") that _CARE_TRIGGER_PATTERN
+    previously had zero coverage for, the same class of addition as the
+    existing "queries or feedback" trigger."""
+    field = _consumer_care_field(text)
+    assert field.detected, f"{text!r} should be detected as consumer_care_details"
+
+
+@pytest.mark.parametrize("text", [
+    "Store between 10:00AM to 6:00PM for best results",
+    "Open 9:00 AM to 6:00 PM daily",
+])
+def test_consumer_care_operating_hours_alone_without_email_does_not_trigger(text):
+    """A bare operating-hours mention with no "or e-mail" immediately after
+    must NOT trigger - deliberately narrow, not a general "contains a time
+    range" alias, mirroring how "queries or feedback" rejects a bare
+    "queries"/"feedback" mention alone."""
+    field = _consumer_care_field(text)
+    assert not field.detected, f"{text!r} should NOT be detected as consumer_care_details"
+
+
+def test_consumer_care_operating_hours_recovers_email_verbatim_without_correction():
+    """Real Chips_back.jpg OCR corruption: the email's local part is
+    missing its leading "CO" ("NIACT@..." instead of "CONTACT@...") - a
+    genuine truncation, not a character the recovery layer may invent. The
+    recovered value must preserve the OCR text exactly as captured, never
+    silently "corrected" to CONTACT@..."""
+    data = _detections_ocr([
+        ("10:00AM TO 6:00PM OR E-MAIL", 0.98),
+        ("NIACT@BALAJIWAFERS.COM", 0.99),
+    ])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["consumer_care_details"]
+    assert field.detected
+    assert field.value["email_address"] == "NIACT@BALAJIWAFERS.COM"
+    assert field.value["email_address"] != "CONTACT@BALAJIWAFERS.COM"
+
+
+def test_consumer_care_existing_phrases_unaffected_by_operating_hours_addition():
+    """Regression guard: pre-existing consumer-care trigger phrases (plain
+    keywords and the previously-added "queries or feedback" phrase) must
+    keep working exactly as before."""
+    for text in [
+        "Consumer Care: 1800-123-4567", "Customer Care Department",
+        "Toll Free: 1800-999-8888", "Helpline: 1800-111-2222",
+        "For Queries or Feedback:\ncall 1800-123-4567",
+    ]:
+        field = _consumer_care_field(text)
+        assert field.detected, f"{text!r} should be detected as consumer_care_details"
+
+
+def test_mrp_boilerplate_notice_sentence_without_amount_is_not_detected():
+    """Real Handwash_back.jpg benchmark false positive: a boilerplate
+    notice sentence ("...MRP (incl. of all taxes)., Batch No., Mfd. (*),
+    Use before (#) & Net Volume (^) see coding on pack.") contains both
+    MRP-detection trigger words ("MRP", "incl. of all taxes") but is not
+    itself a price declaration - it tells the reader WHERE the coded MRP/
+    batch/date stamp is printed elsewhere on the pack. _mrp_amounts()
+    already correctly finds no amount in this text; normalize_ocr_result's
+    own mrp_index/mrp_line block previously set detected=True regardless,
+    purely because a non-empty mrp_line string existed. Must now be
+    undetected - an explicit "not found" is more honest than a false
+    CORRECT (see _mrp_result's own identical "an explicit not-detected is
+    more honest than a guess" policy, which this fix extends one layer
+    earlier, to the detection step itself)."""
+    data = ocr(full_text=(
+        "Reckitt group of companies. MRP (incl. of all taxes)., Batch No., "
+        "Mfd. (*), Use before (#) & Net Volume (^) see coding on pack."
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.9}]
+    normalized = normalize_ocr_result(data)
+    assert normalized.fields["maximum_retail_price_mrp"].detected is False
+
+
+def test_mrp_boilerplate_notice_never_reaches_false_pass_end_to_end():
+    """The downstream compliance status for MRP-wording-with-no-amount was
+    already correctly NEEDS_MANUAL_VERIFICATION when constructed directly
+    via the fields-override shortcut (see test_mrp_wording_present_amount_
+    unreadable_is_needs_review_not_fail) - this confirms the SAME real
+    boilerplate text, reached via the actual multi-line OCR scanning path
+    instead, now also never reaches a false PASS end to end."""
+    data = ocr(full_text=(
+        "Reckitt group of companies. MRP (incl. of all taxes)., Batch No., "
+        "Mfd. (*), Use before (#) & Net Volume (^) see coding on pack."
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.9}]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    mrp = result.rule_results[0].required_fields["maximum_retail_price_mrp"]
+    assert mrp.status != "PASS"
+
+
+def test_mrp_amount_on_nearby_line_still_detected_after_amount_gate():
+    """Regression guard for the new detected-requires-amount gate: MRP
+    wording split from its amount by column interleaving (a bare "MRP."
+    keyword line, the amount on a nearby line) must still be detected -
+    the gate only blocks the case where NO amount is found anywhere
+    nearby, not the pre-existing "amount is nearby, not on the same line"
+    case that test_mrp_amount_found_despite_interleaved_address_column
+    (the real Britannia fixture) already covers."""
+    data = ocr(full_text="MRP.\nBRAND NAME LTD.\n20.00\n(INCL. OF ALL TAXES)")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["maximum_retail_price_mrp"]
+    assert field.detected is True
+    assert "20.00" in field.value
+
+
+# --- CONSUMER-CARE PHONE-NUMBER FALSE-MATCH FIX -----------------------------
+#
+# The operating-hours/or-e-mail consumer-care trigger (added above) exposed
+# a pre-existing weakness in _care_contact's phone-number pattern: a real
+# Chips_back.jpg benchmark license/registration number, "10012021000039"
+# (14 unbroken digits, no internal separator at all), sits within
+# CONSUMER_CARE_CONTACT_WINDOW of the trigger and was being accepted as a
+# "telephone_number" purely because it is a long-enough digit run - the
+# existing pattern never distinguished a genuine phone number's printed
+# SHAPE (short, or grouped with spaces/dashes into a recognizable format)
+# from an arbitrary long unbroken numeric code.
+#
+# Every EXISTING legitimate telephone_number value already covered by this
+# file's own tests was inspected before choosing a fix: "1800123456" (10
+# unbroken digits, ocr() default), "1800-123-4567" (11 digits, dash-
+# grouped), "1-800-4254449" (11 digits, dash-grouped, real Britannia
+# fixture), "022-6691 6929" (11 digits, dash+space-grouped, real Parle-G
+# fixture), "1800 425 444 444" (13 digits, space-grouped, real DarkFantasy
+# split-heading fixture). The longest of these WITHOUT any internal
+# separator is exactly 10 digits; every example above 11 digits has
+# internal grouping. This is the deterministic, non-fuzzy distinction the
+# fix uses: an unbroken (no space/dash) digit run longer than a standard
+# Indian phone number's length (10 digits, or 11 with a leading trunk "0" -
+# a well-known, generic telecom convention, not invented for this
+# fixture) is rejected as a phone candidate; ANY digit run that contains
+# an internal space or dash is accepted regardless of its total digit
+# count, exactly as before - so every one of the five examples above stays
+# accepted unchanged, and only a genuinely un-grouped long numeric code
+# (a license/batch/registration-number shape) is newly rejected.
+
+def _care_contact_phone(trigger_line: str, *following_lines: str) -> str | None:
+    data = _detections_ocr([(trigger_line, 0.98)] + [(line, 0.98) for line in following_lines])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["consumer_care_details"]
+    return field.value["telephone_number"] if field.detected else None
+
+
+def test_chips_license_number_false_phone_match_is_rejected():
+    """The exact real Chips_back.jpg false match this fix targets: a
+    14-digit unbroken license/registration number sitting within the
+    contact-search window of the operating-hours/or-e-mail trigger must
+    NOT be accepted as a telephone number."""
+    phone = _care_contact_phone("10:00AM TO 6:00PM OR E-MAIL", "NIACT@BALAJIWAFERS.COM", "ssal", "10012021000039")
+    assert phone != "10012021000039"
+    assert phone is None
+
+
+@pytest.mark.parametrize("trigger,phone_line,expected", [
+    ("Consumer Care:", "1800-123-4567", "1800-123-4567"),
+    ("Consumer Care:", "1800123456", "1800123456"),
+])
+def test_consumer_care_existing_plain_phone_formats_still_extracted(trigger, phone_line, expected):
+    """Regression guard: the ocr() default's plain dash-grouped and
+    unbroken 10-digit formats must keep working unchanged."""
+    phone = _care_contact_phone(trigger, phone_line)
+    assert phone == expected
+
+
+def test_britannia_real_phone_format_still_extracted():
+    """Regression guard: real Britannia fixture phone format (dash-grouped,
+    11 digits) must keep working unchanged - reruns the existing
+    test_real_britannia_and_parle_g... style assertion directly against
+    the real fixture text."""
+    normalized = normalize_ocr_result(_real_label_ocr())
+    assert normalized.fields["consumer_care_details"].value["telephone_number"] == "1-800-4254449"
+
+
+def test_parle_g_real_phone_format_still_extracted():
+    """Regression guard: real Parle-G fixture phone format (dash+space-
+    grouped, 11 digits) must keep working unchanged."""
+    normalized = normalize_ocr_result(_parle_g_ocr())
+    assert normalized.fields["consumer_care_details"].value["telephone_number"] == "022-6691 6929"
+
+
+def test_darkfantasy_real_phone_format_still_extracted():
+    """Regression guard: real DarkFantasy split-heading fixture phone
+    format (space-grouped, 13 digits total - longer than the unbroken-
+    digit cap, but must still be accepted because it IS grouped) must
+    keep working unchanged."""
+    field = _consumer_care_field(
+        "FOR FEEDBACK/COMPLAINT CONTACT: CONSUMER\n"
+        "Use By:\n"
+        "12/02/27\n"
+        "CARE OFFICE, ITC LIMITED, ITC GREEN CENTRE\n"
+        "MRP Rs.\n"
+        "10th FLOOR, NO. 18, BANASWADI MAIN ROAD,\n"
+        "BENGALURU-560005. 1800 425 444 444."
+    )
+    assert field.value["telephone_number"] == "1800 425 444 444"
+
+
+@pytest.mark.parametrize("bad_number", [
+    "10012021000039",  # the real Chips license/registration number (14 unbroken digits)
+    "20240115003217",  # a plausible batch/date-coded serial shape (14 unbroken digits)
+    "8901063133589",   # a plausible unbroken barcode/GTIN-shaped digit run (13 unbroken digits)
+])
+def test_unbroken_long_numeric_codes_never_accepted_as_phone(bad_number):
+    """General rule, not a one-value fix: ANY sufficiently long unbroken
+    (no space/dash) digit run near the consumer-care trigger must be
+    rejected as a phone candidate, not just the one specific real value
+    this fix was found from - proves the fix is a shape-based rule, not a
+    hardcoded blacklist entry."""
+    phone = _care_contact_phone("Consumer Care:", bad_number)
+    assert phone != bad_number
+    assert phone is None
+
+
+def test_consumer_care_email_extraction_unaffected_by_phone_fix():
+    """Regression guard: the email regex/extraction path is completely
+    untouched by this fix - must keep working exactly as before, including
+    when a rejected long numeric code sits on the very next line."""
+    data = _detections_ocr([
+        ("10:00AM TO 6:00PM OR E-MAIL", 0.98),
+        ("NIACT@BALAJIWAFERS.COM", 0.99),
+        ("10012021000039", 0.97),
+    ])
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["consumer_care_details"]
+    assert field.detected
+    assert field.value["email_address"] == "NIACT@BALAJIWAFERS.COM"
+
+
+def test_consumer_care_triggers_unaffected_by_phone_fix():
+    """Regression guard: every existing consumer-care trigger phrase (plain
+    keywords, "queries or feedback", and the operating-hours/or-e-mail
+    trigger) must still fire exactly as before - this fix only changes
+    which CANDIDATE within an already-triggered block is accepted as a
+    phone number, never whether the field is detected at all."""
+    for text in [
+        "Consumer Care: 1800-123-4567", "Customer Care Department",
+        "Toll Free: 1800-999-8888", "Helpline: 1800-111-2222",
+        "For Queries or Feedback:\ncall 1800-123-4567",
+        "10:00AM TO 6:00PM OR E-MAIL\nsupport@example.com",
+    ]:
+        field = _consumer_care_field(text)
+        assert field.detected, f"{text!r} should be detected as consumer_care_details"
+
+
+# --- HANDWASH "BATCHMFD" OCR WORD-FUSION FIX --------------------------------
+#
+# Real Handwash_back.jpg benchmark OCR fused "Batch" directly into "Mfd"
+# with no space at all ("...BatchMfd.(),Usebefore(#)&NetVolume()..."), so
+# the existing \bmfd\b alternative (added for standalone "Mfd." elsewhere)
+# never matches this specific line - there is no word boundary between
+# "Batch" and "Mfd" when they're fused into one token. This is a SEPARATE,
+# narrower gap from the keyword-spelling gap \bmfd\b already closed: this
+# one is about word-FUSION, not word-SPELLING.
+#
+# Fix: add \bbatch\s*mfd\b as its own alternative alongside the unchanged
+# \bmfd\b - \s* (zero or more spaces) covers both "Batch Mfd." (one space)
+# and the real "BatchMfd." (zero spaces, fused) in a single pattern,
+# without turning "mfd" into an unbounded substring search: \bbatch still
+# requires "batch" to be its own word (the same protection \borigin\b
+# already relies on elsewhere in this file to reject "Original"), and the
+# trailing \b still requires "mfd" to end cleanly (rejects "MfdDate", where
+# "d" and "D" are fused with no boundary between them - unchanged from the
+# existing \bmfd\b behavior). Only a "batch" token directly adjacent
+# (fused or single-space-separated) to "mfd" ever matches - never "batch"
+# and "mfd" separated by other words/numbers (e.g. "Batch No. 12345 Mfd"
+# does NOT match this new alternative, since \s* only permits whitespace
+# between them, nothing else).
+
+from backend.services.compliance_engine import _DATE_KEYWORD_PATTERN as _DK_PATTERN  # noqa: E402
+
+
+@pytest.mark.parametrize("text", [
+    "Batch Mfd.",
+    "BatchMfd.",
+    "BatchMfd.()",
+    "Mfd",
+    "Mfg",
+])
+def test_date_keyword_pattern_matches_batchmfd_and_existing_forms(text):
+    """Direct pattern-level check (no OCR/full pipeline involved) - proves
+    the regex itself matches every required positive shape before testing
+    the full extraction path below."""
+    assert _DK_PATTERN.search(text), f"{text!r} should match _DATE_KEYWORD_PATTERN"
+
+
+@pytest.mark.parametrize("text", [
+    "Confirmed", "MfdDate", "Confirmfd", "Xmfd", "mfdx",
+    "This shipment was confirmed",  # contains no "mfd"-like substring at all - sanity control
+])
+def test_date_keyword_pattern_rejects_unrelated_mfd_substrings(text):
+    """Negative cases: arbitrary words containing "mfd" as a fused
+    substring (not a standalone token, and not "batch"+"mfd" specifically)
+    must NOT match - "MfdDate" in particular must not automatically become
+    a valid date trigger, since no existing logic supports treating a
+    fused "MfdDate" as a keyword+value pair."""
+    assert not _DK_PATTERN.search(text), f"{text!r} should NOT match _DATE_KEYWORD_PATTERN"
+
+
+def test_date_keyword_pattern_does_not_bridge_batch_and_mfd_across_other_words():
+    """"batch" followed by unrelated words/numbers before "mfd" must not
+    match the new alternative - only whitespace-only separation (fused or
+    single-space) is accepted, never a generic "batch...mfd nearby"
+    proximity search."""
+    text = "Batch No. 12345 Mfd By XYZ"
+    match = _DK_PATTERN.search(text)
+    # "Mfd" alone (bare \bmfd\b) still legitimately matches this text on
+    # its own merits (it IS a standalone, boundaried "Mfd" token) - the
+    # assertion here is that the match is NOT bridging "Batch" all the way
+    # across "No. 12345" to reach "Mfd", i.e. no spurious wide match is
+    # produced.
+    assert match
+    assert match.group(0).strip().lower() in ("mfd",)
+
+
+def test_mfg_date_accepts_batch_mfd_with_space():
+    """Positive, full-pipeline case: "Batch Mfd." (single space)."""
+    data = ocr(full_text="Batch Mfd.: 01/26\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["month_and_year_of_manufacture_or_packing"]
+    assert field.detected is True
+    assert "01/26" in field.value
+
+
+def test_mfg_date_accepts_batchmfd_fused_no_space():
+    """Positive, full-pipeline case: "BatchMfd." (fused, no space) -
+    reproduces the OCR word-fusion shape directly."""
+    data = ocr(full_text="BatchMfd.: 01/26\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["month_and_year_of_manufacture_or_packing"]
+    assert field.detected is True
+    assert "01/26" in field.value
+
+
+def test_mfg_date_batchmfd_fix_does_not_affect_existing_mfd_mfg_pkd_coverage():
+    """Regression guard: adding the batch-fused alternative must not
+    disturb the pre-existing standalone "mfd"/"mfg"/"pkd"/"manufactured"
+    keyword coverage."""
+    for text in (
+        "Mfd.: 05/2024\nNET WEIGHT: 100 g",
+        "MFG: 05/2024\nNET WEIGHT: 100 g",
+        "PKD 05/2024\nNET WEIGHT: 100 g",
+        "Manufactured on 05/2024\nNET WEIGHT: 100 g",
+    ):
+        data = ocr(full_text=text)
+        data["fields"] = {}
+        data["detections"] = [{"confidence": 0.98}]
+        normalized = normalize_ocr_result(data)
+        assert normalized.fields["month_and_year_of_manufacture_or_packing"].detected is True, text
+
+
+def test_mfg_date_real_handwash_shape_batchmfd_fused_end_to_end():
+    """End-to-end reproduction of the REAL Handwash_back.jpg benchmark OCR
+    shape: the exact fused "BatchMfd.()" text on one line, and the
+    already-known, already-captured "01/26"/"01/28" pair on a separate
+    nearby line (both genuinely present in the real raw OCR, neither
+    invented here) - proves the keyword fix lets the nearby-line date
+    search actually reach and parse the already-present date, and that
+    BOTH real dates stay together, un-disambiguated (never inferring or
+    manufacturing which is mfg vs. expiry - that remains explicitly out of
+    scope, per this task)."""
+    data = ocr(full_text=(
+        "[faaes)BatchMfd.(),Usebefore(#)&NetVolume()seecodingonpacWhen\n"
+        "alcasaisecsS]\n"
+        "790.70.50/ml ¥01/26,#01/28"
+    ))
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.9}]
+    normalized = normalize_ocr_result(data)
+    field = normalized.fields["month_and_year_of_manufacture_or_packing"]
+    assert field.detected is True
+    assert "01/26" in field.value
+    assert "01/28" in field.value
