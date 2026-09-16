@@ -330,3 +330,29 @@ def test_self_check_requires_manufacturer_authentication():
             files={"file": ("label.png", IMAGE_A_BYTES, "image/png")},
         )
     assert response.status_code == 401
+
+
+def test_self_check_revision_sha256_matches_exact_uploaded_bytes(monkeypatch):
+    """Phase 1, Requirement 6, through the real self-check HTTP path: the
+    persisted revision's sourceImageSha256 must equal hashlib.sha256 of the
+    EXACT uploaded bytes (IMAGE_A_BYTES here), computed before run_ocr()."""
+    import hashlib
+
+    monkeypatch.setattr(ocr_module._service, "run", _echo_ocr_run)
+    app.dependency_overrides[manufacturer_user] = lambda: FAKE_MANUFACTURER
+    try:
+        with TestClient(app) as client:
+            try:
+                response = client.post(
+                    "/api/manufacturer/self-check",
+                    files={"file": ("label.png", IMAGE_A_BYTES, "image/png")},
+                    data={"product_id": "", "product_name": "Hash Test"},
+                )
+                assert response.status_code == 200, response.text
+                revision = response.json()["revision"]
+                assert revision["sourceImageSha256"] == hashlib.sha256(IMAGE_A_BYTES).hexdigest()
+                assert len(revision["sourceImageSha256"]) == 64
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(manufacturer_user, None)

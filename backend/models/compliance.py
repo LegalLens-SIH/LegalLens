@@ -88,6 +88,20 @@ class RuleResult(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     evidence_details: list[Evidence] = Field(default_factory=list)
     recommended_action: str = ""
+    # Phase 1: distinguishes a finding that is fully verifiable from the
+    # uploaded image/OCR alone (escalates=False, the default and the vast
+    # majority of rules - e.g. LMPC-R6's declaration checks) from one that
+    # can NEVER be confirmed from a photo regardless of OCR quality or
+    # confidence, and therefore always requires physical/offline
+    # verification by a human (escalates=True) - see compliance_engine.py's
+    # _rule_result for exactly which two rules set this and why (LMPC-R11:
+    # requires weighing the physical package; LMGEN-R14: requires
+    # inspecting a physical seal/certificate). This is a STRUCTURAL
+    # property of what the rule can establish, never a confidence score -
+    # it does not vary scan-to-scan for the same rule, and is independent
+    # of `status` (a rule can be escalates=True and still COMPLIANT, e.g.
+    # when physical-verification evidence was separately supplied).
+    escalates: bool = False
 
 
 class ComplianceSummary(BaseModel):
@@ -131,3 +145,10 @@ class ComplianceResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     audit: dict[str, Any]
+    # Phase 1: unconditional, deterministic disclaimer - populated by
+    # ComplianceEngine.evaluate() on every result, regardless of outcome
+    # (see DISCLAIMER_TEXT there). A dedicated field (not folded into
+    # `warnings`, which is variable-length/conditional) so a consumer can
+    # rely on its presence and exact meaning without parsing free-form
+    # warning text.
+    disclaimer: str = ""

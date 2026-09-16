@@ -18,6 +18,7 @@ from backend.api.ocr import run_ocr
 from backend.database import get_database
 from backend.ocr.schemas import OCRResult
 from backend.services.compliance_engine import ComplianceEngine
+from backend.services.image_integrity import compute_image_sha256
 
 SELF_CHECK_IMAGES_COLLECTION = "self_check_images"
 # Manufacturer self-checks are always a retail packaged-commodity label
@@ -107,6 +108,10 @@ async def create_self_check(
     # /api/scans flow already uses in backend/api/ocr.py's create_scan.
     original_contents = await file.read()
     await file.seek(0)
+    # Phase 1, Requirement 6: hashed from the exact raw upload bytes,
+    # before run_ocr()/preprocessing touches them - see
+    # backend/services/image_integrity.py.
+    source_image_sha256 = compute_image_sha256(original_contents)
     ocr_response = await run_ocr(file)
     if ocr_response.status_code != 200:
         return ocr_response
@@ -130,6 +135,10 @@ async def create_self_check(
         "revisionId": f"REV-{uuid.uuid4().hex[:12].upper()}", "productId": product["productId"], "manufacturerId": user["_id"],
         "version": version, "imageReference": result.image, "ocrResult": result.model_dump(), "complianceResult": compliance.model_dump(),
         "issues": compliance.missing_fields, "suggestions": compliance.recommendations, "complianceScore": compliance.compliance_score, "createdAt": now,
+        # Phase 1, Requirement 6: integrity/provenance evidence only - see
+        # backend/services/image_integrity.py. Never consulted by
+        # ComplianceEngine and never an authenticity/fraud signal.
+        "sourceImageSha256": source_image_sha256,
         # Official review workflow (additive, orthogonal to complianceResult above -
         # never derived from or fed back into the deterministic engine's own
         # output). None/empty here means "private draft, not yet submitted to

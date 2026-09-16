@@ -198,6 +198,7 @@
 <div>
 <h2 class="text-display-lg font-display-lg text-primary mb-2" id="case-title">Case Detail: #12345</h2>
 <p class="text-body-lg font-body-lg text-on-surface-variant">Violation Review &amp; Remediation Timeline</p>
+<p class="text-label-md font-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mt-2" id="disclaimer"></p>
 </div>
 <div class="flex items-center gap-2 px-4 py-2 bg-tertiary-fixed/20 border border-tertiary-fixed-dim rounded-full" id="case-status-badge">
 <span class="material-symbols-outlined text-on-tertiary-container text-sm">pending_actions</span>
@@ -334,6 +335,10 @@
             document.getElementById('case-title').textContent = 'Case Detail: ' + (revision.imageReference || revision.revisionId);
             document.getElementById('case-entity').textContent = (revision.manufacturerName || 'Unknown') + (revision.manufacturerCompany ? ' (' + revision.manufacturerCompany + ')' : '');
             document.getElementById('case-product').textContent = (revision.imageReference || revision.revisionId) + ' - Version ' + revision.version;
+            // Phase 1, Requirement 10: unconditional, backend-supplied
+            // disclaimer - rendered verbatim via textContent, never
+            // reworded/weakened here.
+            document.getElementById('disclaimer').textContent = compliance.disclaimer || '';
 
             var aiMeta = R.statusMeta(compliance.overall_status);
             var aiBadge = document.getElementById('case-ai-status-badge');

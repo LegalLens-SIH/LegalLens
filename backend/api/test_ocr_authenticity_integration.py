@@ -143,3 +143,57 @@ def test_scan_upload_without_exif_still_succeeds_with_unavailable_evidence(monke
                 _cleanup(get_database())
     finally:
         app.dependency_overrides.pop(official_user, None)
+
+
+def test_scan_upload_sha256_hash_matches_exact_uploaded_bytes(monkeypatch):
+    """Phase 1, Requirement 6, through the real HTTP path: the persisted
+    scan's sourceImageSha256 must equal hashlib.sha256 of the EXACT bytes
+    uploaded - proving the hash reflects the real upload (computed before
+    run_ocr()/preprocessing, which here returns a fixed, unrelated canned
+    OCR text - the hash is correct regardless of what OCR "saw", since it
+    never depends on OCR output at all)."""
+    import hashlib
+
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                image_bytes = REAL_IMAGE_WITH_EXIF.read_bytes()
+                expected_hash = hashlib.sha256(image_bytes).hexdigest()
+                response = client.post(
+                    "/api/scans",
+                    files={"file": ("Handwash_back.jpg", image_bytes, "image/jpeg")},
+                    data={"product_name": "Hash Test Product", "category": "General"},
+                )
+                assert response.status_code == 200, response.text
+                scan = response.json()
+                assert scan["sourceImageSha256"] == expected_hash
+                assert len(scan["sourceImageSha256"]) == 64
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_scan_upload_sha256_changes_for_different_bytes(monkeypatch):
+    """Two different uploads must produce two different hashes - proves
+    this isn't a constant/placeholder value."""
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                import io
+                from PIL import Image
+                buf_a, buf_b = io.BytesIO(), io.BytesIO()
+                Image.new("RGB", (10, 10), color="red").save(buf_a, format="PNG")
+                Image.new("RGB", (10, 10), color="blue").save(buf_b, format="PNG")
+                response_a = client.post("/api/scans", files={"file": ("a.png", buf_a.getvalue(), "image/png")}, data={"product_name": "A", "category": "General"})
+                response_b = client.post("/api/scans", files={"file": ("b.png", buf_b.getvalue(), "image/png")}, data={"product_name": "B", "category": "General"})
+                assert response_a.status_code == 200 and response_b.status_code == 200
+                assert response_a.json()["sourceImageSha256"] != response_b.json()["sourceImageSha256"]
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)

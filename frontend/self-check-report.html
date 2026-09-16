@@ -288,6 +288,7 @@
 <span class="hidden items-center gap-1.5 px-3 py-1 rounded-full text-label-md font-label-md font-bold uppercase tracking-wide" id="report-overall-badge"></span>
 </div>
 <p class="text-body-lg font-body-lg text-on-surface-variant" id="report-subtitle">Review the automated compliance analysis for your uploaded label.</p>
+<p class="text-label-md font-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mt-2" id="disclaimer"></p>
 </div>
 <div class="flex flex-col sm:flex-row gap-3">
 <button class="bg-surface border border-outline-variant text-primary px-6 py-3 rounded-lg font-headline-md text-body-md font-semibold hover:bg-surface-container-low transition-colors shadow-sm flex items-center gap-2" id="view-revisions-btn">
@@ -551,6 +552,10 @@
 
             var scoreText = (compliance.compliance_score === null || compliance.compliance_score === undefined) ? 'Not scored' : Math.round(compliance.compliance_score) + '%';
             document.getElementById('report-subtitle').textContent = record.productName + ' — Version ' + record.version + ' • Score: ' + scoreText;
+            // Phase 1, Requirement 10: unconditional, backend-supplied
+            // disclaimer - rendered verbatim via textContent, never
+            // reworded/weakened here.
+            document.getElementById('disclaimer').textContent = compliance.disclaimer || '';
 
             var overallMeta = statusMeta(compliance.overall_status);
             var badge = document.getElementById('report-overall-badge');

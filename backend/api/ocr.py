@@ -23,6 +23,7 @@ from gridfs.errors import NoFile
 from backend.database import get_database
 from backend.api.auth import official_user
 from backend.services.authenticity_service import build_authenticity_evidence
+from backend.services.image_integrity import compute_image_sha256
 from backend.ocr.gemini_service import (
     GEMINI_API_KEY,
     GEMINI_ENABLED,
@@ -235,6 +236,10 @@ async def create_scan(
     # OCR/compliance below runs. Its result is attached to `scan` further
     # down, alongside (never consulted by) compliance - see that comment.
     authenticity = build_authenticity_evidence(original_contents) if original_contents else None
+    # Phase 1, Requirement 6: hashed from the SAME raw upload bytes, before
+    # run_ocr()/preprocessing touches them - the hash corresponds to the
+    # exact analyzed upload, never a resized/preprocessed derivative.
+    source_image_sha256 = compute_image_sha256(original_contents) if original_contents else None
     response = await run_ocr(file)
     if response.status_code != 200:
         return response
@@ -314,6 +319,11 @@ async def create_scan(
         # here or anywhere else. Same additive, backward-compatible
         # attachment pattern as structuredExtraction above.
         scan["authenticity"] = authenticity.model_dump()
+    if source_image_sha256 is not None:
+        # Phase 1, Requirement 6: integrity/provenance evidence only - the
+        # exact hash of the analyzed upload, never consulted by
+        # ComplianceEngine and never an authenticity/fraud signal.
+        scan["sourceImageSha256"] = source_image_sha256
     status_map = {
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",

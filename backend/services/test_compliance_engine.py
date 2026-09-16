@@ -1,6 +1,8 @@
+from datetime import date
+
 import pytest
 
-from backend.services.compliance_engine import CONFIDENCE_THRESHOLD, ComplianceEngine, _aggregate_checks, _rule_result, load_ruleset, normalize_ocr_result
+from backend.services.compliance_engine import CONFIDENCE_THRESHOLD, ComplianceEngine, _aggregate_checks, _parse_month_year, _rule_result, load_ruleset, normalize_ocr_result
 
 
 def region(class_name, text, class_id=0, detection_confidence=0.9, text_confidence=0.95):
@@ -2875,3 +2877,265 @@ def test_mfg_date_real_handwash_shape_batchmfd_fused_end_to_end():
     assert field.detected is True
     assert "01/26" in field.value
     assert "01/28" in field.value
+
+
+# =============================================================================
+# PHASE 1 ROADMAP: genuine gaps closed on top of the existing architecture.
+# Every one of these builds on ALREADY-PRESENT mechanisms (RuleResult,
+# _field_result, _rule_result, ComplianceResult) rather than replacing them -
+# see the Phase 1 Gap Audit for what was already satisfied and left
+# untouched (multi-state verdicts, rule-level NOT_APPLICABLE/trigger
+# conditions, the deterministic non-LLM architecture, recommended_action,
+# and the legal-basis/notification-reference system all needed zero
+# production changes).
+# =============================================================================
+
+# --- Requirement 3: escalates flag -----------------------------------------
+
+def test_escalates_defaults_false_on_ordinary_ocr_verifiable_rule():
+    """R6 (mandatory declarations) is fully verifiable from the image/OCR
+    alone - escalates must default to False, never True by accident."""
+    result = ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing")
+    assert result.rule_results[0].escalates is False
+
+
+def test_escalates_true_for_r11_physical_weight_measurement():
+    """R11 (net quantity exclusion) is explicitly documented in the
+    ruleset's own _implementation_note as requiring a physical scale
+    measurement (weigh the sealed package, then the empty wrapper) - not
+    something any image/OCR pipeline can ever establish. escalates=True
+    here regardless of the rule's own status (NEEDS_MANUAL_VERIFICATION
+    either way), since the property being escalated is "this can never be
+    confirmed from the image", not a confidence judgment about THIS scan."""
+    normalized = normalize_ocr_result(ocr())
+    rule = {"rule_id": "LMPC-R11-NET-QUANTITY-EXCLUSION"}
+    result = _rule_result(rule, normalized)
+    assert result.escalates is True
+
+
+def test_escalates_true_for_r14_physical_seal_inspection():
+    """R14 (stamping/sealing) is explicitly documented in the ruleset as
+    requiring requires_physical_seal/requires_certificate_of_verification -
+    properties a photo cannot confirm even when metadata claims they're
+    present. escalates=True on BOTH the missing-evidence branch and the
+    evidence-supplied-for-review branch (neither is a confirmed physical
+    inspection)."""
+    rule = {"rule_id": "LMGEN-R14-STAMPING-SEALING"}
+    missing_evidence = normalize_ocr_result({"document_id": "D1", "fields": {}})
+    result_missing = _rule_result(rule, missing_evidence)
+    assert result_missing.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result_missing.escalates is True
+
+    with_evidence = normalize_ocr_result({"document_id": "D2", "fields": {}, "physical_seal_verified": True, "certificate_of_verification": True})
+    result_present = _rule_result(rule, with_evidence)
+    assert result_present.status == "COMPLIANT"
+    assert result_present.escalates is True
+
+
+def test_escalates_false_for_r12_ocr_derivable_verification_interval():
+    """R12 (verification interval expiry) IS derivable from OCR (a detected
+    last_verification_date compared against a reference date) - genuinely
+    different from R11/R14, so escalates stays False here, not True.
+    escalates is a structural property of what a rule can establish, not a
+    blanket 'this is an instrument rule' flag."""
+    normalized = normalize_ocr_result({"document_id": "D3", "fields": {}, "instrument_category": "weighing_instrument", "last_verification_date": "2026-01-01"})
+    rule = {"rule_id": "LMGEN-R12-VERIFICATION-INTERVALS"}
+    result = _rule_result(rule, normalized)
+    assert result.escalates is False
+
+
+# --- Requirement 7: future-date / date-validity check -----------------------
+# _parse_month_year is a pure, standalone parsing function - tested directly
+# first, then the full field-result behavior it feeds.
+
+@pytest.mark.parametrize("text,expected", [
+    ("MFG: 05/2024", (2024, 5)),
+    ("Mfd.: 01/26", (2026, 1)),
+    ("Packed on 12/05/2024", (2024, 5)),  # DD/MM/YYYY - middle/last parts, same convention _DATE_PATTERN's own tests already assume
+    ("Manufactured Jan 2024", (2024, 1)),
+    ("Manufactured January 2024", (2024, 1)),
+])
+def test_parse_month_year_extracts_correct_year_month(text, expected):
+    assert _parse_month_year(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "No date here at all",
+    "Batch AB1234",
+    "",
+])
+def test_parse_month_year_returns_none_when_unparseable(text):
+    """Never guesses - absence of a recognizable date yields None, not a
+    fabricated (year, month)."""
+    assert _parse_month_year(text) is None
+
+
+def test_mfg_date_today_is_not_flagged():
+    """A manufacture date equal to the reference date is legitimate (a
+    product scanned the same day it was packed) - must PASS, not be
+    flagged as a future-date anomaly."""
+    reference = date(2026, 9, 16)
+    data = ocr(full_text=f"MFG: 09/2026\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    rule = {"rule_id": "LMPC-R6-MANDATORY-DECLARATIONS", "required_fields": ["month_and_year_of_manufacture_or_packing"], "validations": {"consumer_care_fields": []}}
+    normalized = normalize_ocr_result(data)
+    result = _rule_result(rule, normalized, reference_date=reference)
+    assert result.required_fields["month_and_year_of_manufacture_or_packing"].status == "PASS"
+
+
+def test_mfg_date_yesterday_month_is_not_flagged():
+    """A manufacture month before the reference date is the ordinary,
+    expected case - must PASS."""
+    reference = date(2026, 9, 16)
+    data = ocr(full_text="MFG: 08/2026\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    rule = {"rule_id": "LMPC-R6-MANDATORY-DECLARATIONS", "required_fields": ["month_and_year_of_manufacture_or_packing"], "validations": {"consumer_care_fields": []}}
+    normalized = normalize_ocr_result(data)
+    result = _rule_result(rule, normalized, reference_date=reference)
+    assert result.required_fields["month_and_year_of_manufacture_or_packing"].status == "PASS"
+
+
+def test_mfg_date_confirmed_future_is_needs_manual_verification_not_fail():
+    """A manufacture date chronologically AFTER the reference date is a
+    genuine, confirmable anomaly (a product cannot be manufactured in the
+    future) - but per this file's established philosophy (an OCR digit
+    misread is at least as plausible as a genuine labeling defect, see
+    every other _field_result branch), this must be NEEDS_MANUAL_
+    VERIFICATION, never a confirmed FAIL/NON_COMPLIANT - a future-dated
+    month/year is evidence of an anomaly to review, not proof of a
+    violation."""
+    reference = date(2026, 9, 16)
+    data = ocr(full_text="MFG: 03/2027\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    rule = {"rule_id": "LMPC-R6-MANDATORY-DECLARATIONS", "required_fields": ["month_and_year_of_manufacture_or_packing"], "validations": {"consumer_care_fields": []}}
+    normalized = normalize_ocr_result(data)
+    result = _rule_result(rule, normalized, reference_date=reference)
+    field = result.required_fields["month_and_year_of_manufacture_or_packing"]
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert field.status != "FAIL"
+    assert "future" in field.explanation.lower()
+
+
+def test_mfg_date_malformed_is_not_flagged_as_future():
+    """A detected-but-unparseable date value (no fuzzy correction, no
+    guessing) must fall through to ordinary PASS - never flagged as a
+    future-date anomaly it can't actually confirm."""
+    reference = date(2026, 9, 16)
+    data = ocr(full_text="Manufactured: see coding on pack\nNET WEIGHT: 100 g")
+    data["fields"] = {}
+    data["detections"] = [{"confidence": 0.98}]
+    rule = {"rule_id": "LMPC-R6-MANDATORY-DECLARATIONS", "required_fields": ["month_and_year_of_manufacture_or_packing"], "validations": {"consumer_care_fields": []}}
+    normalized = normalize_ocr_result(data)
+    result = _rule_result(rule, normalized, reference_date=reference)
+    field = result.required_fields["month_and_year_of_manufacture_or_packing"]
+    # "Manufactured" alone (no parseable date) still triggers the keyword
+    # search but _DATE_PATTERN never matches anywhere nearby in this short
+    # text, so the field is legitimately undetected - NEEDS_MANUAL_
+    # VERIFICATION via the ordinary "not detected" path, not a future-date
+    # claim (the explanation must not mention "future").
+    assert "future" not in field.explanation.lower()
+
+
+def test_mfg_date_not_detected_is_unaffected_by_future_check():
+    """Regression guard: when the field is not detected at all, the
+    pre-existing NEEDS_MANUAL_VERIFICATION-for-non-detection behavior must
+    be completely unchanged by adding the future-date check."""
+    reference = date(2026, 9, 16)
+    normalized = normalize_ocr_result({"document_id": "D4", "fields": {}})
+    rule = {"rule_id": "LMPC-R6-MANDATORY-DECLARATIONS", "required_fields": ["month_and_year_of_manufacture_or_packing"], "validations": {"consumer_care_fields": []}}
+    result = _rule_result(rule, normalized, reference_date=reference)
+    field = result.required_fields["month_and_year_of_manufacture_or_packing"]
+    assert field.status == "NEEDS_MANUAL_VERIFICATION"
+    assert "not detected by OCR" in field.explanation
+
+
+def test_expiry_date_field_is_not_touched_by_future_date_check():
+    """Requirement: do NOT reject future expiry dates. The ruleset's own
+    required_fields for R6 has no expiry/best-before field at all (see
+    backend/rules/legal_metrology_rules_2011.json) - confirming this check
+    is scoped exclusively to month_and_year_of_manufacture_or_packing and
+    can never fire on an expiry date, since no expiry field is ever
+    evaluated by this rule."""
+    ruleset = load_ruleset()
+    r6 = next(rule for framework in ruleset["frameworks"] for rule in framework["rules"] if rule["rule_id"] == "LMPC-R6-MANDATORY-DECLARATIONS")
+    assert not any("expir" in field.lower() or "best_before" in field.lower() for field in r6["required_fields"])
+
+
+def test_r12_verification_interval_uses_injectable_reference_date_not_only_wall_clock():
+    """R12 already compared a detected verification date against
+    date.today() (hardcoded, untestable) - now accepts an injectable
+    reference_date, defaulting to date.today() when omitted (see the next
+    test for that default-preserving regression guard). Verified valid for
+    24 months relative to an injected reference date, independent of
+    whatever the real wall-clock date is when this test runs."""
+    normalized = normalize_ocr_result({"document_id": "D5", "fields": {}, "instrument_category": "capacity measure", "last_verification_date": "2024-01-01"})
+    rule = {"rule_id": "LMGEN-R12-VERIFICATION-INTERVALS"}
+    # 24-month period -> expires 2026-01-01. Reference date just before
+    # expiry -> COMPLIANT; just after -> NON_COMPLIANT. Both independent of
+    # the real current date.
+    still_valid = _rule_result(rule, normalized, reference_date=date(2025, 12, 31))
+    assert still_valid.status == "COMPLIANT"
+    expired = _rule_result(rule, normalized, reference_date=date(2026, 1, 2))
+    assert expired.status == "NON_COMPLIANT"
+
+
+def test_r12_default_reference_date_still_uses_real_today_unchanged():
+    """Regression guard: omitting reference_date entirely (every existing
+    call site, including production's own evaluate()) must behave EXACTLY
+    as before - defaulting to the real date.today(), not some fixed
+    constant that would silently break every pre-existing R12 test."""
+    from datetime import timedelta
+    tomorrow = date.today() + timedelta(days=1)
+    normalized = normalize_ocr_result({"document_id": "D6", "fields": {}, "instrument_category": "capacity measure", "last_verification_date": tomorrow.isoformat()})
+    rule = {"rule_id": "LMGEN-R12-VERIFICATION-INTERVALS"}
+    result = _rule_result(rule, normalized)  # no reference_date - must use real today()
+    assert result.status == "COMPLIANT"  # verified "tomorrow" can't have expired yet under any real today()
+
+
+def test_evaluate_accepts_reference_date_end_to_end():
+    """The public ComplianceEngine.evaluate() entry point also accepts and
+    threads reference_date through - not just the internal _rule_result
+    helper."""
+    data = {"document_id": "D7", "product_type": "weighing_instrument", "fields": {}, "instrument_category": "capacity measure", "last_verification_date": "2024-01-01"}
+    result = ComplianceEngine().evaluate(data, "pos_hardware_audit", reference_date=date(2026, 1, 2))
+    r12 = next(r for r in result.rule_results if r.rule_id == "LMGEN-R12-VERIFICATION-INTERVALS")
+    assert r12.status == "NON_COMPLIANT"
+
+
+# --- Requirement 10: "not a statutory notice" disclaimer --------------------
+
+def test_disclaimer_present_on_every_compliance_result():
+    """Every ComplianceResult - regardless of profile, product type, or
+    outcome - must carry a clear, deterministic disclaimer stating
+    LegalLense is a screening/verification aid, not a statutory notice,
+    legal order, or final enforcement determination."""
+    result = ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing")
+    assert result.disclaimer
+    lowered = result.disclaimer.lower()
+    assert "not" in lowered
+    assert "statutory notice" in lowered or "legal order" in lowered
+
+
+def test_disclaimer_present_even_for_not_applicable_result():
+    """The disclaimer is unconditional - present even on the NOT_APPLICABLE
+    'unrelated product' path, which builds its RuleResult list differently
+    from the normal per-rule loop."""
+    data = ocr(product_type="unrelated")
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    assert result.overall_status == "NOT_APPLICABLE"
+    assert result.disclaimer
+
+
+def test_disclaimer_does_not_weaken_compliance_findings():
+    """Regression guard: adding the disclaimer must not change any actual
+    finding - a confirmed non-compliant result is still confirmed
+    non-compliant, same status/score as before this field existed."""
+    data = ocr()
+    data["fields"]["maximum_retail_price_mrp"]["value"] = None
+    data["fields"]["maximum_retail_price_mrp"]["detected"] = False
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    assert result.disclaimer
+    assert result.overall_status in ("REVIEW_REQUIRED", "NON_COMPLIANT")

@@ -19,6 +19,7 @@ body{font-family:Inter,sans-serif;background:#f8f9fa;color:#191c1d}.material-sym
   <div id="empty" class="hidden bg-white border border-[#c3c6d0] rounded-lg p-10 text-center"><span class="material-symbols-outlined text-4xl text-[#737780]">description</span><h1 class="text-2xl font-bold text-[#00274a] mt-3">No compliance result loaded</h1><p class="text-[#42474f] mt-2">Run a scan to generate an auditable result from the OCR output.</p><a class="inline-flex mt-6 bg-[#006a6a] text-white px-5 py-3 rounded font-semibold" href="new-compliance-scan.html">Start a scan</a></div>
   <div id="result-content" class="hidden">
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8"><div><p class="text-xs uppercase tracking-widest text-[#006a6a] font-bold">Legal Metrology Compliance</p><h1 class="text-3xl md:text-4xl font-bold text-[#00274a] mt-2" id="title">Compliance result</h1></div><p class="text-sm text-[#42474f]">Ruleset <span id="ruleset" class="font-semibold"></span></p></div>
+    <p id="disclaimer" class="text-xs text-[#42474f] bg-[#fff8e1] border border-[#e0cf9f] rounded px-4 py-2 mb-8"></p>
     <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8" id="summary"></section>
     <div class="space-y-4" id="rules"></div>
     <section class="mt-8 bg-[#edeeef] border border-[#c3c6d0] rounded-lg p-5 text-sm text-[#42474f]"><p class="font-bold text-[#00274a] mb-2">Audit trail</p><p>Document: <span id="document"></span></p><p>Engine: <span id="engine"></span> · Evaluated: <span id="evaluated"></span></p><p class="mt-3">OCR confidence is evidence quality, not legal compliance. “Not detected by OCR” does not confirm physical absence.</p></section>
@@ -46,6 +47,10 @@ body{font-family:Inter,sans-serif;background:#f8f9fa;color:#191c1d}.material-sym
   // display it as N/A rather than coercing it into a misleading number.
   var scoreText = result.compliance_score == null ? 'N/A' : result.compliance_score + '%';
   document.getElementById('title').textContent = result.overall_status.replaceAll('_',' ' ) + ' · ' + scoreText;
+  // Phase 1, Requirement 10: unconditional, backend-supplied disclaimer -
+  // rendered verbatim via textContent (inherently HTML-safe), never
+  // reworded/weakened here.
+  document.getElementById('disclaimer').textContent = result.disclaimer || '';
   document.getElementById('ruleset').textContent = result.ruleset_id + ' / v' + result.ruleset_version;
   document.getElementById('document').textContent = result.document_id;
   document.getElementById('engine').textContent = result.audit.engine_version;
