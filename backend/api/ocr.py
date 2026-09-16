@@ -22,6 +22,7 @@ from gridfs.errors import NoFile
 
 from backend.database import get_database
 from backend.api.auth import official_user
+from backend.services.authenticity_service import build_authenticity_evidence
 from backend.ocr.gemini_service import (
     GEMINI_API_KEY,
     GEMINI_ENABLED,
@@ -224,6 +225,16 @@ async def create_scan(
     original_contents = await file.read() if file is not None else b""
     if file is not None:
         await file.seek(0)
+    # Authenticity Verification Layer, Section 3 (EXIF only): independent
+    # evidence collection, run against the SAME raw upload bytes OCR is
+    # about to process - deliberately BEFORE the OCR call below, mirroring
+    # the Upload -> [EXIF | OCR] -> ... -> Report architecture this feature
+    # specifies (parallel to OCR, not sequenced after it). Never raises
+    # (see authenticity_service.extract_exif_evidence's docstring), so no
+    # try/except is needed here, and this line can never affect whether
+    # OCR/compliance below runs. Its result is attached to `scan` further
+    # down, alongside (never consulted by) compliance - see that comment.
+    authenticity = build_authenticity_evidence(original_contents) if original_contents else None
     response = await run_ocr(file)
     if response.status_code != 200:
         return response
@@ -295,6 +306,14 @@ async def create_scan(
         # known scan keys (compliance, detections, ...) and ignores unknown
         # ones, so this is backward compatible with no frontend changes.
         scan["structuredExtraction"] = structured_extraction.model_dump()
+    if authenticity is not None:
+        # Independent evidence only (Authenticity Verification Layer,
+        # Section 3 - EXIF) - never consulted by ComplianceEngine.evaluate()
+        # above, which already ran on ocr_dict directly and is completely
+        # unaware this key exists; never interpreted as "fake"/"genuine"
+        # here or anywhere else. Same additive, backward-compatible
+        # attachment pattern as structuredExtraction above.
+        scan["authenticity"] = authenticity.model_dump()
     status_map = {
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",
