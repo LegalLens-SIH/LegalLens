@@ -9,6 +9,7 @@
 
   var DB_KEY = "legallense_db_v2";
   var SESSION_KEY = "legallense_session_v1";
+  var DEMO_KEY = "legallense_demo_session_v1";
 
   // The backend is always reached on port 8000, but on WHICHEVER hostname
   // this page itself was loaded from (localhost vs 127.0.0.1) - not
@@ -306,6 +307,40 @@
     }
   }
 
+  function getDemoSessionByRole(role) {
+    if (role === "official" || role === "enforcement_official") {
+      return {
+        role: "enforcement_official",
+        demoMode: true,
+        name: "Inspector Rajesh Kumar",
+        email: "rajesh.kumar@enforcement.gov.in",
+        org: "Enforcement Division",
+        loggedInAt: nowISO()
+      };
+    }
+    return {
+      role: "manufacturer",
+      demoMode: true,
+      name: "Acme Consumer Goods",
+      email: "ops@acmeconsumer.in",
+      company: "Acme Consumer Goods Pvt. Ltd.",
+      org: "Manufacturer Portal",
+      loggedInAt: nowISO()
+    };
+  }
+
+  function isDemoMode() {
+    var session = getSession();
+    return !!(session && session.demoMode === true);
+  }
+
+  function startDemoMode(role) {
+    var session = getDemoSessionByRole(role);
+    localStorage.setItem(DEMO_KEY, JSON.stringify(session));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    return session;
+  }
+
   function login(role, identifier) {
     var session = {
       role: role,
@@ -322,7 +357,13 @@
   }
 
   function logout() {
+    var session = getSession();
     sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(DEMO_KEY);
+    if (session && session.demoMode === true) {
+      global.location.replace((session.role === "manufacturer" ? "login.html?role=manufacturer" : "login.html?role=official"));
+      return;
+    }
     if (global.fetch) {
       fetch(API_ORIGIN + "/api/auth/logout", { method: "POST", credentials: "include" }).catch(function () {});
     }
@@ -330,22 +371,66 @@
 
   function requireRole(role) {
     var session = getSession();
-    if (!session || session.role !== role) {
-      var target = session ? (session.role === "official" ? "official-dashboard.html" : "manufacturer-dashboard.html") : (role === "official" ? "login.html?role=official" : "login.html?role=manufacturer");
+    var allowedRoles = role === "official" ? ["official", "enforcement_official"] : ["manufacturer"];
+    if (!session || allowedRoles.indexOf(session.role) === -1) {
+      var target = session ? ((session.role === "official" || session.role === "enforcement_official") ? "official-dashboard.html" : "manufacturer-dashboard.html") : (role === "official" ? "login.html?role=official" : "login.html?role=manufacturer");
       global.location.replace(target);
       return false;
     }
     return true;
   }
 
+  function guardDemoAction(message, action) {
+    if (isDemoMode()) {
+      toast((message || "Preview Access") + "\n\nThis action is disabled in preview mode.\nYou can explore this feature using the demonstration data.");
+      return false;
+    }
+    if (typeof action === "function") return action();
+    return true;
+  }
+
+  function applyDemoModeIndicator() {
+    // Keep the preview flow available without exposing an explicit demo banner
+    // in the normal dashboard experience. The session still remains guarded by
+    // demoMode, but the UI matches the secure account layout.
+    return;
+  }
+
   // ---------- Scans ----------
 
   function getScans() {
+    if (isDemoMode() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      return (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans.slice() : []).slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+    }
     return loadDb().scans.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
   }
 
   function getScan(id) {
+    if (isDemoMode() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      var scans = (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans : []);
+      return scans.find(function (s) { return s.id === id; }) || null;
+    }
     return loadDb().scans.find(function (s) { return s.id === id; }) || null;
+  }
+
+  function normalizeComplianceScore(record) {
+    if (!record) return null;
+    var raw = record.score;
+    if (raw == null && record.complianceScore != null) raw = record.complianceScore;
+    if (raw == null && record.compliance && record.compliance.compliance_score != null) raw = record.compliance.compliance_score;
+    if (raw == null) return null;
+    var score = typeof raw === "number" ? raw : (typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN);
+    return Number.isFinite(score) && score >= 0 ? score : null;
+  }
+
+  function complianceStatus(record) {
+    var score = normalizeComplianceScore(record);
+    if (score === null) return { type: "manual", label: "Manual Verification", icon: "warning", cls: "bg-tertiary-container text-on-tertiary-container", score: null };
+    if (score >= 100) return { type: "success", label: "Fully Compliant", icon: "check_circle", cls: "bg-secondary-container text-on-secondary-container", score: score };
+    if (score >= 90) return { type: "mostly", label: "Mostly Compliant", icon: "check_circle", cls: "bg-secondary-container text-on-secondary-container", score: score };
+    if (score >= 75) return { type: "partial", label: "Partially Compliant", icon: "warning", cls: "bg-tertiary-container text-on-tertiary-container", score: score };
+    if (score >= 50) return { type: "action", label: "Action Required", icon: "priority_high", cls: "bg-error-container text-on-error-container border border-error/20", score: score };
+    return { type: "failed", label: "Non-Compliant", icon: "cancel", cls: "bg-error-container text-on-error-container border border-error/20", score: score };
   }
 
   function statusMeta(status) {
@@ -415,10 +500,17 @@
   // ---------- Cases ----------
 
   function getCases() {
+    if (isDemoMode() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      return (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.cases ? global.LLDemoData.official.cases.slice() : []).slice();
+    }
     return loadDb().cases.slice();
   }
 
   function getCase(id) {
+    if (isDemoMode() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      var cases = (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.cases ? global.LLDemoData.official.cases : []);
+      return cases.find(function (c) { return c.id === id; }) || null;
+    }
     return loadDb().cases.find(function (c) { return c.id === id; }) || null;
   }
 
@@ -443,18 +535,32 @@
   // ---------- Products & Self-Checks (Manufacturer) ----------
 
   function getProducts() {
+    if (isDemoMode() && getSession().role === "manufacturer") {
+      return (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.products ? global.LLDemoData.manufacturer.products.slice() : []).slice();
+    }
     return loadDb().products.slice();
   }
 
   function getProduct(id) {
+    if (isDemoMode() && getSession().role === "manufacturer") {
+      var products = (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.products ? global.LLDemoData.manufacturer.products : []);
+      return products.find(function (p) { return p.id === id; }) || null;
+    }
     return loadDb().products.find(function (p) { return p.id === id; }) || null;
   }
 
   function getSelfChecks() {
+    if (isDemoMode() && getSession().role === "manufacturer") {
+      return (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.selfChecks ? global.LLDemoData.manufacturer.selfChecks.slice() : []).slice();
+    }
     return loadDb().selfChecks.slice();
   }
 
   function getSelfCheck(id) {
+    if (isDemoMode() && getSession().role === "manufacturer") {
+      var checks = (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.selfChecks ? global.LLDemoData.manufacturer.selfChecks : []);
+      return checks.find(function (s) { return s.id === id; }) || null;
+    }
     return loadDb().selfChecks.find(function (s) { return s.id === id; }) || null;
   }
 
@@ -537,7 +643,7 @@
       }
     });
     if (!session) return;
-    var official = session.role === "official";
+    var official = session.role === "official" || session.role === "enforcement_official";
     if (!official) {
       document.documentElement.classList.add("manufacturer-shell");
       if (!document.getElementById("manufacturer-shell-style")) {
@@ -651,9 +757,13 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyRoleNavigation);
+    document.addEventListener("DOMContentLoaded", function () {
+      applyRoleNavigation();
+      applyDemoModeIndicator();
+    });
   } else {
     applyRoleNavigation();
+    applyDemoModeIndicator();
   }
 
   var manufacturerPages = ["manufacturer-dashboard.html", "products.html", "new-self-check.html", "self-check-report.html", "compliance-summary.html", "revision-history.html", "settings.html"];
@@ -676,14 +786,16 @@
   global.LL = {
     // utils
     qs: qs, escapeHtml: escapeHtml, formatComplianceValue: formatComplianceValue, fmtDateTime: fmtDateTime, fmtDate: fmtDate, toast: toast, comingSoon: comingSoon,
+    normalizeComplianceScore: normalizeComplianceScore, complianceStatus: complianceStatus,
     // auth
     getSession: getSession, login: login, registerManufacturer: registerManufacturer, logout: logout, requireRole: requireRole,
+    isDemoMode: isDemoMode, startDemoMode: startDemoMode, getDemoSessionByRole: getDemoSessionByRole, guardDemoAction: guardDemoAction,
     // data
     getScans: getScans, getScan: getScan, createScan: createScan, statusMeta: statusMeta,
     getCases: getCases, getCase: getCase, addCaseAction: addCaseAction,
     getProducts: getProducts, getProduct: getProduct,
     getSelfChecks: getSelfChecks, getSelfCheck: getSelfCheck, getSelfChecksByProduct: getSelfChecksByProduct,
     latestSelfCheckForProduct: latestSelfCheckForProduct, createSelfCheck: createSelfCheck,
-    exportCSV: exportCSV, resetDb: resetDb, applyRoleNavigation: applyRoleNavigation
+    exportCSV: exportCSV, resetDb: resetDb, applyRoleNavigation: applyRoleNavigation, applyDemoModeIndicator: applyDemoModeIndicator
   };
 })(window);

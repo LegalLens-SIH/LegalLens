@@ -110,6 +110,11 @@
   function start() {
     if (global.__manufacturerHeaderStarted) return;
     global.__manufacturerHeaderStarted = true;
+    var session = global.LL && global.LL.getSession ? global.LL.getSession() : null;
+    if (session && session.demoMode === true) {
+      render({ fullName: session.name || 'Acme Consumer Goods', email: session.email || 'ops@acmeconsumer.in', emailVerified: true, companyName: session.company || 'Acme Consumer Goods Pvt. Ltd.', role: 'manufacturer' });
+      return;
+    }
     if (!global.LLAuth || !global.LLAuth.me) return;
     global.LLAuth.me().then(function (result) {
       if (!result.user || result.user.role !== "manufacturer") throw new Error("manufacturer role required");

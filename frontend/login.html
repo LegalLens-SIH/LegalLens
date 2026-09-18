@@ -159,6 +159,14 @@
                         Secure Login
                         <span class="material-symbols-outlined text-lg">arrow_forward</span>
 </button>
+<div class="flex items-center gap-4 my-3 text-center text-body-md font-body-md text-on-surface-variant">
+    <span class="h-px flex-1 bg-outline-variant"></span>
+    <span class="uppercase tracking-[0.2em] text-label-md font-label-md">OR</span>
+    <span class="h-px flex-1 bg-outline-variant"></span>
+</div>
+<button id="demo-login-btn" class="w-full flex justify-center items-center gap-2 py-3 px-4 border border-primary text-primary rounded-DEFAULT bg-surface-container-lowest hover:bg-surface-container transition-colors min-h-[44px] font-semibold text-body-lg" type="button" onclick="handleDemoMode()">
+                        Continue as <span id="demo-role-label">Official</span>
+</button>
 </form>
 </div>
 <!-- Security Footer -->
@@ -177,6 +185,7 @@
 </div>
 <p class="mt-4 flex justify-center text-body-md font-body-md text-on-surface-variant">New manufacturer? <a class="text-secondary font-semibold hover:underline ml-1" href="registration.html">Register here</a></p>
 </main>
+<script src="assets/demo-data.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
 <script>
@@ -190,6 +199,22 @@
         var inactive = 'flex-1 py-4 text-body-md font-body-md font-medium text-on-surface-variant hover:bg-surface-container transition-colors flex items-center justify-center gap-2 border-b-2 border-transparent';
         officialTab.className = role === 'official' ? active : inactive;
         manufacturerTab.className = role === 'manufacturer' ? active : inactive;
+    }
+
+    function updateDemoButton() {
+        var demoBtn = document.getElementById('demo-login-btn');
+        var roleLabel = document.getElementById('demo-role-label');
+        if (!demoBtn) return;
+        if (roleLabel) {
+            roleLabel.textContent = selectedRole === 'official' ? 'Official' : 'Manufacturer';
+        }
+        demoBtn.className = 'w-full flex justify-center items-center gap-2 py-3 px-4 border border-primary text-primary rounded-DEFAULT bg-surface-container-lowest hover:bg-surface-container transition-colors min-h-[44px] font-semibold text-body-lg';
+    }
+
+    function handleDemoMode() {
+        var demoSession = LL.startDemoMode(selectedRole === 'official' ? 'official' : 'manufacturer');
+        location.href = selectedRole === 'official' ? 'official-dashboard.html' : 'manufacturer-dashboard.html';
+        return demoSession;
     }
 
     async function handleLogin(e) {
@@ -225,5 +250,6 @@
     }
 
     selectRole(selectedRole);
+    updateDemoButton();
 </script>
 </body></html>

@@ -27,6 +27,10 @@
     return null;
   }
 
+  function isDemoMode() {
+    return !!(global.LL && global.LL.isDemoMode && global.LL.isDemoMode());
+  }
+
   function runOcr(file, baseUrl) {
     var url = (baseUrl || DEFAULT_BASE_URL) + "/api/ocr";
     var formData = new FormData();
@@ -73,15 +77,44 @@
       });
   }
 
+  function startAnalysisJob(file, metadata, baseUrl) {
+    var url = (baseUrl || DEFAULT_BASE_URL) + "/api/analysis-jobs";
+    var formData = new FormData();
+    var files = Array.isArray(file) ? file : [file];
+    files.forEach(function (item) { formData.append("file", item.file || item, (item.file || item).name); });
+    formData.append("image_sides", JSON.stringify(files.map(function (item) { return item.side || "Other"; })));
+    formData.append("product_name", metadata.productName || (files[0].file || files[0]).name);
+    formData.append("category", metadata.category || "General");
+    formData.append("manufacturer", metadata.manufacturer || "Not specified");
+    return fetch(url, { method: "POST", body: formData, credentials: "include" }).then(function (response) {
+      return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
+    }).catch(function (networkErr) {
+      return { httpOk: false, status: 0, data: { detail: "Could not reach the analysis backend. " + networkErr.message } };
+    });
+  }
+
+  function getAnalysisJob(jobId, baseUrl) {
+    return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/analysis-jobs/" + encodeURIComponent(jobId), { credentials: "include", cache: "no-store" }).then(function (response) {
+      return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
+    });
+  }
+
   function getScans(baseUrl) {
+    if (isDemoMode()) return Promise.resolve(global.LL.getScans());
     return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/scans", { credentials: "include", cache: "no-store" }).then(function (response) { return response.json(); });
   }
 
   function getScan(id, baseUrl) {
+    if (isDemoMode()) return Promise.resolve(global.LL.getScan(id));
     return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(id), { credentials: "include", cache: "no-store" }).then(function (response) {
       if (!response.ok) return null;
       return response.json();
     });
+  }
+
+  function deleteScan(id, baseUrl) {
+    return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(id), { method: "DELETE", credentials: "include" })
+      .then(function (response) { return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; }); });
   }
 
   function evaluateCompliance(ocrResult, profile, baseUrl) {
@@ -101,14 +134,18 @@
   }
 
   function getCases(baseUrl) {
+    if (isDemoMode()) return Promise.resolve(global.LL.getCases());
     return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/cases", { credentials: "include" }).then(function (response) { return response.json(); });
   }
 
   global.LLOcr = {
     runOcr: runOcr,
     createScan: createScan,
+    startAnalysisJob: startAnalysisJob,
+    getAnalysisJob: getAnalysisJob,
     getScans: getScans,
     getScan: getScan,
+    deleteScan: deleteScan,
     evaluateCompliance: evaluateCompliance,
     getCases: getCases,
     validateFile: validateFile,

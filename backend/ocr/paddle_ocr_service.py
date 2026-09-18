@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -166,6 +166,7 @@ class PaddleOCRService:
         image_path: str,
         preprocess_options: Optional[PreprocessOptions] = None,
         yolo_service: Optional[YOLOService] = None,
+        progress_callback: Optional[Callable[[str], None]] = None,
     ) -> OCRResult:
         """Run OCR on a single image file and return a stable OCRResult.
 
@@ -222,6 +223,8 @@ class PaddleOCRService:
         detection_mode = "single_region"
         if yolo_service is not None:
             detection_mode = getattr(yolo_service, "detection_mode", "single_region")
+            if progress_callback:
+                progress_callback("OBJECT_DETECTION")
             try:
                 object_detections = yolo_service.detect(image)
             except (YOLOInitializationError, YOLODetectionError, ValueError) as exc:
@@ -250,6 +253,8 @@ class PaddleOCRService:
         region_cropped = False
 
         preprocessing_applied = False
+        if progress_callback:
+            progress_callback("IMAGE_PREPROCESSING")
         if preprocess_options is not None:
             try:
                 image = preprocess_image(image, preprocess_options)
@@ -270,6 +275,8 @@ class PaddleOCRService:
             )
 
         logger.info("Running PaddleOCR inference on %s", path)
+        if progress_callback:
+            progress_callback("OCR_PROCESSING")
         try:
             detections = self._ocr_array(engine, image)
         except Exception as exc:

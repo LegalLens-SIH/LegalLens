@@ -4,6 +4,17 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Enforcement Official New Scan / Upload Screen</title>
+<style>
+    .analysis-progress-bar { transition: width 500ms ease; }
+    .analysis-step-dot { width: 32px; height: 32px; flex: 0 0 32px; display: inline-flex; align-items: center; justify-content: center; transition: color 300ms ease, background-color 300ms ease; }
+    .analysis-step { position: relative; min-height: 32px; }
+    .analysis-step:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 27px; height: 18px; border-left: 2px solid #e1e3e4; }
+    .analysis-step.analysis-step-complete:not(:last-child)::after { border-color: #006a6a; }
+    .analysis-step-current .analysis-step-dot { border-radius: 4px; background: rgba(0, 106, 106, .12); box-shadow: 0 0 0 4px rgba(0, 106, 106, .08); }
+    .analysis-step-current .analysis-step-spinner { animation: analysis-spin 1s linear infinite; }
+    @keyframes analysis-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .analysis-progress-bar { transition: none; } .analysis-step-current .analysis-step-spinner { animation: none; } }
+</style>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script id="tailwind-config">
         tailwind.config = {
@@ -187,25 +198,24 @@
 <div class="max-w-2xl mx-auto mt-12">
 <div class="text-center mb-8">
 <h1 class="text-headline-lg font-headline-lg text-primary mb-4">New Compliance Scan</h1>
-<p class="text-body-lg font-body-lg text-on-surface-variant">Upload a clear photo of the product label for compliance analysis.</p>
+<p class="text-body-lg font-body-lg text-on-surface-variant">Upload up to 8 views of the same product for complete packaging analysis.</p>
 </div>
 <!-- Upload Area -->
 <div class="bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-surface-container-low transition-colors duration-200 group relative" id="scan-drop-zone">
-<input accept="image/jpeg,image/jpg,image/png,image/webp" aria-label="Upload label photo" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="file-upload" type="file"/>
+<input accept="image/jpeg,image/jpg,image/png,image/webp" aria-label="Upload product images" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="file-upload" multiple="" type="file"/>
 <div class="w-20 h-20 rounded-full bg-primary-fixed/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300" id="scan-drop-icon-wrap">
 <span class="material-symbols-outlined text-4xl text-primary" data-icon="cloud_upload">cloud_upload</span>
 </div>
-<h3 class="text-headline-md font-headline-md text-primary mb-2" id="scan-drop-title">Drag &amp; Drop Image Here</h3>
-<p class="text-body-md font-body-md text-on-surface-variant mb-6">or click to browse from your device</p>
-<div class="text-label-md font-label-md text-outline">Supported formats: JPG, JPEG, PNG, WEBP (Max 15MB)</div>
+<h3 class="text-headline-md font-headline-md text-primary mb-2" id="scan-drop-title">Drag &amp; Drop Product Images Here</h3>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6">or click to select multiple views from your device</p>
+<div class="text-label-md font-label-md text-outline">JPG, JPEG, PNG, WEBP · Up to 8 images · 15MB each</div>
 </div>
 <p class="hidden mt-3 text-body-md font-body-md text-error" id="file-validation-error"></p>
 <!-- Image preview + bounding-box overlay (populated after a file is chosen / OCR completes) -->
 <div class="hidden mt-6 bg-surface border border-outline-variant rounded-xl p-4" id="preview-card">
-<h4 class="text-body-lg font-body-lg font-bold text-on-surface mb-3">Selected Image</h4>
-<div class="relative inline-block max-w-full" id="preview-image-wrap">
-<img alt="Selected label preview" class="max-w-full max-h-[420px] rounded-lg border border-outline-variant" id="preview-image"/>
-</div>
+<div class="flex items-center justify-between gap-3 mb-4"><h4 class="text-body-lg font-body-lg font-bold text-on-surface">Selected Product Views</h4><span class="text-label-md font-label-md text-on-surface-variant" id="image-count-label">0 / 8 images</span></div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3" id="image-gallery"></div>
+<div class="mt-4 flex flex-wrap gap-3"><button class="px-4 py-2 border border-primary text-primary rounded-lg font-bold flex items-center gap-2" id="add-images-btn" type="button"><span class="material-symbols-outlined text-[18px]">add_photo_alternate</span>Add More Images</button><button class="px-4 py-2 border border-secondary text-secondary rounded-lg font-bold flex items-center gap-2" id="camera-btn" type="button"><span class="material-symbols-outlined text-[18px]">photo_camera</span>Capture Product Image</button><input accept="image/jpeg,image/jpg,image/png,image/webp" capture="environment" class="hidden" id="camera-upload" type="file"/></div>
 </div>
 <!-- Action Area -->
 <div class="mt-8 flex justify-end gap-4">
@@ -225,6 +235,18 @@
 <h3 class="text-headline-md font-headline-md text-primary">OCR Result</h3>
 </div>
 <div class="p-6" id="ocr-results-body"></div>
+</div>
+<div class="hidden mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden" id="analysis-progress-card" aria-live="polite">
+<div class="px-6 py-4 border-b border-outline-variant bg-surface flex items-center justify-between gap-4">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary" id="analysis-progress-icon">psychology</span><h3 class="text-headline-md font-headline-md text-primary">Product Analysis</h3></div>
+<span class="text-headline-md font-headline-md text-secondary" id="analysis-progress-percent">0%</span>
+</div>
+<div class="p-6">
+<p class="text-body-lg font-body-lg font-bold text-primary" id="analysis-progress-label">Initializing analysis</p>
+<div class="mt-4 h-2.5 rounded-full bg-surface-variant overflow-hidden"><div class="analysis-progress-bar h-full rounded-full bg-secondary" id="analysis-progress-bar" style="width:0%"></div></div>
+<div class="mt-6 grid gap-3" id="analysis-progress-steps"></div>
+<p class="mt-5 text-body-md font-body-md text-on-surface-variant" id="analysis-progress-note">Please wait while we analyze the uploaded product label.</p>
+</div>
 </div>
 <div class="mt-12 bg-surface p-6 rounded-lg border border-outline-variant flex gap-4 items-start">
 <span class="material-symbols-outlined text-tertiary-fixed-dim mt-1" data-icon="info">info</span>
@@ -246,23 +268,135 @@
 <script src="assets/ocr-client.js"></script>
 <script>
     if (LL.requireRole('official')) {
-        var chosenFile = null;
+        var chosenFiles = [];
         var fileInput = document.getElementById('file-upload');
         var analyzeBtn = document.getElementById('analyze-btn');
         var titleEl = document.getElementById('scan-drop-title');
         var iconWrap = document.getElementById('scan-drop-icon-wrap');
         var validationError = document.getElementById('file-validation-error');
         var previewCard = document.getElementById('preview-card');
-        var previewImg = document.getElementById('preview-image');
-        var previewWrap = document.getElementById('preview-image-wrap');
+        var imageGallery = document.getElementById('image-gallery');
+        var imageCountLabel = document.getElementById('image-count-label');
+        var addImagesBtn = document.getElementById('add-images-btn');
+        var cameraBtn = document.getElementById('camera-btn');
+        var cameraUpload = document.getElementById('camera-upload');
         var resultsCard = document.getElementById('ocr-results-card');
         var resultsBody = document.getElementById('ocr-results-body');
+        var progressCard = document.getElementById('analysis-progress-card');
+        var progressBar = document.getElementById('analysis-progress-bar');
+        var progressPercent = document.getElementById('analysis-progress-percent');
+        var progressLabel = document.getElementById('analysis-progress-label');
+        var progressSteps = document.getElementById('analysis-progress-steps');
+        var progressNote = document.getElementById('analysis-progress-note');
+        var progressIcon = document.getElementById('analysis-progress-icon');
+        var analysisPollTimer = null;
+        var MAX_IMAGES = 8;
+        var SIDE_OPTIONS = ['Front', 'Back', 'Left Side', 'Right Side', 'Top', 'Bottom', 'Other'];
+        var analysisStages = [
+            { key: 'INITIALIZING', label: 'Initializing analysis', progress: 10 },
+            { key: 'IMAGE_UPLOADED', label: 'Images uploaded successfully', progress: 20 },
+            { key: 'IMAGE_VALIDATION', label: 'Validating uploaded images', progress: 24 },
+            { key: 'IMAGE_PREPROCESSING', label: 'Preprocessing product views', progress: 34 },
+            { key: 'OBJECT_DETECTION', label: 'Detecting product and label regions', progress: 50 },
+            { key: 'OCR_PROCESSING', label: 'Extracting text using OCR', progress: 65 },
+            { key: 'TEXT_COMBINING', label: 'Combining OCR results', progress: 78 },
+            { key: 'TEXT_STRUCTURING', label: 'Structuring product information', progress: 85 },
+            { key: 'DECLARATION_IDENTIFICATION', label: 'Identifying product declarations', progress: 91 },
+            { key: 'RULE_VALIDATION', label: 'Checking Legal Metrology rules', progress: 95 },
+            { key: 'REPORT_GENERATION', label: 'Generating compliance results', progress: 98 },
+            { key: 'COMPLETED', label: 'Analysis completed', progress: 100 }
+        ];
+
+        function renderProgress(job) {
+            var currentIndex = analysisStages.findIndex(function (stage) { return stage.key === job.stage; });
+            var percent = Math.max(0, Math.min(100, Number(job.progress) || 0));
+            progressCard.classList.remove('hidden');
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+            progressLabel.textContent = job.label || 'Analyzing product';
+            if (job.currentImage && job.imageCount) {
+                progressNote.textContent = 'Processing image ' + job.currentImage + ' of ' + job.imageCount + (job.currentSide ? ' · ' + job.currentSide : '') + '. ' + (job.processedImages ? job.processedImages + ' completed.' : '');
+            }
+            progressSteps.innerHTML = analysisStages.map(function (stage, index) {
+                var complete = index < currentIndex || (job.status === 'completed' && stage.key === 'COMPLETED');
+                var current = index === currentIndex && job.status !== 'completed';
+                var stateClass = complete ? 'text-secondary' : (current ? 'analysis-step-current text-primary' : 'text-on-surface-variant');
+                var icon = complete ? 'check_circle' : (current ? 'progress_activity' : 'radio_button_unchecked');
+                var iconClass = current ? 'analysis-step-spinner' : '';
+                return '<div class="analysis-step ' + (complete ? 'analysis-step-complete ' : '') + 'flex items-center gap-3 ' + stateClass + '">' +
+                    '<span class="analysis-step-dot"><span class="material-symbols-outlined text-xl ' + iconClass + '">' + icon + '</span></span>' +
+                    '<span class="text-body-md font-body-md ' + (current || complete ? 'font-bold' : '') + '">' + LL.escapeHtml(stage.label) + '</span>' +
+                    (current ? '<span class="ml-auto text-label-md font-label-md text-secondary">CURRENT</span>' : '') + '</div>';
+            }).join('');
+            if (job.status === 'completed') {
+                progressIcon.textContent = 'check_circle';
+                progressIcon.className = 'material-symbols-outlined text-secondary';
+                progressNote.textContent = 'Analysis completed. OCR and compliance results are ready.';
+            } else if (job.status === 'failed') {
+                progressIcon.textContent = 'error';
+                progressIcon.className = 'material-symbols-outlined text-error';
+                progressNote.textContent = 'We could not complete this analysis.';
+            } else {
+                progressIcon.textContent = 'psychology';
+                progressIcon.className = 'material-symbols-outlined text-primary';
+                if (!job.currentImage) progressNote.textContent = 'Please wait while we analyze the uploaded product views.';
+            }
+        }
+
+        function showAnalysisFailure(job) {
+            progressLabel.textContent = 'Analysis Failed';
+            progressNote.innerHTML = 'Failed process: <strong>' + LL.escapeHtml(job.label || 'Unknown stage') + '</strong>' +
+                (job.error ? '<br>' + LL.escapeHtml(job.error) : '');
+            resultsCard.classList.remove('hidden');
+            resultsBody.innerHTML = '<div class="flex items-start gap-3 text-error"><span class="material-symbols-outlined">warning</span><div><p class="font-bold">Analysis failed</p><p class="text-body-md font-body-md text-on-surface-variant">We couldn\'t complete the product analysis.</p><button class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" onclick="location.reload()">Retry Analysis</button></div></div>';
+        }
+
+        function pollAnalysis(jobId, originalBtnHtml) {
+            LLOcr.getAnalysisJob(jobId).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Could not read analysis status.');
+                var job = response.data;
+                renderProgress(job);
+                if (job.status === 'failed') { showAnalysisFailure(job); return; }
+                if (job.status === 'completed') {
+                    var payload = { httpOk: true, data: job.result };
+                    renderResults(payload);
+                    sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(job.result.compliance));
+                    sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(job.result));
+                    window.setTimeout(function () { location.href = 'compliance-report.html?id=' + encodeURIComponent(job.result.id); }, 800);
+                    return;
+                }
+                analysisPollTimer = window.setTimeout(function () { pollAnalysis(jobId, originalBtnHtml); }, 600);
+            }).catch(function (err) {
+                showAnalysisFailure({ label: 'Reading analysis status', error: err.message });
+            });
+        }
 
         function resetResults() {
             resultsCard.classList.add('hidden');
             resultsBody.innerHTML = '';
-            var existingBoxes = previewWrap.querySelectorAll('.ocr-bbox');
-            existingBoxes.forEach(function (el) { el.remove(); });
+        }
+
+        function addFiles(files) {
+            Array.prototype.forEach.call(files || [], function (file) {
+                if (chosenFiles.length >= MAX_IMAGES || LLOcr.validateFile(file)) return;
+                var duplicate = chosenFiles.some(function (item) { return item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified; });
+                if (!duplicate) chosenFiles.push({ file: file, side: 'Other', objectUrl: URL.createObjectURL(file) });
+            });
+            renderGallery();
+        }
+
+        function renderGallery() {
+            imageCountLabel.textContent = chosenFiles.length + ' / ' + MAX_IMAGES + ' images';
+            previewCard.classList.toggle('hidden', chosenFiles.length === 0);
+            analyzeBtn.disabled = chosenFiles.length === 0;
+            analyzeBtn.classList.toggle('opacity-50', chosenFiles.length === 0);
+            analyzeBtn.classList.toggle('cursor-not-allowed', chosenFiles.length === 0);
+            titleEl.textContent = chosenFiles.length ? chosenFiles.length + ' product view' + (chosenFiles.length === 1 ? '' : 's') + ' selected' : 'Drag & Drop Product Images Here';
+            imageGallery.innerHTML = chosenFiles.map(function (item, index) {
+                return '<div class="relative bg-surface-container-low border border-outline-variant rounded-lg p-2"><div class="relative aspect-square overflow-hidden rounded-md bg-surface"><img class="w-full h-full object-cover" src="' + item.objectUrl + '" alt="Product image ' + (index + 1) + '"/><span class="absolute top-2 left-2 bg-primary text-on-primary px-2 py-1 rounded text-label-md font-label-md">Image ' + (index + 1) + '</span><button type="button" data-remove="' + index + '" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-error text-on-error flex items-center justify-center" aria-label="Remove image ' + (index + 1) + '"><span class="material-symbols-outlined text-[18px]">close</span></button></div><select data-side="' + index + '" class="mt-2 w-full border border-outline-variant rounded px-2 py-1 text-label-md bg-surface" aria-label="Image side">' + SIDE_OPTIONS.map(function (side) { return '<option ' + (side === item.side ? 'selected' : '') + '>' + side + '</option>'; }).join('') + '</select></div>';
+            }).join('');
+            imageGallery.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { chosenFiles.splice(Number(button.dataset.remove), 1); renderGallery(); }; });
+            imageGallery.querySelectorAll('[data-side]').forEach(function (select) { select.onchange = function () { chosenFiles[Number(select.dataset.side)].side = select.value; }; });
         }
 
         function showValidationError(msg) {
@@ -277,35 +411,27 @@
 
         fileInput.addEventListener('change', function () {
             if (!this.files || !this.files.length) return;
-            var file = this.files[0];
-            var validationMsg = LLOcr.validateFile(file);
+            var invalid = Array.prototype.map.call(this.files, LLOcr.validateFile).find(Boolean);
             resetResults();
-
-            if (validationMsg) {
-                chosenFile = null;
-                showValidationError(validationMsg);
-                analyzeBtn.disabled = true;
-                analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                previewCard.classList.add('hidden');
+            if (invalid) {
+                showValidationError(invalid);
                 return;
             }
-
             clearValidationError();
-            chosenFile = file;
-            titleEl.textContent = chosenFile.name;
-            analyzeBtn.disabled = false;
-            analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                previewImg.src = e.target.result;
-                previewCard.classList.remove('hidden');
-            };
-            reader.readAsDataURL(chosenFile);
+            addFiles(this.files);
+            this.value = '';
         });
 
+        addImagesBtn.onclick = function () { fileInput.click(); };
+        cameraBtn.onclick = function () { cameraUpload.click(); };
+        cameraUpload.onchange = function () { addFiles(this.files); this.value = ''; };
+        var dropZone = document.getElementById('scan-drop-zone');
+        ['dragenter', 'dragover'].forEach(function (eventName) { dropZone.addEventListener(eventName, function (event) { event.preventDefault(); dropZone.classList.add('bg-primary-fixed/20'); }); });
+        ['dragleave', 'drop'].forEach(function (eventName) { dropZone.addEventListener(eventName, function (event) { event.preventDefault(); dropZone.classList.remove('bg-primary-fixed/20'); }); });
+        dropZone.addEventListener('drop', function (event) { addFiles(event.dataTransfer.files); });
+
         function drawBoundingBoxes(detections) {
-            if (!detections || !detections.length) return;
+            return;
             var naturalW = previewImg.naturalWidth;
             var naturalH = previewImg.naturalHeight;
             var renderedW = previewImg.clientWidth;
@@ -366,49 +492,79 @@
                     '</div></div>';
             }).join('');
 
-            resultsBody.innerHTML = summary + '<div class="flex flex-col">' + rows + '</div>' +
-                '<p class="mt-4 text-label-md font-label-md text-on-surface-variant italic">This is raw text extracted by PaddleOCR. Legal Metrology compliance checking is not implemented yet.</p>';
+            var imageSummary = (data.imageResults || []).map(function (image, index) {
+                return '<div class="flex items-center justify-between gap-3 py-2 border-t border-outline-variant"><span><strong>Image ' + (index + 1) + '</strong> · ' + LL.escapeHtml(image.side || 'Other') + '</span><span class="text-label-md ' + (image.success ? 'text-secondary' : 'text-error') + '">' + (image.success ? 'Analyzed · ' + image.detectionCount + ' text regions' : 'Failed') + '</span></div>';
+            }).join('');
+            resultsBody.innerHTML = summary + '<div class="flex flex-col">' + rows + '</div>' + (imageSummary ? '<div class="mt-5">' + imageSummary + '</div>' : '') +
+                '<p class="mt-4 text-label-md font-label-md text-on-surface-variant italic">OCR evidence from all successfully processed product views was combined before Legal Metrology evaluation.</p>';
+        }
 
-            if (previewImg.complete) {
-                drawBoundingBoxes(data.detections);
-            } else {
-                previewImg.addEventListener('load', function () { drawBoundingBoxes(data.detections); }, { once: true });
-            }
+        function createDemoAnalysisResult() {
+            var demoDetections = [
+                { text: 'DEMO PREMIUM CHIPS', confidence: 0.98 },
+                { text: 'NET QTY: 50 g', confidence: 0.96 },
+                { text: 'MRP: Rs. 120/- INCLUSIVE OF ALL TAXES', confidence: 0.93 },
+                { text: 'MANUFACTURED: MAY 2026', confidence: 0.88 },
+                { text: 'CONSUMER CARE: support@example.in', confidence: 0.91 }
+            ];
+            return {
+                success: true,
+                detection_count: demoDetections.length,
+                detections: demoDetections,
+                imageResults: chosenFiles.map(function (item) {
+                    return { side: item.side || 'Other', success: true, detectionCount: demoDetections.length };
+                }),
+                id: 'DEMO-UPLOAD-' + Date.now().toString(36).toUpperCase(),
+                compliance: { score: 92, status: 'compliant' }
+            };
         }
 
         analyzeBtn.addEventListener('click', function () {
-            if (!chosenFile) return;
+            if (!chosenFiles.length) return;
             resetResults();
-            resultsCard.classList.remove('hidden');
-            resultsBody.innerHTML =
-                '<div class="flex items-center gap-3 text-on-surface-variant">' +
-                '<span class="material-symbols-outlined animate-spin">progress_activity</span>' +
-                '<span>Running PaddleOCR on the uploaded image&hellip; this can take a few seconds.</span></div>';
-
             analyzeBtn.disabled = true;
             analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
             var originalBtnHtml = analyzeBtn.innerHTML;
-            analyzeBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Analyzing...';
-
-            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General' }).then(function (payload) {
-                renderResults(payload);
-                if (payload.httpOk && payload.data && payload.data.ocr) {
-                    resultsBody.innerHTML += '<div class="mt-6 pt-5 border-t border-outline-variant"><span class="material-symbols-outlined align-middle mr-2 text-secondary">fact_check</span><span>OCR complete. Running the versioned Legal Metrology ruleset...</span></div>';
-                    return LLOcr.evaluateCompliance(payload.data.ocr, 'e_commerce_product_listing').then(function (compliance) {
-                        if (!compliance.httpOk) throw new Error(compliance.data.detail || 'Compliance evaluation failed.');
-                        sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(compliance.data));
-                        sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(payload.data));
-                        location.href = 'compliance-report.html?id=' + encodeURIComponent(payload.data.id);
-                    }).catch(function (err) {
-                        resultsBody.innerHTML += '<p class="mt-4 text-error">Compliance evaluation failed: ' + LL.escapeHtml(err.message) + '</p>';
-                    });
-                }
-            }).finally(function () {
+            analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
+            renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
+            if (LL.isDemoMode()) {
+                window.setTimeout(function () {
+                    var demoResult = createDemoAnalysisResult();
+                    renderProgress({ stage: 'COMPLETED', progress: 100, label: 'Analysis completed', status: 'completed' });
+                    renderResults({ httpOk: true, data: demoResult });
+                    sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(demoResult.compliance));
+                    sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(demoResult));
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    analyzeBtn.innerHTML = originalBtnHtml;
+                }, 700);
+                return;
+            }
+            LLOcr.startAnalysisJob(chosenFiles, { productName: chosenFiles[0].file.name, category: 'General' }).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
+                renderProgress(response.data);
+                pollAnalysis(response.data.id, originalBtnHtml);
+            }).catch(function (err) {
+                showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
                 analyzeBtn.disabled = false;
                 analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 analyzeBtn.innerHTML = originalBtnHtml;
             });
         });
+
+        var rescanId = LL.qs('rescan');
+        if (rescanId) {
+            LLOcr.getScan(rescanId).then(function (scan) {
+                if (!scan || !scan.sourceImageUrl) throw new Error('The original scan image is no longer available.');
+                return fetch(LLOcr.DEFAULT_BASE_URL + scan.sourceImageUrl, { credentials: 'include' }).then(function (response) {
+                    if (!response.ok) throw new Error('Could not load the original scan image.');
+                    return response.blob().then(function (blob) { return { scan: scan, file: new File([blob], scan.fileName || scan.productName || 'rescan.jpg', { type: blob.type || 'image/jpeg' }) }; });
+                });
+            }).then(function (loaded) {
+                addFiles([loaded.file]);
+                titleEl.textContent = 'Rescan: ' + loaded.file.name;
+            }).catch(function (error) { showValidationError(error.message); });
+        }
     }
 </script>
 </body></html>

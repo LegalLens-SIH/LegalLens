@@ -411,20 +411,27 @@
         var session = LL.getSession();
         document.getElementById('user-name').textContent = session.name;
 
-                Promise.all([LLAuth.dashboard(), LLManufacturer.products()]).then(function (results) {
-                        var stats = results[0].stats;
-                        var products = results[1].items;
-                        document.getElementById('stat-total-products').textContent = stats.totalProducts;
-                        document.getElementById('stat-compliant-products').textContent = stats.compliantProducts;
-                        document.getElementById('stat-needs-fixes').textContent = stats.needsFixes;
-                        document.getElementById('stat-avg-score').textContent = stats.complianceScore + '%';
-                        document.getElementById('stat-avg-score-bar').style.width = stats.complianceScore + '%';
-                        var portfolio = document.querySelector('#portfolio + div');
-                        portfolio.innerHTML = products.length ? products.map(function (product) {
-                                var compliant = product.latestStatus === 'compliant';
-                                return '<article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm"><div class="flex justify-between items-start mb-4"><span class="material-symbols-outlined text-4xl text-primary">inventory_2</span><span class="text-xs font-bold px-2 py-1 rounded ' + (compliant ? 'bg-secondary/10 text-secondary' : 'bg-yellow-100 text-yellow-800') + '">' + (compliant ? 'COMPLIANT' : 'NEEDS FIX') + '</span></div><p class="text-xs uppercase font-bold text-on-surface-variant mb-1">Product</p><h4 class="text-xl font-bold mb-1">' + LL.escapeHtml(product.productName) + '</h4><p class="text-sm text-on-surface-variant">SKU: ' + LL.escapeHtml(product.sku) + '</p><p class="mt-5 text-xs text-on-surface-variant">Latest score: ' + (product.latestScore == null ? 'Not checked' : product.latestScore + '%') + '</p></article>';
-                        }).join('') : '<p class="text-on-surface-variant">No products registered yet.</p>';
-                }).catch(function (error) { LL.toast(error.message); });
+        function renderManufacturerDashboard(stats, products) {
+            document.getElementById('stat-total-products').textContent = stats.totalProducts;
+            document.getElementById('stat-compliant-products').textContent = stats.compliantProducts;
+            document.getElementById('stat-needs-fixes').textContent = stats.needsFixes;
+            document.getElementById('stat-avg-score').textContent = stats.complianceScore + '%';
+            document.getElementById('stat-avg-score-bar').style.width = stats.complianceScore + '%';
+            var portfolio = document.querySelector('#portfolio + div');
+            portfolio.innerHTML = products.length ? products.map(function (product) {
+                var compliant = product.latestStatus === 'compliant';
+                return '<article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm"><div class="flex justify-between items-start mb-4"><span class="material-symbols-outlined text-4xl text-primary">inventory_2</span><span class="text-xs font-bold px-2 py-1 rounded ' + (compliant ? 'bg-secondary/10 text-secondary' : 'bg-yellow-100 text-yellow-800') + '">' + (compliant ? 'COMPLIANT' : 'NEEDS FIX') + '</span></div><p class="text-xs uppercase font-bold text-on-surface-variant mb-1">Product</p><h4 class="text-xl font-bold mb-1">' + LL.escapeHtml(product.productName) + '</h4><p class="text-sm text-on-surface-variant">SKU: ' + LL.escapeHtml(product.sku) + '</p><p class="mt-5 text-xs text-on-surface-variant">Latest score: ' + (product.latestScore == null ? 'Not checked' : product.latestScore + '%') + '</p></article>';
+            }).join('') : '<p class="text-on-surface-variant">No products registered yet.</p>';
+        }
+
+        if (LL.isDemoMode()) {
+            var demoData = (window.LLDemoData && window.LLDemoData.manufacturer) || { stats: { totalProducts: 12, compliantProducts: 8, needsFixes: 3, complianceScore: 82 }, products: [] };
+            renderManufacturerDashboard(demoData.stats, demoData.products);
+        } else {
+            Promise.all([LLAuth.dashboard(), LLManufacturer.products()]).then(function (results) {
+                renderManufacturerDashboard(results[0].stats, results[1].items || []);
+            }).catch(function (error) { LL.toast(error.message); });
+        }
     }
 </script>
 </body></html>

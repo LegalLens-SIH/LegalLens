@@ -295,6 +295,10 @@
 <span class="text-headline-md font-headline-md" id="report-score-value">60%</span>
 </div>
 </div>
+<div class="hidden mt-4" id="source-image-gallery-wrap">
+<h4 class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider mb-2">Analyzed Product Views</h4>
+<div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="source-image-gallery"></div>
+</div>
 </div>
 </div>
 <div class="hidden bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center" id="report-not-found">
@@ -415,6 +419,21 @@
                         var sourceImageWrap = document.getElementById('source-evidence-image-wrap');
                         var sourceEvidenceBoxes = document.getElementById('source-evidence-boxes');
             var apiOrigin = LLOcr.DEFAULT_BASE_URL;
+                        var sourceImageGalleryWrap = document.getElementById('source-image-gallery-wrap');
+                        var sourceImageGallery = document.getElementById('source-image-gallery');
+                        if (Array.isArray(scan.sourceImages) && scan.sourceImages.length > 1) {
+                                sourceImageGalleryWrap.classList.remove('hidden');
+                                sourceImageGallery.innerHTML = scan.sourceImages.map(function (image, index) {
+                                        return '<button type="button" class="text-left border border-outline-variant rounded-lg overflow-hidden bg-surface hover:border-primary transition-colors" data-source-index="' + index + '"><img class="w-full aspect-square object-cover" src="' + apiOrigin + image.url + '" alt="' + LL.escapeHtml(image.side || 'Product view') + '"><span class="block p-2 text-label-md font-label-md text-primary">' + LL.escapeHtml(image.side || 'Other') + '<br><span class="text-on-surface-variant">' + image.detectionCount + ' text regions</span></span></button>';
+                                }).join('');
+                                sourceImageGallery.querySelectorAll('[data-source-index]').forEach(function (button) {
+                                        button.onclick = function () {
+                                                var selected = scan.sourceImages[Number(button.dataset.sourceIndex)];
+                                                sourceImage.src = apiOrigin + selected.url;
+                                                sourceImage.alt = selected.side || selected.fileName || 'Product view';
+                                        };
+                                });
+                        }
             sourceImage.src = (scan.sourceImageUrl ? apiOrigin + scan.sourceImageUrl : apiOrigin + '/api/scans/' + encodeURIComponent(scan.id) + '/image');
             sourceImage.alt = scan.fileName ? 'Original product label: ' + scan.fileName : 'Original product label scan';
                         // null = show every known evidence region (existing default
