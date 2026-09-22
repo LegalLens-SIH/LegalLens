@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="h-full" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>LegalLens - Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
           darkMode: "class",
           theme: {
             extend: {
@@ -115,14 +115,10 @@
 <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] overflow-hidden">
 <!-- Role Selector Tabs -->
 <div class="flex border-b border-outline-variant bg-surface-container-low">
-<button class="flex-1 py-4 text-body-md font-body-md font-semibold text-primary border-b-2 border-primary bg-surface-container-lowest transition-colors flex items-center justify-center gap-2" id="tab-official" onclick="selectRole('official')" type="button">
+<div class="flex-1 py-4 text-body-md font-body-md font-semibold text-primary border-b-2 border-primary bg-surface-container-lowest transition-colors flex items-center justify-center gap-2" id="tab-official" aria-selected="true">
 <span class="material-symbols-outlined text-xl">admin_panel_settings</span>
-                    Official
-                </button>
-<button class="flex-1 py-4 text-body-md font-body-md font-medium text-on-surface-variant hover:bg-surface-container transition-colors flex items-center justify-center gap-2 border-b-2 border-transparent" id="tab-manufacturer" onclick="selectRole('manufacturer')" type="button">
-<span class="material-symbols-outlined text-xl">factory</span>
-                    Manufacturer
-                </button>
+                    Enforcement Official
+                </div>
 </div>
 <!-- Form Container -->
 <div class="p-8">
@@ -147,7 +143,7 @@
 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 <span class="material-symbols-outlined text-outline">lock</span>
 </div>
-<input class="block w-full pl-10 pr-10 py-3 border border-outline-variant rounded-DEFAULT bg-surface-container-lowest text-body-md font-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary placeholder-outline transition-colors" id="password" name="password" placeholder="••••••••" type="password"/>
+<input class="block w-full pl-10 pr-10 py-3 border border-outline-variant rounded-DEFAULT bg-surface-container-lowest text-body-md font-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary placeholder-outline transition-colors" id="password" name="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" type="password"/>
 <button class="absolute inset-y-0 right-0 pr-3 flex items-center text-outline hover:text-on-surface transition-colors" onclick="var p=document.getElementById('password'); p.type = p.type==='password'?'text':'password'; this.querySelector('span').textContent = p.type==='password'?'visibility_off':'visibility';" type="button">
 <span class="material-symbols-outlined">visibility_off</span>
 </button>
@@ -183,37 +179,26 @@
 <span class="w-[1px] bg-outline-variant h-4"></span>
 <a class="hover:text-primary transition-colors" href="#" onclick="return LL.comingSoon(event,'Help Center')">Help Center</a>
 </div>
-<p class="mt-4 flex justify-center text-body-md font-body-md text-on-surface-variant">New manufacturer? <a class="text-secondary font-semibold hover:underline ml-1" href="registration.html">Register here</a></p>
 </main>
 <script src="assets/demo-data.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
 <script>
-    var selectedRole = LL.qs('role') === 'manufacturer' ? 'manufacturer' : 'official';
-
-    function selectRole(role) {
-        selectedRole = role;
-        var officialTab = document.getElementById('tab-official');
-        var manufacturerTab = document.getElementById('tab-manufacturer');
-        var active = 'flex-1 py-4 text-body-md font-body-md font-semibold text-primary border-b-2 border-primary bg-surface-container-lowest transition-colors flex items-center justify-center gap-2';
-        var inactive = 'flex-1 py-4 text-body-md font-body-md font-medium text-on-surface-variant hover:bg-surface-container transition-colors flex items-center justify-center gap-2 border-b-2 border-transparent';
-        officialTab.className = role === 'official' ? active : inactive;
-        manufacturerTab.className = role === 'manufacturer' ? active : inactive;
-    }
+    var selectedRole = 'official';
 
     function updateDemoButton() {
         var demoBtn = document.getElementById('demo-login-btn');
         var roleLabel = document.getElementById('demo-role-label');
         if (!demoBtn) return;
         if (roleLabel) {
-            roleLabel.textContent = selectedRole === 'official' ? 'Official' : 'Manufacturer';
+            roleLabel.textContent = 'Official';
         }
         demoBtn.className = 'w-full flex justify-center items-center gap-2 py-3 px-4 border border-primary text-primary rounded-DEFAULT bg-surface-container-lowest hover:bg-surface-container transition-colors min-h-[44px] font-semibold text-body-lg';
     }
 
     function handleDemoMode() {
-        var demoSession = LL.startDemoMode(selectedRole === 'official' ? 'official' : 'manufacturer');
-        location.href = selectedRole === 'official' ? 'official-dashboard.html' : 'manufacturer-dashboard.html';
+        var demoSession = LL.startDemoMode('official');
+        location.href = 'official-dashboard.html';
         return demoSession;
     }
 
@@ -237,9 +222,9 @@
                 role: result.user.role,
                 name: result.user.fullName,
                 email: result.user.email,
-                org: result.user.companyName || (result.user.role === 'official' ? 'Enforcement Division' : 'Manufacturer')
+                org: result.user.companyName || 'Enforcement Division'
             }));
-            location.href = selectedRole === 'official' ? 'official-dashboard.html' : 'manufacturer-dashboard.html';
+            location.href = 'official-dashboard.html';
         } catch (err) {
             errorEl.textContent = err.message;
             errorEl.classList.remove('hidden');
@@ -249,7 +234,6 @@
         return false;
     }
 
-    selectRole(selectedRole);
     updateDemoButton();
 </script>
 </body></html>

@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>LegalLens - Manufacturer Registration</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
@@ -164,7 +164,7 @@
 </div>
 </form>
 <div class="mt-6 text-center text-body-md font-body-md text-on-surface-variant">
-                Already registered? <a class="text-secondary font-medium hover:underline" href="login.html?role=manufacturer">Sign in here</a>
+                Already registered? <a class="text-secondary font-medium hover:underline" href="login.html">Sign in here</a>
 </div>
 </div>
 <!-- Govt Notice -->

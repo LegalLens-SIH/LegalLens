@@ -42,29 +42,6 @@
     history: function () { return request("/history"); },
     dashboard: function () { return request("/dashboard"); }
   };
-  global.LLManufacturer = {
-    products: function () { return request(API_ORIGIN + "/api/manufacturer/products"); },
-    createProduct: function (data) { return request(API_ORIGIN + "/api/manufacturer/products", { method: "POST", body: JSON.stringify(data) }); },
-    revisions: function () { return request(API_ORIGIN + "/api/manufacturer/revisions"); },
-    submitForReview: function (revisionId) { return request(API_ORIGIN + "/api/manufacturer/revisions/" + encodeURIComponent(revisionId) + "/submit", { method: "POST" }); },
-    selfCheck: function (file, productId, productName) {
-      var formData = new FormData();
-      formData.append("file", file, file.name);
-      formData.append("product_id", productId || "");
-      formData.append("product_name", productName || "");
-      return fetch(API_ORIGIN + "/api/manufacturer/self-check", { method: "POST", body: formData, credentials: "include" }).then(function (response) {
-        return response.json().then(function (data) {
-          if (!response.ok) throw new Error(data.detail || "Self-check failed");
-          return data;
-        });
-      });
-    }
-  };
-  if (["profile.html"].indexOf((global.location.pathname.split("/").pop() || "").toLowerCase()) !== -1) {
-    var profileHeader = document.createElement("script");
-    profileHeader.src = "assets/manufacturer-header.js";
-    document.head.appendChild(profileHeader);
-  }
   if ((global.location.pathname.split("/").pop() || "").toLowerCase() === "verify-email.html") {
     var verifyStyle = document.createElement("style");
     verifyStyle.textContent = "body{background:#f8f9fa!important}.verify-card{border-radius:12px;box-shadow:0 12px 32px rgba(0,39,74,.08)}.verify-title{letter-spacing:-.02em}.verify-intro{line-height:1.6}.otp-field{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}.otp-boxes{display:flex;gap:10px;width:100%;margin-top:10px}.otp-box{width:100%;height:58px;text-align:center;font-size:24px;font-weight:700;color:#00274a;background:#f8fafc;border:2px solid #cbd5e1;border-radius:8px;outline:none;transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease}.otp-box:focus{background:#fff;border-color:#006a6a;box-shadow:0 0 0 4px rgba(0,106,106,.12)}.verify-submit{min-height:48px;transition:background-color .2s ease,transform .2s ease}.verify-submit:hover{transform:translateY(-1px)}.verify-label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#475569}@media(max-width:480px){main.verify-card{padding:24px}.otp-boxes{gap:6px}.otp-box{height:54px;font-size:22px}}";
@@ -126,3 +103,12 @@
     });
   }
 })(window);
+
+(function () {
+  var page = (window.location.pathname.split("/").pop() || "").toLowerCase();
+  if (["profile.html", "compliance-result.html"].indexOf(page) !== -1 && !document.querySelector('script[src*="shell.js"]')) {
+    var shell = document.createElement("script");
+    shell.src = "assets/shell.js";
+    document.head.appendChild(shell);
+  }
+})();

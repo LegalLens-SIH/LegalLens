@@ -81,3 +81,20 @@ test('demo mode exposes official and manufacturer demo sessions', () => {
   assert.equal(manufacturer.role, 'manufacturer');
   assert.equal(manufacturer.demoMode, true);
 });
+
+test('demo sessions stored in localStorage are recognized as authenticated by the centralized auth guard', () => {
+  const context = loadScripts();
+  const demoOfficial = { role: 'enforcement_official', demoMode: true, name: 'Demo Official', email: 'demo.official@example.com' };
+  context.localStorage.setItem('legallense_demo_session_v1', JSON.stringify(demoOfficial));
+
+  const auth = context.LL.getAuthState();
+
+  assert.equal(auth.authenticated, true);
+  assert.equal(auth.role, 'official');
+  assert.equal(auth.demoMode, true);
+  assert.equal(auth.session.role, 'enforcement_official');
+  assert.equal(auth.session.demoMode, true);
+  assert.equal(auth.session.name, 'Demo Official');
+  assert.equal(auth.session.email, 'demo.official@example.com');
+  assert.equal(context.LL.requireAuthenticated(), true);
+});

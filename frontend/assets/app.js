@@ -301,10 +301,85 @@
 
   function getSession() {
     try {
-      return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+      var secure = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+      if (secure && secure.role) return secure;
+
+      var demo = JSON.parse(localStorage.getItem(DEMO_KEY) || "null");
+      if (demo && demo.role) return demo;
+
+      return null;
     } catch (e) {
       return null;
     }
+  }
+
+  function getAuthState() {
+    var session = getSession();
+    if (!session || !session.role) return null;
+    var role = session.role === "enforcement_official" ? "official" : session.role;
+    if (role !== "official") return null;
+    return {
+      authenticated: true,
+      role: role,
+      demoMode: session.demoMode === true,
+      session: session
+    };
+  }
+
+  function redirectTo(target) {
+    var loc = global.location || {};
+    if (loc && typeof loc.replace === "function") {
+      loc.replace(target || "login.html");
+      return;
+    }
+    if (loc && typeof loc.assign === "function") {
+      loc.assign(target || "login.html");
+      return;
+    }
+    if (loc && typeof loc.href === "string") {
+      loc.href = target || "login.html";
+    }
+  }
+
+  function requireAuthenticated() {
+    var auth = getAuthState();
+    if (!auth) {
+      redirectTo("login.html");
+      return false;
+    }
+    return true;
+  }
+
+  function protectedPages() {
+    return [
+      "official-dashboard.html",
+      "new-compliance-scan.html",
+      "scan-history.html",
+      "review-queue.html",
+      "case-details.html",
+      "compliance-report.html",
+      "log-case-action.html",
+      "products.html",
+      "settings.html",
+      "profile.html",
+      "support.html",
+      "compliance-result.html"
+    ];
+  }
+
+  function ensurePageAccess() {
+    var page = (global.location.pathname.split("/").pop() || "").toLowerCase();
+    if (["manufacturer-dashboard.html", "new-self-check.html", "self-check-report.html", "compliance-summary.html", "revision-history.html"].indexOf(page) !== -1) {
+      redirectTo("official-dashboard.html");
+      return false;
+    }
+    if (protectedPages().indexOf(page) === -1) return true;
+    var auth = getAuthState();
+    if (!auth) {
+      redirectTo("login.html");
+      return false;
+    }
+    return true;
   }
 
   function getDemoSessionByRole(role) {
@@ -312,19 +387,18 @@
       return {
         role: "enforcement_official",
         demoMode: true,
-        name: "Inspector Rajesh Kumar",
-        email: "rajesh.kumar@enforcement.gov.in",
+        name: "Demo Enforcement Official",
+        email: "demo.official@legallens.gov.in",
         org: "Enforcement Division",
         loggedInAt: nowISO()
       };
     }
     return {
-      role: "manufacturer",
+      role: "official",
       demoMode: true,
-      name: "Acme Consumer Goods",
-      email: "ops@acmeconsumer.in",
-      company: "Acme Consumer Goods Pvt. Ltd.",
-      org: "Manufacturer Portal",
+      name: "Demo Enforcement Official",
+      email: "demo.official@legallens.gov.in",
+      org: "Enforcement Division",
       loggedInAt: nowISO()
     };
   }
@@ -342,18 +416,15 @@
   }
 
   function login(role, identifier) {
+    var normalizedRole = (role === "official" || role === "enforcement_official") ? "official" : "official";
     var session = {
-      role: role,
-      name: role === "official" ? "Inspector Rajesh Kumar" : (identifier || "Acme Consumer Goods"),
-      org: role === "official" ? "Enforcement Division" : (identifier || "Manufacturer Portal"),
+      role: normalizedRole === "official" ? "enforcement_official" : "official",
+      name: "Inspector Rajesh Kumar",
+      org: "Enforcement Division",
       loggedInAt: nowISO()
     };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     return session;
-  }
-
-  function registerManufacturer(companyName) {
-    return login("manufacturer", companyName);
   }
 
   function logout() {
@@ -361,23 +432,29 @@
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(DEMO_KEY);
     if (session && session.demoMode === true) {
-      global.location.replace((session.role === "manufacturer" ? "login.html?role=manufacturer" : "login.html?role=official"));
+      redirectTo("login.html");
       return;
     }
     if (global.fetch) {
       fetch(API_ORIGIN + "/api/auth/logout", { method: "POST", credentials: "include" }).catch(function () {});
     }
+    redirectTo("login.html");
   }
 
   function requireRole(role) {
-    var session = getSession();
-    var allowedRoles = role === "official" ? ["official", "enforcement_official"] : ["manufacturer"];
-    if (!session || allowedRoles.indexOf(session.role) === -1) {
-      var target = session ? ((session.role === "official" || session.role === "enforcement_official") ? "official-dashboard.html" : "manufacturer-dashboard.html") : (role === "official" ? "login.html?role=official" : "login.html?role=manufacturer");
-      global.location.replace(target);
+    var auth = getAuthState();
+    var session = auth && auth.session;
+    if (!auth) {
+      redirectTo("login.html");
       return false;
     }
-    return true;
+    if (role !== "official") {
+      redirectTo("login.html");
+      return false;
+    }
+    if (session && (session.role === "official" || session.role === "enforcement_official")) return true;
+    redirectTo("login.html");
+    return false;
   }
 
   function guardDemoAction(message, action) {
@@ -532,33 +609,33 @@
     return caseObj;
   }
 
-  // ---------- Products & Self-Checks (Manufacturer) ----------
+  // ---------- Products & Self-Checks ----------
 
   function getProducts() {
-    if (isDemoMode() && getSession().role === "manufacturer") {
-      return (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.products ? global.LLDemoData.manufacturer.products.slice() : []).slice();
+    if (isDemoMode() && getSession() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      return (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans.slice() : []).slice();
     }
     return loadDb().products.slice();
   }
 
   function getProduct(id) {
-    if (isDemoMode() && getSession().role === "manufacturer") {
-      var products = (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.products ? global.LLDemoData.manufacturer.products : []);
+    if (isDemoMode() && getSession() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      var products = (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans : []);
       return products.find(function (p) { return p.id === id; }) || null;
     }
     return loadDb().products.find(function (p) { return p.id === id; }) || null;
   }
 
   function getSelfChecks() {
-    if (isDemoMode() && getSession().role === "manufacturer") {
-      return (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.selfChecks ? global.LLDemoData.manufacturer.selfChecks.slice() : []).slice();
+    if (isDemoMode() && getSession() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      return (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans.slice() : []).slice();
     }
     return loadDb().selfChecks.slice();
   }
 
   function getSelfCheck(id) {
-    if (isDemoMode() && getSession().role === "manufacturer") {
-      var checks = (global.LLDemoData && global.LLDemoData.manufacturer && global.LLDemoData.manufacturer.selfChecks ? global.LLDemoData.manufacturer.selfChecks : []);
+    if (isDemoMode() && getSession() && (getSession().role === "enforcement_official" || getSession().role === "official")) {
+      var checks = (global.LLDemoData && global.LLDemoData.official && global.LLDemoData.official.scans ? global.LLDemoData.official.scans : []);
       return checks.find(function (s) { return s.id === id; }) || null;
     }
     return loadDb().selfChecks.find(function (s) { return s.id === id; }) || null;
@@ -635,152 +712,41 @@
 
   function applyRoleNavigation() {
     var session = getSession();
-    document.querySelectorAll("a").forEach(function (link) {
-      var label = link.textContent.replace(/\s+/g, " ").trim().toLowerCase();
-      if (label === "support" || label === "contact support") {
-        var item = link.parentElement && link.parentElement.tagName.toLowerCase() === "li" ? link.parentElement : link;
-        item.remove();
-      }
-    });
+    document.documentElement.classList.add("official-shell");
+    if (!document.getElementById("official-shell-style")) {
+      var officialStyle = document.createElement("style");
+      officialStyle.id = "official-shell-style";
+      officialStyle.textContent = [
+        ".official-shell .official-sidebar { width:260px !important; background:#00274a !important; border-right:1px solid rgba(195,198,208,.35); }",
+        ".official-shell .official-sidebar > nav { padding-left:8px !important; padding-right:8px !important; }",
+        ".official-shell .official-sidebar li a { min-height:48px; border-left-width:4px !important; border-left-color:transparent !important; border-radius:0 4px 4px 0 !important; padding:12px 16px !important; color:rgba(255,255,255,.72); }",
+        ".official-shell .official-sidebar li a:hover { color:#fff; background:rgba(255,255,255,.06); }",
+        ".official-shell .official-sidebar li a.border-secondary-fixed-dim { border-left-color:#76d6d5 !important; background:rgba(28,72,119,.45) !important; color:#76d6d5 !important; }",
+        ".official-shell .official-sidebar > div:first-child { margin-bottom:32px !important; }"
+      ].join("\n");
+      document.head.appendChild(officialStyle);
+    }
     if (!session) return;
-    var official = session.role === "official" || session.role === "enforcement_official";
-    if (!official) {
-      document.documentElement.classList.add("manufacturer-shell");
-      if (!document.getElementById("manufacturer-shell-style")) {
-        var style = document.createElement("style");
-        style.id = "manufacturer-shell-style";
-        style.textContent = [
-          ".manufacturer-shell aside.fixed, .manufacturer-shell nav.fixed { width:260px !important; background:#00274a !important; color:#fff; border-right:1px solid rgba(195,198,208,.35); padding-top:24px !important; padding-bottom:24px !important; }",
-          ".manufacturer-shell aside.fixed > nav, .manufacturer-shell nav.fixed > div > ul, .manufacturer-shell nav.fixed > div > nav, .manufacturer-shell nav.fixed > ul { padding-left:8px !important; padding-right:8px !important; gap:4px !important; }",
-          ".manufacturer-shell aside.fixed a, .manufacturer-shell nav.fixed a { min-height:48px; border-left-width:4px !important; border-left-color:transparent !important; border-radius:0 8px 8px 0 !important; padding:12px 16px !important; color:rgba(255,255,255,.72); font-size:14px; line-height:20px; }",
-          ".manufacturer-shell aside.fixed a:hover, .manufacturer-shell nav.fixed a:hover { color:#fff; background:rgba(255,255,255,.06); }",
-          ".manufacturer-shell aside.fixed a[href$=\"manufacturer-dashboard.html\"], .manufacturer-shell nav.fixed a[href$=\"manufacturer-dashboard.html\"], .manufacturer-shell aside.fixed a[href$=\"new-self-check.html\"], .manufacturer-shell nav.fixed a[href$=\"new-self-check.html\"], .manufacturer-shell aside.fixed a[href$=\"revision-history.html\"], .manufacturer-shell nav.fixed a[href$=\"revision-history.html\"] { }",
-          ".manufacturer-shell aside.fixed a.border-secondary-fixed-dim, .manufacturer-shell nav.fixed a.border-secondary-fixed-dim { border-left-color:#76d6d5 !important; background:rgba(28,72,119,.45) !important; color:#76d6d5 !important; font-weight:700; }",
-          ".manufacturer-shell aside.fixed > div:first-child, .manufacturer-shell nav.fixed > div > div:first-child { margin-bottom:32px !important; }",
-          ".manufacturer-shell aside.fixed button, .manufacturer-shell nav.fixed button { min-height:44px; border-radius:8px !important; }",
-          ".manufacturer-shell aside.fixed .mt-auto, .manufacturer-shell nav.fixed .mt-auto { margin-top:auto !important; border-top:1px solid rgba(255,255,255,.2); padding-top:16px; }"
-          ,".manufacturer-shell .manufacturer-active { border-left-color:#76d6d5 !important; background:rgba(28,72,119,.45) !important; color:#76d6d5 !important; font-weight:700; }"
-        ].join("\n");
-        document.head.appendChild(style);
-      }
-      normalizeManufacturerSidebar();
-    } else {
-      document.documentElement.classList.add("official-shell");
-      if (!document.getElementById("official-shell-style")) {
-        var officialStyle = document.createElement("style");
-        officialStyle.id = "official-shell-style";
-        officialStyle.textContent = [
-          ".official-shell .official-sidebar { width:260px !important; background:#00274a !important; border-right:1px solid rgba(195,198,208,.35); }",
-          ".official-shell .official-sidebar > nav { padding-left:8px !important; padding-right:8px !important; }",
-          ".official-shell .official-sidebar li a { min-height:48px; border-left-width:4px !important; border-left-color:transparent !important; border-radius:0 4px 4px 0 !important; padding:12px 16px !important; color:rgba(255,255,255,.72); }",
-          ".official-shell .official-sidebar li a:hover { color:#fff; background:rgba(255,255,255,.06); }",
-          ".official-shell .official-sidebar li a.border-secondary-fixed-dim { border-left-color:#76d6d5 !important; background:rgba(28,72,119,.45) !important; color:#76d6d5 !important; }",
-          ".official-shell .official-sidebar > div:first-child { margin-bottom:32px !important; }"
-        ].join("\n");
-        document.head.appendChild(officialStyle);
-      }
-    }
-    var routes = {
-      "manufacturer-dashboard.html": official ? "official-dashboard.html" : "manufacturer-dashboard.html",
-      "official-dashboard.html": official ? "official-dashboard.html" : "manufacturer-dashboard.html",
-      "new-self-check.html": official ? "new-compliance-scan.html" : "new-self-check.html",
-      "new-compliance-scan.html": official ? "new-compliance-scan.html" : "new-self-check.html",
-      "revision-history.html": official ? "scan-history.html" : "revision-history.html",
-      "scan-history.html": official ? "scan-history.html" : "revision-history.html"
-    };
-    document.querySelectorAll("a[href]").forEach(function (link) {
-      var label = link.textContent.replace(/\s+/g, " ").trim();
-      if (official && (label === "Products" || label === "Settings")) {
-        link.style.display = "none";
-        return;
-      }
-      var href = link.getAttribute("href");
-      var hash = href && href.indexOf("#");
-      var path = hash >= 0 ? href.slice(0, hash) : href;
-      if (routes[path]) link.href = routes[path] + (hash >= 0 ? href.slice(hash) : "");
-    });
-  }
-
-  function normalizeManufacturerSidebar() {
-    var sidebar = document.querySelector(".manufacturer-sidebar, body > nav.fixed, body > aside.fixed");
-    if (!sidebar) return;
-    var current = global.location.pathname.split("/").pop().toLowerCase() || "manufacturer-dashboard.html";
-    var labels = {
-      "manufacturer-dashboard.html": "Dashboard",
-      "new-self-check.html": "Operations",
-      "revision-history.html": "History",
-      "products.html": "Products",
-      "settings.html": "Settings"
-    };
-    sidebar.querySelectorAll("a[href]").forEach(function (link) {
-      var href = link.getAttribute("href") || "";
-      var path = href.split("#")[0].split("?")[0].split("/").pop().toLowerCase();
-      if (!labels[path]) return;
-      // Root-cause fix: this used to grab the LAST <span> inside the link
-      // and overwrite its text, assuming it was always a dedicated label
-      // span (true on pages like manufacturer-dashboard.html, whose markup
-      // is "<span class=material-symbols-outlined>icon</span><span
-      // class=text-body-md>Label</span>"). On pages whose markup is just
-      // "<span class=material-symbols-outlined>icon</span>Label" (a bare
-      // trailing text node, e.g. self-check-report.html), the ICON span was
-      // the only/last span - so its icon ligature name got overwritten with
-      // the label text (e.g. "Operations"), which the Material Symbols
-      // icon font then rendered as giant, malformed glyphs, right next to
-      // the original untouched label text - exactly the reported "giant
-      // decorative text" / "duplicated labels" bug. Fixed by explicitly
-      // skipping the icon span and preferring a genuine label span if one
-      // exists, else editing the existing trailing text node in place, and
-      // only creating a new text node if neither is present - the icon
-      // span itself is never touched.
-      var labelSpan = null;
-      var spans = link.querySelectorAll("span");
-      for (var i = spans.length - 1; i >= 0; i -= 1) {
-        if (!spans[i].classList.contains("material-symbols-outlined")) { labelSpan = spans[i]; break; }
-      }
-      if (labelSpan) {
-        labelSpan.textContent = labels[path];
-      } else {
-        var labelTextNode = Array.prototype.slice.call(link.childNodes).reverse().find(function (node) {
-          return node.nodeType === 3 && node.textContent.trim();
-        });
-        if (labelTextNode) labelTextNode.textContent = labels[path];
-        else link.appendChild(document.createTextNode(labels[path]));
-      }
-      link.classList.toggle("manufacturer-active", path === current);
-    });
-    var actionButton = sidebar.querySelector("button");
-    if (actionButton) {
-      Array.prototype.forEach.call(actionButton.childNodes, function (node) {
-        if (node.nodeType === 3 && node.textContent.trim()) node.textContent = " New Self-Check ";
-      });
-    }
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
+      ensurePageAccess();
       applyRoleNavigation();
       applyDemoModeIndicator();
     });
   } else {
+    ensurePageAccess();
     applyRoleNavigation();
     applyDemoModeIndicator();
   }
 
-  var manufacturerPages = ["manufacturer-dashboard.html", "products.html", "new-self-check.html", "self-check-report.html", "compliance-summary.html", "revision-history.html", "settings.html"];
-  if (manufacturerPages.indexOf((global.location.pathname.split("/").pop() || "").toLowerCase()) !== -1 && !document.querySelector('script[src*="manufacturer-header.js"]')) {
-    function loadManufacturerHeader() {
-      var manufacturerHeader = document.createElement("script");
-      manufacturerHeader.src = "assets/manufacturer-header.js";
-      document.head.appendChild(manufacturerHeader);
-    }
-    if (global.LLAuth) {
-      loadManufacturerHeader();
-    } else {
-      var manufacturerAuth = document.createElement("script");
-      manufacturerAuth.src = "assets/auth-client.js";
-      manufacturerAuth.onload = loadManufacturerHeader;
-      document.head.appendChild(manufacturerAuth);
-    }
+  var shellPages = ["official-dashboard.html", "new-compliance-scan.html", "scan-history.html", "review-queue.html", "case-details.html", "compliance-report.html", "log-case-action.html", "manufacturer-dashboard.html", "new-self-check.html", "self-check-report.html", "compliance-summary.html", "revision-history.html", "products.html", "settings.html", "profile.html", "support.html", "compliance-result.html"];
+  var currentShellPage = (global.location.pathname.split("/").pop() || "").toLowerCase();
+  if (shellPages.indexOf(currentShellPage) !== -1 && !document.querySelector('script[src*="shell.js"]')) {
+    var shellScript = document.createElement("script");
+    shellScript.src = "assets/shell.js";
+    document.head.appendChild(shellScript);
   }
 
   global.LL = {
@@ -788,7 +754,7 @@
     qs: qs, escapeHtml: escapeHtml, formatComplianceValue: formatComplianceValue, fmtDateTime: fmtDateTime, fmtDate: fmtDate, toast: toast, comingSoon: comingSoon,
     normalizeComplianceScore: normalizeComplianceScore, complianceStatus: complianceStatus,
     // auth
-    getSession: getSession, login: login, registerManufacturer: registerManufacturer, logout: logout, requireRole: requireRole,
+    getSession: getSession, getAuthState: getAuthState, requireAuthenticated: requireAuthenticated, ensurePageAccess: ensurePageAccess, login: login, logout: logout, requireRole: requireRole,
     isDemoMode: isDemoMode, startDemoMode: startDemoMode, getDemoSessionByRole: getDemoSessionByRole, guardDemoAction: guardDemoAction,
     // data
     getScans: getScans, getScan: getScan, createScan: createScan, statusMeta: statusMeta,

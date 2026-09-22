@@ -99,76 +99,6 @@
     }
   ];
 
-  var manufacturerProducts = [
-    { id: 'DEMO-PROD-101', productName: 'Demo Premium Chips', sku: 'DF-CHIP-001', category: 'Food & Beverage', latestStatus: 'needs_fixes', latestScore: 82 },
-    { id: 'DEMO-PROD-102', productName: 'Demo Protein Bar', sku: 'DF-PRO-045', category: 'Food & Beverage', latestStatus: 'compliant', latestScore: 94 },
-    { id: 'DEMO-PROD-103', productName: 'Demo Citrus Soda', sku: 'DB-SODA-230', category: 'Beverages', latestStatus: 'needs_fixes', latestScore: 63 },
-    { id: 'DEMO-PROD-104', productName: 'Demo Herbal Sachets', sku: 'DW-HERB-118', category: 'Healthcare', latestStatus: 'compliant', latestScore: 100 }
-  ];
-
-  var manufacturerChecks = [
-    {
-      id: 'DEMO-SC-101',
-      productId: 'DEMO-PROD-101',
-      productName: 'Demo Premium Chips',
-      category: 'Food & Beverage',
-      version: 1,
-      date: '2026-09-18T10:15:00',
-      score: 82,
-      status: 'needs_fixes',
-      findings: [
-        { field: 'Net Quantity', status: 'compliant', note: 'Declaration is legible and correctly formatted.' },
-        { field: 'MRP', status: 'warning', note: 'MRP has minor formatting issue. Please verify inclusive tax wording.' },
-        { field: 'Manufacturing Date', status: 'warning', note: 'Date is partially illegible under inspection lighting.' }
-      ]
-    },
-    {
-      id: 'DEMO-SC-102',
-      productId: 'DEMO-PROD-102',
-      productName: 'Demo Protein Bar',
-      category: 'Food & Beverage',
-      version: 1,
-      date: '2026-09-17T11:40:00',
-      score: 94,
-      status: 'compliant',
-      findings: [
-        { field: 'Net Quantity', status: 'compliant', note: 'Fully compliant and easy to read.' },
-        { field: 'MRP', status: 'compliant', note: 'Accurate and legible.' },
-        { field: 'Manufacturing Date', status: 'compliant', note: 'Complete and readable.' }
-      ]
-    },
-    {
-      id: 'DEMO-SC-103',
-      productId: 'DEMO-PROD-103',
-      productName: 'Demo Citrus Soda',
-      category: 'Beverages',
-      version: 1,
-      date: '2026-09-15T09:10:00',
-      score: 63,
-      status: 'needs_fixes',
-      findings: [
-        { field: 'MRP', status: 'warning', note: 'Price and tax wording need clearer placement.' },
-        { field: 'Manufacturing Date', status: 'warning', note: 'Date should be made more legible.' },
-        { field: 'Consumer Care Details', status: 'compliant', note: 'Available and visible.' }
-      ]
-    },
-    {
-      id: 'DEMO-SC-104',
-      productId: 'DEMO-PROD-104',
-      productName: 'Demo Herbal Sachets',
-      category: 'Healthcare',
-      version: 1,
-      date: '2026-09-12T12:30:00',
-      score: 100,
-      status: 'compliant',
-      findings: [
-        { field: 'Net Quantity', status: 'compliant', note: 'Declaration matches packaging design and legibility rules.' },
-        { field: 'MRP', status: 'compliant', note: 'Fully compliant with inclusive-of-all-taxes labeling.' },
-        { field: 'Batch No.', status: 'compliant', note: 'Legible and complete.' }
-      ]
-    }
-  ];
-
   global.LLDemoData = {
     official: {
       stats: {
@@ -181,17 +111,6 @@
       },
       scans: officialScans,
       cases: officialCases
-    },
-    manufacturer: {
-      stats: {
-        totalProducts: 12,
-        compliantProducts: 8,
-        needsFixes: 3,
-        nonCompliant: 1,
-        complianceScore: 82
-      },
-      products: manufacturerProducts,
-      selfChecks: manufacturerChecks
     }
   };
 })(window);

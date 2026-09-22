@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Revision History - LegalLens</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
           darkMode: "class",
           theme: {
             extend: {
@@ -349,7 +349,7 @@
 </div>
 </div>
 </main>
-<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script>
+<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/shell.js"></script>
 <script>
     if (LL.requireRole('manufacturer')) {
         var productId = LL.qs('productId') || 'PROD-DETERGENT';
@@ -408,7 +408,7 @@
                     '<div class="flex items-center gap-3 mb-1"><h3 class="text-headline-md font-headline-md text-on-surface">Version ' + rev.version + '</h3>' +
                     '<span class="px-2 py-1 rounded-full ' + badgeClass + ' text-label-md font-label-md flex items-center gap-1 border">' +
                     '<span class="material-symbols-outlined filled" style="font-size: 12px;">' + icon + '</span>' + rev.score + '% Compliant</span></div>' +
-                    '<p class="text-body-md font-body-md text-on-surface-variant mb-3">' + LL.fmtDate(rev.date) + ' • ' + (isCompliant ? 'Final Approval' : 'Revision Review') + '</p>' +
+                    '<p class="text-body-md font-body-md text-on-surface-variant mb-3">' + LL.fmtDate(rev.date) + ' &#8226; ' + (isCompliant ? 'Final Approval' : 'Revision Review') + '</p>' +
                     notesHtml + deltaHtml + '</div>' +
                     '<a class="shrink-0 flex items-center gap-2 text-primary font-medium text-body-md font-body-md hover:bg-surface-container-low px-4 py-2 rounded-lg border border-outline-variant transition-colors group-hover:border-primary" href="#">View Report <span class="material-symbols-outlined" style="font-size: 18px;">arrow_forward</span></a></div>';
 
