@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>LegalLens - Manufacturer Self-Check Report</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
           darkMode: "class",
           theme: {
             extend: {
@@ -265,7 +265,7 @@
 </nav>
 <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center mb-8" id="self-check-loading">
 <span class="material-symbols-outlined text-5xl text-on-surface-variant mb-4 animate-spin">progress_activity</span>
-<h2 class="text-headline-md font-headline-md text-primary mb-2">Loading your analysis…</h2>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Loading your analysis...</h2>
 <p class="text-body-md font-body-md text-on-surface-variant">Fetching the self-check result from the server.</p>
 </div>
 <div class="hidden bg-error-container/20 border border-error/40 rounded-xl p-12 text-center mb-8" id="self-check-load-error">
@@ -378,7 +378,7 @@
 </div>
 </div>
 </main>
-<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/manufacturer-header.js"></script><script src="assets/compliance-render.js"></script><script src="assets/legal-basis-client.js"></script>
+<script src="assets/app.js"></script><script src="assets/auth-client.js"></script><script src="assets/shell.js"></script><script src="assets/compliance-render.js"></script><script src="assets/legal-basis-client.js"></script>
 <script>
     // Root-cause fix (part 1): this page used to read the self-check record
     // from LL.getSelfCheck() - app.js's localStorage-backed MOCK data store,
@@ -541,7 +541,7 @@
 
             var compliance = record.compliance;
             if (!compliance || !Array.isArray(compliance.rule_results)) {
-                document.getElementById('report-subtitle').textContent = record.productName + ' — Version ' + record.version + ' • This older revision was analyzed before the current report format and cannot be displayed in full detail.';
+                document.getElementById('report-subtitle').textContent = record.productName + ' - Version ' + record.version + ' \u2022 This older revision was analyzed before the current report format and cannot be displayed in full detail.';
                 document.getElementById('checklist-intro').textContent = 'No detailed compliance data is available for this revision. Re-upload the label to get a full report.';
                 return;
             }
@@ -551,7 +551,7 @@
             checks.forEach(function (c) { counts[statusMeta(c.status).bucket] += 1; });
 
             var scoreText = (compliance.compliance_score === null || compliance.compliance_score === undefined) ? 'Not scored' : Math.round(compliance.compliance_score) + '%';
-            document.getElementById('report-subtitle').textContent = record.productName + ' — Version ' + record.version + ' • Score: ' + scoreText;
+            document.getElementById('report-subtitle').textContent = record.productName + ' - Version ' + record.version + ' \u2022 Score: ' + scoreText;
             // Phase 1, Requirement 10: unconditional, backend-supplied
             // disclaimer - rendered verbatim via textContent, never
             // reworded/weakened here.

@@ -8,6 +8,9 @@ duplicated here.
 from __future__ import annotations
 
 import logging
+import asyncio
+from contextvars import ContextVar
+from io import BytesIO
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -15,10 +18,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from gridfs import GridFS
 from gridfs.errors import NoFile
+from starlette.datastructures import Headers
 
 from backend.database import get_database
 from backend.api.auth import official_user
@@ -86,6 +90,60 @@ MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB safety cap for local dev
 # client-supplied path.
 _UPLOAD_TMP_DIR = Path(tempfile.gettempdir()) / "legallense_ocr_uploads"
 _UPLOAD_TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+_analysis_jobs: dict[str, dict[str, Any]] = {}
+_active_progress_job: ContextVar[str | None] = ContextVar("active_progress_job", default=None)
+
+ANALYSIS_STAGES = {
+    "INITIALIZING": (10, "Initializing analysis"),
+    "IMAGE_UPLOADED": (20, "Image uploaded successfully"),
+    "IMAGE_PREPROCESSING": (34, "Preprocessing image"),
+    "OBJECT_DETECTION": (50, "Detecting product label"),
+    "OCR_PROCESSING": (65, "Extracting text using OCR"),
+    "TEXT_STRUCTURING": (78, "Processing extracted information"),
+    "DECLARATION_IDENTIFICATION": (88, "Identifying product declarations"),
+    "RULE_VALIDATION": (95, "Checking Legal Metrology rules"),
+    "REPORT_GENERATION": (98, "Generating compliance results"),
+    "COMPLETED": (100, "Analysis completed"),
+}
+
+MAX_ANALYSIS_IMAGES = 8
+
+
+def _report_progress(stage: str, *, error: str | None = None, result: dict[str, Any] | None = None) -> None:
+    job_id = _active_progress_job.get()
+    if not job_id or job_id not in _analysis_jobs:
+        return
+    progress, label = ANALYSIS_STAGES.get(stage, (0, stage))
+    update = {"stage": stage, "progress": progress, "label": label}
+    if error:
+        update.update({"status": "failed", "error": error})
+    elif result is not None:
+        update.update({"status": "completed", "result": result})
+    else:
+        update["status"] = "running"
+    _analysis_jobs[job_id].update(update)
+
+
+def _report_analysis_update(progress: int, stage: str, label: str, **extra: Any) -> None:
+    job_id = _active_progress_job.get()
+    if not job_id or job_id not in _analysis_jobs:
+        return
+    _analysis_jobs[job_id].update({"status": "running", "progress": progress, "stage": stage, "label": label, **extra})
+
+
+def _deduplicate_detections(results: list[OCRResult]) -> list[Any]:
+    """Keep the first high-confidence occurrence of repeated OCR lines."""
+    unique: list[Any] = []
+    seen: set[str] = set()
+    for result in results:
+        for detection in result.detections:
+            key = " ".join(detection.text.casefold().split())
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append(detection)
+    return unique
 
 
 def _error_response(status_code: int, image: str, code: str, message: str) -> JSONResponse:
@@ -182,7 +240,10 @@ async def run_ocr(file: Optional[UploadFile] = File(None)):
         tmp_path.write_bytes(contents)
         logger.info("Saved upload '%s' (%d bytes) to temp file for OCR", original_name, len(contents))
 
-        result = _service.run(str(tmp_path), yolo_service=_yolo_service, preprocess_options=_preprocess_options)
+        run_options = {"yolo_service": _yolo_service, "preprocess_options": _preprocess_options}
+        if _active_progress_job.get():
+            run_options["progress_callback"] = _report_progress
+        result = _service.run(str(tmp_path), **run_options)
         # Swap the temp filename back out for the original, client-facing name,
         # and scrub the server-side temp path out of any error message so no
         # internal filesystem detail reaches the browser.
@@ -223,9 +284,11 @@ async def create_scan(
     user: dict[str, Any] = Depends(official_user),
 ):
     """Run OCR and persist the original scan record in MongoDB."""
+    _report_progress("INITIALIZING")
     original_contents = await file.read() if file is not None else b""
     if file is not None:
         await file.seek(0)
+    _report_progress("IMAGE_UPLOADED")
     # Authenticity Verification Layer, Section 3 (EXIF only): independent
     # evidence collection, run against the SAME raw upload bytes OCR is
     # about to process - deliberately BEFORE the OCR call below, mirroring
@@ -248,6 +311,8 @@ async def create_scan(
     if not result.success:
         return response
 
+    _report_progress("OCR_PROCESSING")
+
     ocr_dict = result.model_dump()
     # Computed once and reused for both the Gemini ambiguous-field check and
     # structured extraction below (see find_ambiguous_fields' and
@@ -256,6 +321,7 @@ async def create_scan(
     # that redundant recomputation in the common case where Gemini doesn't
     # end up changing anything.
     normalized = normalize_ocr_result(ocr_dict)
+    _report_progress("TEXT_STRUCTURING")
 
     gemini_fields_used: list[str] = []
     suggestions: list = []
@@ -292,10 +358,13 @@ async def create_scan(
         logger.exception("Structured extraction failed for %s; scan continues without it", result.image)
         structured_extraction = None
 
+    _report_progress("DECLARATION_IDENTIFICATION")
+
     validation_profile, is_wholesale = _select_validation_profile(category)
     if is_wholesale:
         ocr_dict["package_type"] = "wholesale"
     compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
+    _report_progress("RULE_VALIDATION")
     scan = _scan_document(result, product_name.strip(), category.strip(), manufacturer.strip(), result.image)
     if gemini_fields_used:
         # Provenance only - never fed back into ComplianceEngine/NormalizedField,
@@ -371,7 +440,223 @@ async def create_scan(
         "createdAt": datetime.now(timezone.utc),
     })
     logger.info("Persisted scan %s and source image %s to MongoDB", scan["id"], image_id)
+    _report_progress("REPORT_GENERATION")
     return _public_scan(scan)
+
+
+async def _run_analysis_job(
+    job_id: str,
+    contents: bytes,
+    filename: str,
+    content_type: str | None,
+    product_name: str,
+    category: str,
+    manufacturer: str,
+    user: dict[str, Any],
+) -> None:
+    token = _active_progress_job.set(job_id)
+    try:
+        headers = Headers({"content-type": content_type}) if content_type else None
+        upload = UploadFile(file=BytesIO(contents), filename=filename, headers=headers)
+        result = await create_scan(upload, product_name, category, manufacturer, user)
+        if isinstance(result, JSONResponse):
+            body = result.body.decode("utf-8") if result.body else "{}"
+            payload = __import__("json").loads(body)
+            message = payload.get("error", {}).get("message", "Analysis failed")
+            _report_progress(_analysis_jobs[job_id].get("stage", "OCR_PROCESSING"), error=message)
+            return
+        _report_progress("COMPLETED", result=result)
+    except Exception as exc:
+        logger.exception("Analysis job %s failed", job_id)
+        _report_progress(_analysis_jobs[job_id].get("stage", "REPORT_GENERATION"), error=str(exc))
+    finally:
+        _active_progress_job.reset(token)
+
+
+def _status_for_compliance(status: str) -> str:
+    return {
+        "COMPLIANT": "compliant",
+        "NON_COMPLIANT": "flagged",
+        "PARTIALLY_COMPLIANT": "partial",
+        "NEEDS_MANUAL_VERIFICATION": "manual_review",
+        "REVIEW_REQUIRED": "manual_review",
+        "NOT_APPLICABLE": "not_applicable",
+    }.get(status, "manual_review")
+
+
+def _run_image_ocr(contents: bytes, filename: str, progress_callback: Any) -> OCRResult:
+    suffix = Path(filename).suffix.lower()
+    tmp_path = _UPLOAD_TMP_DIR / f"{uuid.uuid4().hex}{suffix}"
+    try:
+        tmp_path.write_bytes(contents)
+        result = _service.run(
+            str(tmp_path),
+            yolo_service=_yolo_service,
+            preprocess_options=_preprocess_options,
+            progress_callback=progress_callback,
+        )
+        result.image = filename
+        result.image_path = None
+        if result.error is not None:
+            result.error.message = result.error.message.replace(str(tmp_path), filename)
+        return result
+    except Exception as exc:
+        logger.exception("OCR failed for multi-image upload %s", filename)
+        return OCRResult(success=False, image=filename, error=OCRError(code="internal_error", message=str(exc)))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            logger.warning("Failed to clean up temp file %s", tmp_path, exc_info=True)
+
+
+async def _run_multi_analysis_job(
+    job_id: str,
+    images: list[dict[str, Any]],
+    product_name: str,
+    category: str,
+    manufacturer: str,
+    user: dict[str, Any],
+) -> None:
+    token = _active_progress_job.set(job_id)
+    image_results: list[dict[str, Any]] = []
+    try:
+        total = len(images)
+        _report_analysis_update(12, "IMAGE_VALIDATION", f"Validating {total} uploaded images", imageCount=total)
+        for index, image in enumerate(images):
+            image_number = index + 1
+            start = 18 + round(index / total * 57)
+            _report_analysis_update(start, "IMAGE_PREPROCESSING", f"Preparing image {image_number} of {total}", currentImage=image_number, currentSide=image["side"])
+
+            def image_progress(stage: str, image_number: int = image_number, side: str = image["side"]) -> None:
+                offsets = {"IMAGE_PREPROCESSING": 0, "OBJECT_DETECTION": 10, "OCR_PROCESSING": 28}
+                progress = 18 + round(index / total * 57) + offsets.get(stage, 0)
+                _report_analysis_update(progress, stage, f"{ANALYSIS_STAGES[stage][1]}: image {image_number} of {total}", currentImage=image_number, currentSide=side)
+
+            result = _run_image_ocr(image["contents"], image["filename"], image_progress)
+            image_results.append({"image": image, "result": result})
+            if not result.success:
+                logger.warning("Image %d/%d failed: %s", image_number, total, result.error.message if result.error else "unknown error")
+
+        successful = [item for item in image_results if item["result"].success]
+        if not successful:
+            _report_progress("OCR_PROCESSING", error="No uploaded image could be processed")
+            return
+
+        _report_analysis_update(78, "TEXT_COMBINING", "Combining OCR results from all product sides", processedImages=len(successful), failedImages=total - len(successful))
+        results = [item["result"] for item in successful]
+        detections = _deduplicate_detections(results)
+        combined = OCRResult(
+            success=True,
+            image=results[0].image,
+            full_text="\n".join(detection.text for detection in detections),
+            detections=detections,
+            detection_count=len(detections),
+            preprocessing_applied=any(result.preprocessing_applied for result in results),
+            object_detections=[detection for result in results for detection in result.object_detections],
+        )
+        _report_analysis_update(85, "TEXT_STRUCTURING", "Structuring combined product information", processedImages=len(successful), failedImages=total - len(successful))
+        ocr_dict = combined.model_dump()
+        normalized = normalize_ocr_result(ocr_dict)
+        structured_extraction = build_structured_extraction(ocr_dict, normalized=normalized)
+        _report_analysis_update(91, "DECLARATION_IDENTIFICATION", "Identifying product declarations across all sides", processedImages=len(successful), failedImages=total - len(successful))
+        validation_profile, is_wholesale = _select_validation_profile(category)
+        if is_wholesale:
+            ocr_dict["package_type"] = "wholesale"
+        compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
+        _report_analysis_update(95, "RULE_VALIDATION", "Checking Legal Metrology rules", processedImages=len(successful), failedImages=total - len(successful))
+
+        scan = _scan_document(combined, product_name.strip(), category.strip(), manufacturer.strip(), combined.image)
+        scan.update({
+            "userId": user["_id"], "success": True, "image": combined.image,
+            "full_text": combined.full_text, "detections": [d.model_dump() for d in combined.detections],
+            "detection_count": combined.detection_count, "preprocessing_applied": combined.preprocessing_applied,
+            "error": None, "compliance": compliance.model_dump(), "status": _status_for_compliance(compliance.overall_status),
+            "score": compliance.compliance_score, "structuredExtraction": structured_extraction.model_dump(),
+            "imagesProcessed": len(successful), "imagesRequested": total,
+            "imageResults": [{"fileName": item["image"]["filename"], "side": item["image"]["side"], "success": item["result"].success, "detectionCount": item["result"].detection_count, "error": item["result"].error.model_dump() if item["result"].error else None} for item in image_results],
+        })
+        database = get_database()
+        source_images = []
+        for item in successful:
+            image = item["image"]
+            image_id = GridFS(database, collection="scan_images").put(image["contents"], filename=image["filename"], content_type=image["content_type"], scan_id=scan["id"], user_id=user["_id"])
+            source_images.append({"id": str(image_id), "fileName": image["filename"], "side": image["side"], "detectionCount": item["result"].detection_count})
+        scan["sourceImages"] = source_images
+        if source_images:
+            scan["sourceImageId"] = source_images[0]["id"]
+            scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
+            for source_image in source_images:
+                source_image["url"] = f"/api/scans/{scan['id']}/images/{source_images.index(source_image)}"
+        database.scans.insert_one(scan)
+        database.history.insert_one({"userId": user["_id"], "actionType": "scan_uploaded", "title": "Product label uploaded", "description": f"Multi-image OCR scan created for {scan['productName']}.", "documentId": scan["id"], "metadata": {"fileName": combined.image, "category": scan["category"], "imagesProcessed": len(successful)}, "createdAt": datetime.now(timezone.utc)})
+        _report_analysis_update(98, "REPORT_GENERATION", "Generating unified compliance report", processedImages=len(successful), failedImages=total - len(successful))
+        _report_progress("COMPLETED", result=_public_scan(scan))
+    except Exception as exc:
+        logger.exception("Multi-image analysis job %s failed", job_id)
+        _report_progress(_analysis_jobs[job_id].get("stage", "REPORT_GENERATION"), error=str(exc))
+    finally:
+        _active_progress_job.reset(token)
+
+
+def _run_multi_analysis_job_in_worker(*args: Any) -> None:
+    asyncio.run(_run_multi_analysis_job(*args))
+
+
+def _run_analysis_job_in_worker(*args: Any) -> None:
+    """Run blocking OCR/model work off FastAPI's event-loop thread."""
+    asyncio.run(_run_analysis_job(*args))
+
+
+@router.post("/api/analysis-jobs")
+async def start_analysis_job(
+    background_tasks: BackgroundTasks,
+    file: list[UploadFile] = File(...),
+    product_name: str = Form(""),
+    category: str = Form("General"),
+    manufacturer: str = Form("Not specified"),
+    image_sides: str = Form("[]"),
+    user: dict[str, Any] = Depends(official_user),
+):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file was uploaded")
+    if len(file) > MAX_ANALYSIS_IMAGES:
+        raise HTTPException(status_code=400, detail=f"Upload up to {MAX_ANALYSIS_IMAGES} images per product")
+    try:
+        requested_sides = __import__("json").loads(image_sides)
+    except (TypeError, ValueError):
+        requested_sides = []
+    images = []
+    seen_names = set()
+    for index, upload in enumerate(file):
+        filename = Path(upload.filename or "").name
+        suffix = Path(filename).suffix.lower()
+        if suffix not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Unsupported image format for {filename}")
+        if filename.casefold() in seen_names:
+            continue
+        contents = await upload.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail=f"Uploaded file is empty: {filename}")
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail=f"File exceeds the 15MB limit: {filename}")
+        seen_names.add(filename.casefold())
+        side = requested_sides[index] if index < len(requested_sides) and requested_sides[index] in {"Front", "Back", "Left Side", "Right Side", "Top", "Bottom", "Other"} else "Other"
+        images.append({"contents": contents, "filename": filename, "content_type": upload.content_type, "side": side})
+
+    job_id = f"AN-{uuid.uuid4().hex[:12].upper()}"
+    _analysis_jobs[job_id] = {"id": job_id, "userId": user["_id"], "status": "running", "stage": "INITIALIZING", "progress": 10, "label": "Initializing analysis", "imageCount": len(images)}
+    background_tasks.add_task(_run_multi_analysis_job_in_worker, job_id, images, product_name, category, manufacturer, user)
+    return {"id": job_id, "status": "running", "stage": "INITIALIZING", "progress": 10, "label": "Initializing analysis", "imageCount": len(images)}
+
+
+@router.get("/api/analysis-jobs/{job_id}")
+def get_analysis_job(job_id: str, user: dict[str, Any] = Depends(official_user)):
+    job = _analysis_jobs.get(job_id)
+    if job is None or job.get("userId") != user["_id"]:
+        raise HTTPException(status_code=404, detail="Analysis job not found")
+    return {key: value for key, value in job.items() if key != "userId"}
 
 
 @router.get("/api/scans")
@@ -396,6 +681,23 @@ def get_scan(scan_id: str, user: dict[str, Any] = Depends(official_user)):
     )
 
 
+@router.delete("/api/scans/{scan_id}")
+def delete_scan(scan_id: str, user: dict[str, Any] = Depends(official_user)):
+    """Delete an owned scan and its stored source image."""
+    database = get_database()
+    scan = database.scans.find_one({"id": scan_id, "userId": user["_id"]})
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.get("sourceImageId"):
+        try:
+            GridFS(database, collection="scan_images").delete(ObjectId(scan["sourceImageId"]))
+        except NoFile:
+            logger.info("Source image %s was already absent for scan %s", scan["sourceImageId"], scan_id)
+    database.scans.delete_one({"_id": scan["_id"]})
+    database.history.delete_many({"userId": user["_id"], "documentId": scan_id})
+    return {"success": True, "id": scan_id}
+
+
 @router.get("/api/scans/{scan_id}/image")
 def get_scan_image(scan_id: str, user: dict[str, Any] = Depends(official_user)):
     """Stream the original label photo for an owned scan."""
@@ -408,6 +710,20 @@ def get_scan_image(scan_id: str, user: dict[str, Any] = Depends(official_user)):
     except NoFile as exc:
         raise HTTPException(status_code=404, detail="Source image not found") from exc
 
+    return StreamingResponse(image, media_type=image.content_type or "application/octet-stream")
+
+
+@router.get("/api/scans/{scan_id}/images/{image_index}")
+def get_scan_source_image(scan_id: str, image_index: int, user: dict[str, Any] = Depends(official_user)):
+    """Stream one source image from a multi-image scan."""
+    scan = get_database().scans.find_one({"id": scan_id, "userId": user["_id"]}, {"sourceImages": 1})
+    source_images = scan.get("sourceImages", []) if scan else []
+    if scan is None or image_index < 0 or image_index >= len(source_images):
+        raise HTTPException(status_code=404, detail="Source image not found")
+    try:
+        image = GridFS(get_database(), collection="scan_images").get(ObjectId(source_images[image_index]["id"]))
+    except NoFile as exc:
+        raise HTTPException(status_code=404, detail="Source image not found") from exc
     return StreamingResponse(image, media_type=image.content_type or "application/octet-stream")
 
 

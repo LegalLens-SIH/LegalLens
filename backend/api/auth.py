@@ -37,7 +37,7 @@ def public_user(user: dict[str, Any]) -> dict[str, Any]:
         "id": str(user["_id"]),
         "fullName": user["fullName"],
         "email": user["email"],
-        "role": user.get("role", "manufacturer"),
+        "role": user.get("role", "official"),
         "companyName": user.get("companyName", ""),
         "emailVerified": bool(user.get("emailVerified", False)),
         "createdAt": user.get("createdAt"),
@@ -114,7 +114,7 @@ class OfficialProvisionRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    role: str = "manufacturer"
+    role: str = "official"
 
 
 class OtpRequest(BaseModel):
@@ -222,9 +222,7 @@ def login(payload: LoginRequest, response: Response):
     if not user.get("emailVerified", False):
         raise HTTPException(status_code=403, detail="Please verify your email before logging in")
     if payload.role and user.get("role") != payload.role:
-        if payload.role == "official":
-            raise HTTPException(status_code=403, detail="Invalid account type. Please use Manufacturer login.")
-        raise HTTPException(status_code=403, detail="Invalid account type. Please use Official login.")
+        raise HTTPException(status_code=403, detail="Invalid account type. Please use the official login.")
     get_database().users.update_one({"_id": user["_id"]}, {"$set": {"lastLoginAt": utcnow()}})
     set_session(response, user)
     return {"success": True, "user": public_user(user)}

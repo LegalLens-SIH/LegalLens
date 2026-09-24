@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>LegalLens - Advanced Digital Compliance Scanning</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
           darkMode: "class",
           theme: {
             extend: {
@@ -230,20 +230,15 @@
 <div class="absolute inset-0 flex items-center justify-center p-8">
 <div class="relative w-full max-w-2xl border border-dashed border-outline-variant rounded-xl bg-surface-container-lowest p-8 md:p-12">
 <div class="absolute inset-8 border border-secondary/40 rounded-lg"></div><div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-secondary"><div class="landing-pulse absolute inset-0 rounded-full border border-secondary"></div></div>
-<div class="relative landing-mono text-primary text-center"><div class="text-xl md:text-3xl font-bold tracking-wider">PRODUCT LABEL</div><div class="text-sm md:text-base text-secondary mt-4">NET QTY 500 g &nbsp; | &nbsp; MRP ₹199</div><div class="grid grid-cols-3 gap-3 mt-8 text-[10px] md:text-xs"><span class="border border-secondary/50 bg-secondary/5 rounded p-2">IDENTITY ✓</span><span class="border border-secondary/50 bg-secondary/5 rounded p-2">QUANTITY ✓</span><span class="border border-secondary/50 bg-secondary/5 rounded p-2">MRP ✓</span></div></div>
+<div class="relative landing-mono text-primary text-center"><div class="text-xl md:text-3xl font-bold tracking-wider">PRODUCT LABEL</div><div class="text-sm md:text-base text-secondary mt-4">NET QTY 500 g &nbsp; | &nbsp; MRP &#8377;199</div><div class="grid grid-cols-3 gap-3 mt-8 text-[10px] md:text-xs"><span class="border border-secondary/50 bg-secondary/5 rounded p-2">IDENTITY &#10003;</span><span class="border border-secondary/50 bg-secondary/5 rounded p-2">QUANTITY &#10003;</span><span class="border border-secondary/50 bg-secondary/5 rounded p-2">MRP &#10003;</span></div></div>
 </div></div>
 </div>
 <div class="flex flex-col sm:flex-row gap-6 w-full justify-center">
-<button class="bg-secondary hover:bg-on-secondary-fixed-variant text-on-secondary text-body-lg font-body-lg font-semibold py-4 px-8 rounded-lg min-h-[44px] transition-colors shadow-sm flex items-center justify-center gap-2" onclick="location.href='login.html?role=official'">
+<button class="bg-secondary hover:bg-on-secondary-fixed-variant text-on-secondary text-body-lg font-body-lg font-semibold py-4 px-8 rounded-lg min-h-[44px] transition-colors shadow-sm flex items-center justify-center gap-2" onclick="location.href='login.html'">
 <span class="material-symbols-outlined" data-icon="admin_panel_settings">admin_panel_settings</span>
                     Enforcement Official Login
                 </button>
-<button class="bg-surface hover:bg-surface-container-low text-primary border-2 border-primary text-body-lg font-body-lg font-semibold py-4 px-8 rounded-lg min-h-[44px] transition-colors flex items-center justify-center gap-2" onclick="location.href='login.html?role=manufacturer'">
-<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
-                    Manufacturer/Operator Login
-                </button>
 </div>
-<p class="mt-6 text-body-md font-body-md text-on-surface-variant">New manufacturer? <a class="text-secondary font-semibold hover:underline" href="registration.html">Register your company</a></p>
 </section>
 <!-- How it Works Section - Bento Grid Style -->
 <section class="w-full max-w-5xl mt-12 landing-reveal">

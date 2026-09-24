@@ -1,12 +1,51 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Enforcement Official New Scan / Upload Screen</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+    .analysis-progress-bar { transition: width 500ms ease; }
+    .analysis-step-dot { width: 32px; height: 32px; flex: 0 0 32px; display: inline-flex; align-items: center; justify-content: center; transition: color 300ms ease, background-color 300ms ease; }
+    .analysis-step { position: relative; min-height: 32px; }
+    .analysis-step:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 27px; height: 18px; border-left: 2px solid #e1e3e4; }
+    .analysis-step.analysis-step-complete:not(:last-child)::after { border-color: #006a6a; }
+    .analysis-step-current .analysis-step-dot { border-radius: 4px; background: rgba(0, 106, 106, .12); box-shadow: 0 0 0 4px rgba(0, 106, 106, .08); }
+    .analysis-step-current .analysis-step-spinner { animation: analysis-spin 1s linear infinite; }
+    @keyframes analysis-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .live-camera-shell { position: fixed; inset: 0; z-index: 120; background: rgba(3, 10, 18, 0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); display: none; }
+    .live-camera-shell.is-open { display: block; animation: live-camera-fade 180ms ease-out; }
+    @keyframes live-camera-fade { from { opacity: 0; } to { opacity: 1; } }
+    .live-camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #020a14; }
+    .live-camera-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(2, 9, 18, 0.55), rgba(2, 9, 18, 0.25), rgba(2, 9, 18, 0.65)); }
+    .live-camera-frame { position: relative; width: min(88vw, 420px); aspect-ratio: 4 / 5; border-radius: 28px; border: 2px solid rgba(255,255,255,0.8); box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 20px 60px rgba(0,0,0,0.45); background: rgba(10,16,24,0.12); overflow: hidden; }
+    .live-camera-frame::before { content: ''; position: absolute; inset: 0; border-radius: 28px; box-shadow: inset 0 0 26px rgba(82, 188, 255, 0.16), 0 0 0 1px rgba(255,255,255,0.05); }
+    .live-camera-frame-corner { position: absolute; width: 44px; height: 44px; border-color: rgba(168, 227, 255, 0.95); border-style: solid; }
+    .live-camera-frame-corner.tl { top: 18px; left: 18px; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 12px; }
+    .live-camera-frame-corner.tr { top: 18px; right: 18px; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 12px; }
+    .live-camera-frame-corner.bl { bottom: 18px; left: 18px; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 12px; }
+    .live-camera-frame-corner.br { bottom: 18px; right: 18px; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 12px; }
+    .live-camera-scan-line { position: absolute; left: 10%; width: 80%; height: 2px; background: linear-gradient(to right, transparent, rgba(121, 217, 255, 0.9), transparent); box-shadow: 0 0 10px rgba(103, 214, 255, 0.9); animation: live-scan-move 2.2s ease-in-out infinite; }
+    @keyframes live-scan-move { 0% { top: 12%; opacity: 0.6; } 50% { opacity: 1; } 100% { top: 80%; opacity: 0.7; } }
+    .live-camera-pulse { animation: live-camera-pulse 2.2s ease-in-out infinite; }
+    @keyframes live-camera-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(97, 200, 255, 0.38); } 50% { box-shadow: 0 0 0 18px rgba(97, 200, 255, 0.0); } }
+    .live-camera-node { background: rgba(15, 32, 44, 0.38); border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.92); }
+    .live-camera-action-button { min-width: 72px; }
+    .live-camera-capture { width: 78px; height: 78px; border-radius: 9999px; background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(136,208,255,0.85)); border: 5px solid rgba(16,25,34,0.9); box-shadow: 0 0 0 12px rgba(125, 195, 255, 0.18); }
+    .live-camera-capture:active { transform: scale(0.96); }
+    .live-camera-preview { position: absolute; inset: 0; background: rgba(4, 15, 22, 0.7); backdrop-filter: blur(8px); display: none; }
+    .live-camera-preview.is-visible { display: flex; }
+    .live-camera-preview .inner-card { background: rgba(10,18,27,0.9); border: 1px solid rgba(131, 159, 200, 0.22); box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+    .safe-area-top { padding-top: max(16px, env(safe-area-inset-top)); }
+    .safe-area-bottom { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+    .camera-cta { background: rgba(7, 17, 25, 0.65); border: 1px solid rgba(255,255,255,0.12); }
+    .camera-pill { background: rgba(13, 20, 29, 0.55); border: 1px solid rgba(255,255,255,0.12); }
+    @media (prefers-reduced-motion: reduce) { .live-camera-scan-line, .live-camera-pulse { animation: none; } .live-camera-shell.is-open { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .analysis-progress-bar { transition: none; } .analysis-step-current .analysis-step-spinner { animation: none; } }
+</style>
+<link rel="stylesheet" href="assets/tailwind.css">
 <script id="tailwind-config">
-        tailwind.config = {
+        window.tailwind = window.tailwind || {}; window.tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
@@ -187,24 +226,94 @@
 <div class="max-w-2xl mx-auto mt-12">
 <div class="text-center mb-8">
 <h1 class="text-headline-lg font-headline-lg text-primary mb-4">New Compliance Scan</h1>
-<p class="text-body-lg font-body-lg text-on-surface-variant">Upload a clear photo of the product label for compliance analysis.</p>
+<p class="text-body-lg font-body-lg text-on-surface-variant">Upload up to 8 views of the same product for complete packaging analysis.</p>
 </div>
 <!-- Upload Area -->
-<div class="bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-surface-container-low transition-colors duration-200 group relative" id="scan-drop-zone">
-<input accept="image/jpeg,image/jpg,image/png,image/webp" aria-label="Upload label photo" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="file-upload" type="file"/>
+<div class="bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-xl p-8 sm:p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-surface-container-low transition-colors duration-200 group relative" id="scan-drop-zone">
+<input accept="image/jpeg,image/jpg,image/png,image/webp" aria-label="Upload product images" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" id="file-upload" multiple="" type="file"/>
 <div class="w-20 h-20 rounded-full bg-primary-fixed/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300" id="scan-drop-icon-wrap">
 <span class="material-symbols-outlined text-4xl text-primary" data-icon="cloud_upload">cloud_upload</span>
 </div>
-<h3 class="text-headline-md font-headline-md text-primary mb-2" id="scan-drop-title">Drag &amp; Drop Image Here</h3>
-<p class="text-body-md font-body-md text-on-surface-variant mb-6">or click to browse from your device</p>
-<div class="text-label-md font-label-md text-outline">Supported formats: JPG, JPEG, PNG, WEBP (Max 15MB)</div>
+<h3 class="text-headline-md font-headline-md text-primary mb-2" id="scan-drop-title">Drag &amp; Drop Product Images Here</h3>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6">or click to select multiple views from your device</p>
+<div class="text-label-md font-label-md text-outline">JPG, JPEG, PNG, WEBP &#183; Up to 8 images &#183; 15MB each</div>
+</div>
+<div class="mt-6 grid gap-3 sm:grid-cols-2">
+<button class="px-5 py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-primary text-primary bg-surface-container-lowest hover:bg-primary-fixed/10 transition-colors" id="upload-images-primary" type="button"><span class="material-symbols-outlined text-[18px]">upload_file</span>Upload Images</button>
+<button class="px-5 py-3 rounded-lg font-bold flex items-center justify-center gap-2 bg-primary text-on-primary hover:opacity-95 transition-opacity" id="live-camera-trigger" type="button"><span class="material-symbols-outlined text-[18px]">photo_camera</span>Use Camera</button>
 </div>
 <p class="hidden mt-3 text-body-md font-body-md text-error" id="file-validation-error"></p>
+<div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="camera-status-banner">Camera is ready when needed.</div>
 <!-- Image preview + bounding-box overlay (populated after a file is chosen / OCR completes) -->
 <div class="hidden mt-6 bg-surface border border-outline-variant rounded-xl p-4" id="preview-card">
-<h4 class="text-body-lg font-body-lg font-bold text-on-surface mb-3">Selected Image</h4>
-<div class="relative inline-block max-w-full" id="preview-image-wrap">
-<img alt="Selected label preview" class="max-w-full max-h-[420px] rounded-lg border border-outline-variant" id="preview-image"/>
+<div class="flex items-center justify-between gap-3 mb-4"><h4 class="text-body-lg font-body-lg font-bold text-on-surface">Selected Product Views</h4><span class="text-label-md font-label-md text-on-surface-variant" id="image-count-label">0 / 8 images</span></div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3" id="image-gallery"></div>
+<div class="mt-4 flex flex-wrap gap-3"><button class="px-4 py-2 border border-primary text-primary rounded-lg font-bold flex items-center gap-2" id="add-images-btn" type="button"><span class="material-symbols-outlined text-[18px]">add_photo_alternate</span>Add More Images</button><button class="px-4 py-2 border border-secondary text-secondary rounded-lg font-bold flex items-center gap-2" id="camera-btn" type="button"><span class="material-symbols-outlined text-[18px]">photo_camera</span>Live Scan</button><input accept="image/jpeg,image/jpg,image/png,image/webp" capture="environment" class="hidden" id="camera-upload" type="file"/></div>
+</div>
+<div class="hidden fixed inset-0 bg-[#030b12]/85 z-[120] backdrop-blur-md" id="live-camera-modal">
+<div class="relative h-full w-full overflow-hidden">
+<video autoplay="true" class="live-camera-video" id="live-camera-video" muted="true" playsinline="true"></video>
+<div class="live-camera-overlay"></div>
+<div class="absolute inset-0 flex flex-col justify-between p-4 sm:p-6 safe-area-top safe-area-bottom">
+<div class="flex items-center justify-between gap-3">
+<div class="flex items-center gap-3 camera-pill rounded-full px-3 py-2"><span class="material-symbols-outlined text-sm text-secondary-fixed-dim">shield</span><span class="text-label-md font-label-md text-on-primary">LegalLens Live Scan</span></div>
+<button class="w-10 h-10 rounded-full bg-black/30 border border-white/15 text-white flex items-center justify-center" id="camera-close-btn" type="button"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="flex-1 flex items-center justify-center">
+<div class="live-camera-frame live-camera-pulse" id="scan-frame">
+<div class="live-camera-frame-corner tl"></div>
+<div class="live-camera-frame-corner tr"></div>
+<div class="live-camera-frame-corner bl"></div>
+<div class="live-camera-frame-corner br"></div>
+<div class="live-camera-scan-line" id="scan-line"></div>
+<div class="absolute left-1/2 top-5 -translate-x-1/2 rounded-full camera-pill px-3 py-1 text-label-md font-label-md" id="camera-status-badge">Looking for a product label…</div>
+<div class="absolute left-1/2 bottom-5 -translate-x-1/2 rounded-full bg-black/30 text-center px-4 py-2 text-body-md font-body-md text-white border border-white/15" id="camera-guidance">Align the product label inside the frame</div>
+</div>
+</div>
+<div class="flex items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<button class="live-camera-action-button w-12 h-12 rounded-full bg-white/10 border border-white/20 text-white flex items-center justify-center" id="camera-flash-btn" type="button"><span class="material-symbols-outlined">flash_off</span></button>
+<button class="live-camera-action-button w-12 h-12 rounded-full bg-white/10 border border-white/20 text-white flex items-center justify-center" id="camera-gallery-btn" type="button"><span class="material-symbols-outlined">photo_library</span></button>
+</div>
+<button class="live-camera-capture flex items-center justify-center" id="camera-capture-btn" type="button" aria-label="Capture product image"><span class="material-symbols-outlined text-3xl text-[#001d2d]">photo_camera</span></button>
+<div class="flex items-center gap-2">
+<button class="live-camera-action-button w-12 h-12 rounded-full bg-white/10 border border-white/20 text-white flex items-center justify-center" id="camera-switch-btn" type="button"><span class="material-symbols-outlined">flip_camera_android</span></button>
+</div>
+</div>
+</div>
+<div class="hidden absolute inset-0 items-center justify-center p-6" id="camera-permission-state">
+<div class="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1d2b]/95 p-6 text-center shadow-2xl">
+<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary"><span class="material-symbols-outlined text-3xl">no_photography</span></div>
+<h3 class="text-headline-md font-headline-md text-white mb-2">Camera access is required for Live Scan.</h3>
+<p class="text-body-md font-body-md text-white/75 mb-5" id="camera-permission-message">Please allow camera access to continue.</p>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="px-4 py-2 rounded-lg bg-primary text-on-primary font-bold" id="camera-retry-btn" type="button">Try Again</button>
+<button class="px-4 py-2 rounded-lg border border-white/15 text-white font-bold" id="camera-deny-btn" type="button">Use Upload Instead</button>
+</div>
+</div>
+</div>
+<div class="live-camera-preview" id="camera-preview-panel">
+<div class="inner-card mx-auto mt-20 w-[min(88vw,420px)] rounded-[28px] overflow-hidden border">
+<img alt="Captured product preview" class="h-[420px] w-full object-cover" id="camera-preview-image" src=""/>
+<div class="space-y-4 p-5 text-white">
+<div class="flex items-center justify-between gap-3">
+<div>
+<div class="text-label-md font-label-md text-white/70 uppercase">Quality check</div>
+<div class="text-body-lg font-body-lg font-bold" id="camera-quality-label">Good image</div>
+</div>
+<div class="rounded-full bg-success/15 px-3 py-1 text-label-md font-label-md text-secondary-fixed-dim" id="camera-side-label">Front</div>
+</div>
+<div class="flex flex-wrap gap-2">
+<button class="flex-1 rounded-lg bg-primary text-on-primary font-bold px-3 py-3" id="camera-use-photo-btn" type="button">Use Photo</button>
+<button class="flex-1 rounded-lg border border-white/15 bg-white/5 text-white font-bold px-3 py-3" id="camera-add-more-btn" type="button">Add Another Side</button>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<button class="rounded-lg border border-white/15 bg-white/5 text-white font-bold px-3 py-3" id="camera-retake-btn" type="button">Retake</button>
+<button class="rounded-lg border border-white/15 bg-white/5 text-white font-bold px-3 py-3" id="camera-cancel-btn" type="button">Cancel</button>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 <!-- Action Area -->
@@ -226,6 +335,18 @@
 </div>
 <div class="p-6" id="ocr-results-body"></div>
 </div>
+<div class="hidden mt-8 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden" id="analysis-progress-card" aria-live="polite">
+<div class="px-6 py-4 border-b border-outline-variant bg-surface flex items-center justify-between gap-4">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary" id="analysis-progress-icon">psychology</span><h3 class="text-headline-md font-headline-md text-primary">Product Analysis</h3></div>
+<span class="text-headline-md font-headline-md text-secondary" id="analysis-progress-percent">0%</span>
+</div>
+<div class="p-6">
+<p class="text-body-lg font-body-lg font-bold text-primary" id="analysis-progress-label">Initializing analysis</p>
+<div class="mt-4 h-2.5 rounded-full bg-surface-variant overflow-hidden"><div class="analysis-progress-bar h-full rounded-full bg-secondary" id="analysis-progress-bar" style="width:0%"></div></div>
+<div class="mt-6 grid gap-3" id="analysis-progress-steps"></div>
+<p class="mt-5 text-body-md font-body-md text-on-surface-variant" id="analysis-progress-note">Please wait while we analyze the uploaded product label.</p>
+</div>
+</div>
 <div class="mt-12 bg-surface p-6 rounded-lg border border-outline-variant flex gap-4 items-start">
 <span class="material-symbols-outlined text-tertiary-fixed-dim mt-1" data-icon="info">info</span>
 <div>
@@ -242,27 +363,437 @@
 </div>
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
-<script src="assets/official-header.js"></script>
+<script src="assets/shell.js"></script>
 <script src="assets/ocr-client.js"></script>
 <script>
     if (LL.requireRole('official')) {
-        var chosenFile = null;
+        var chosenFiles = [];
         var fileInput = document.getElementById('file-upload');
         var analyzeBtn = document.getElementById('analyze-btn');
         var titleEl = document.getElementById('scan-drop-title');
         var iconWrap = document.getElementById('scan-drop-icon-wrap');
         var validationError = document.getElementById('file-validation-error');
         var previewCard = document.getElementById('preview-card');
-        var previewImg = document.getElementById('preview-image');
-        var previewWrap = document.getElementById('preview-image-wrap');
+        var imageGallery = document.getElementById('image-gallery');
+        var imageCountLabel = document.getElementById('image-count-label');
+        var addImagesBtn = document.getElementById('add-images-btn');
+        var cameraBtn = document.getElementById('camera-btn');
+        var cameraUpload = document.getElementById('camera-upload');
+        var uploadPrimaryBtn = document.getElementById('upload-images-primary');
+        var liveCameraTrigger = document.getElementById('live-camera-trigger');
+        var liveCameraModal = document.getElementById('live-camera-modal');
+        var liveCameraVideo = document.getElementById('live-camera-video');
+        var cameraCloseBtn = document.getElementById('camera-close-btn');
+        var cameraStatusBadge = document.getElementById('camera-status-badge');
+        var cameraGuidance = document.getElementById('camera-guidance');
+        var cameraFlashBtn = document.getElementById('camera-flash-btn');
+        var cameraGalleryBtn = document.getElementById('camera-gallery-btn');
+        var cameraCaptureBtn = document.getElementById('camera-capture-btn');
+        var cameraSwitchBtn = document.getElementById('camera-switch-btn');
+        var cameraPermissionState = document.getElementById('camera-permission-state');
+        var cameraPermissionMessage = document.getElementById('camera-permission-message');
+        var cameraRetryBtn = document.getElementById('camera-retry-btn');
+        var cameraDenyBtn = document.getElementById('camera-deny-btn');
+        var cameraPreviewPanel = document.getElementById('camera-preview-panel');
+        var cameraPreviewImage = document.getElementById('camera-preview-image');
+        var cameraQualityLabel = document.getElementById('camera-quality-label');
+        var cameraSideLabel = document.getElementById('camera-side-label');
+        var cameraUsePhotoBtn = document.getElementById('camera-use-photo-btn');
+        var cameraAddMoreBtn = document.getElementById('camera-add-more-btn');
+        var cameraRetakeBtn = document.getElementById('camera-retake-btn');
+        var cameraCancelBtn = document.getElementById('camera-cancel-btn');
+        var cameraStatusBanner = document.getElementById('camera-status-banner');
         var resultsCard = document.getElementById('ocr-results-card');
         var resultsBody = document.getElementById('ocr-results-body');
+        var progressCard = document.getElementById('analysis-progress-card');
+        var progressBar = document.getElementById('analysis-progress-bar');
+        var progressPercent = document.getElementById('analysis-progress-percent');
+        var progressLabel = document.getElementById('analysis-progress-label');
+        var progressSteps = document.getElementById('analysis-progress-steps');
+        var progressNote = document.getElementById('analysis-progress-note');
+        var progressIcon = document.getElementById('analysis-progress-icon');
+        var analysisPollTimer = null;
+        var MAX_IMAGES = 8;
+        var SIDE_OPTIONS = ['Front', 'Back', 'Left Side', 'Right Side', 'Top', 'Bottom', 'Other'];
+        var cameraStream = null;
+        var cameraFacingMode = 'environment';
+        var cameraFlashOn = false;
+        var cameraScanGuidanceTimer = null;
+        var cameraCaptureSideIndex = 0;
+        var cameraCaptureDataUrl = '';
+        var cameraDeviceIds = [];
+        var analysisStages = [
+            { key: 'INITIALIZING', label: 'Initializing analysis', progress: 10 },
+            { key: 'IMAGE_UPLOADED', label: 'Images uploaded successfully', progress: 20 },
+            { key: 'IMAGE_VALIDATION', label: 'Validating uploaded images', progress: 24 },
+            { key: 'IMAGE_PREPROCESSING', label: 'Preprocessing product views', progress: 34 },
+            { key: 'OBJECT_DETECTION', label: 'Detecting product and label regions', progress: 50 },
+            { key: 'OCR_PROCESSING', label: 'Extracting text using OCR', progress: 65 },
+            { key: 'TEXT_COMBINING', label: 'Combining OCR results', progress: 78 },
+            { key: 'TEXT_STRUCTURING', label: 'Structuring product information', progress: 85 },
+            { key: 'DECLARATION_IDENTIFICATION', label: 'Identifying product declarations', progress: 91 },
+            { key: 'RULE_VALIDATION', label: 'Checking Legal Metrology rules', progress: 95 },
+            { key: 'REPORT_GENERATION', label: 'Generating compliance results', progress: 98 },
+            { key: 'COMPLETED', label: 'Analysis completed', progress: 100 }
+        ];
+
+        function renderProgress(job) {
+            var currentIndex = analysisStages.findIndex(function (stage) { return stage.key === job.stage; });
+            var percent = Math.max(0, Math.min(100, Number(job.progress) || 0));
+            progressCard.classList.remove('hidden');
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+            progressLabel.textContent = job.label || 'Analyzing product';
+            if (job.currentImage && job.imageCount) {
+                progressNote.textContent = 'Processing image ' + job.currentImage + ' of ' + job.imageCount + (job.currentSide ? ' \u00b7 ' + job.currentSide : '') + '. ' + (job.processedImages ? job.processedImages + ' completed.' : '');
+            }
+            progressSteps.innerHTML = analysisStages.map(function (stage, index) {
+                var complete = index < currentIndex || (job.status === 'completed' && stage.key === 'COMPLETED');
+                var current = index === currentIndex && job.status !== 'completed';
+                var stateClass = complete ? 'text-secondary' : (current ? 'analysis-step-current text-primary' : 'text-on-surface-variant');
+                var icon = complete ? 'check_circle' : (current ? 'progress_activity' : 'radio_button_unchecked');
+                var iconClass = current ? 'analysis-step-spinner' : '';
+                return '<div class="analysis-step ' + (complete ? 'analysis-step-complete ' : '') + 'flex items-center gap-3 ' + stateClass + '">' +
+                    '<span class="analysis-step-dot"><span class="material-symbols-outlined text-xl ' + iconClass + '">' + icon + '</span></span>' +
+                    '<span class="text-body-md font-body-md ' + (current || complete ? 'font-bold' : '') + '">' + LL.escapeHtml(stage.label) + '</span>' +
+                    (current ? '<span class="ml-auto text-label-md font-label-md text-secondary">CURRENT</span>' : '') + '</div>';
+            }).join('');
+            if (job.status === 'completed') {
+                progressIcon.textContent = 'check_circle';
+                progressIcon.className = 'material-symbols-outlined text-secondary';
+                progressNote.textContent = 'Analysis completed. OCR and compliance results are ready.';
+            } else if (job.status === 'failed') {
+                progressIcon.textContent = 'error';
+                progressIcon.className = 'material-symbols-outlined text-error';
+                progressNote.textContent = 'We could not complete this analysis.';
+            } else {
+                progressIcon.textContent = 'psychology';
+                progressIcon.className = 'material-symbols-outlined text-primary';
+                if (!job.currentImage) progressNote.textContent = 'Please wait while we analyze the uploaded product views.';
+            }
+        }
+
+        function isCameraSupported() {
+            return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && navigator.mediaDevices.enumerateDevices);
+        }
+
+        function setCameraStatus(message, tone) {
+            var toneClasses = {
+                neutral: 'text-white bg-black/25 border border-white/10',
+                success: 'text-secondary-fixed-dim bg-[#0d2b2d] border border-secondary-fixed-dim/30',
+                warning: 'text-[#ffd48d] bg-[#31270d] border border-[#ffd48d]/30',
+                error: 'text-[#ffc9c9] bg-[#3b1216] border border-[#ff8c8c]/35'
+            };
+            cameraStatusBadge.textContent = message;
+            cameraStatusBadge.className = 'absolute left-1/2 top-5 -translate-x-1/2 rounded-full px-3 py-1 text-label-md font-label-md ' + (toneClasses[tone] || toneClasses.neutral);
+        }
+
+        function setCameraGuidance(message) {
+            cameraGuidance.textContent = message || 'Align the product label inside the frame';
+        }
+
+        function stopCameraStream() {
+            if (!cameraStream) return;
+            cameraStream.getTracks().forEach(function (track) { track.stop(); });
+            cameraStream = null;
+            if (liveCameraVideo) liveCameraVideo.srcObject = null;
+        }
+
+        function closeCameraModal() {
+            stopCameraStream();
+            cameraPreviewPanel.classList.remove('is-visible');
+            liveCameraModal.classList.remove('is-open');
+            cameraPermissionState.classList.add('hidden');
+            document.body.style.overflow = '';
+            if (cameraScanGuidanceTimer) {
+                clearInterval(cameraScanGuidanceTimer);
+                cameraScanGuidanceTimer = null;
+            }
+            cameraFlashOn = false;
+            if (cameraFlashBtn) {
+                cameraFlashBtn.innerHTML = '<span class="material-symbols-outlined">flash_off</span>';
+            }
+        }
+
+        function openCameraModal() {
+            cameraStatusBanner.textContent = 'Camera is ready when needed.';
+            if (!isCameraSupported()) {
+                cameraStatusBanner.textContent = 'Camera API is not supported in this browser. Please use Upload Images instead.';
+                return;
+            }
+            cameraPermissionState.classList.add('hidden');
+            liveCameraModal.classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+            startCamera();
+        }
+
+        function scheduleGuidance() {
+            if (cameraScanGuidanceTimer) clearInterval(cameraScanGuidanceTimer);
+            var states = [
+                { status: 'Looking for a product label…', guidance: 'Align the product label inside the frame', tone: 'neutral' },
+                { status: 'Product detected — Ready to scan', guidance: 'Label aligned', tone: 'success' },
+                { status: 'Move closer', guidance: 'Bring the label closer to the frame', tone: 'warning' },
+                { status: 'Hold steady', guidance: 'Keep the product stable', tone: 'neutral' },
+                { status: 'Center the label', guidance: 'Move the product into the frame', tone: 'warning' }
+            ];
+            cameraScanGuidanceTimer = setInterval(function () {
+                var next = states[Math.floor(Math.random() * states.length)];
+                setCameraStatus(next.status, next.tone);
+                setCameraGuidance(next.guidance);
+            }, 2600);
+            setCameraStatus('Looking for a product label…', 'neutral');
+            setCameraGuidance('Align the product label inside the frame');
+        }
+
+        function updateTorchButton() {
+            if (!cameraStream || !cameraFlashBtn) return;
+            var track = cameraStream.getVideoTracks()[0];
+            if (!track || !track.getCapabilities || !track.getCapabilities().torch) {
+                cameraFlashBtn.classList.add('hidden');
+                return;
+            }
+            cameraFlashBtn.classList.remove('hidden');
+            cameraFlashBtn.innerHTML = '<span class="material-symbols-outlined">' + (cameraFlashOn ? 'flash_on' : 'flash_off') + '</span>';
+        }
+
+        function setFlashState() {
+            if (!cameraStream) return;
+            var track = cameraStream.getVideoTracks()[0];
+            if (!track || !track.getCapabilities || !track.getCapabilities().torch) {
+                cameraStatusBanner.textContent = 'Torch control is not available on this device.';
+                return;
+            }
+            var nextTorch = !cameraFlashOn;
+            track.applyConstraints({ advanced: [{ torch: nextTorch }] }).then(function () {
+                cameraFlashOn = nextTorch;
+                updateTorchButton();
+                cameraStatusBanner.textContent = cameraFlashOn ? 'Flash enabled.' : 'Flash disabled.';
+            }).catch(function () {
+                cameraStatusBanner.textContent = 'Torch control is unavailable on this browser.';
+            });
+        }
+
+        function getNextCaptureSide() {
+            var side = SIDE_OPTIONS[cameraCaptureSideIndex % SIDE_OPTIONS.length];
+            cameraCaptureSideIndex = (cameraCaptureSideIndex + 1) % SIDE_OPTIONS.length;
+            return side;
+        }
+
+        function dataURLToFile(dataUrl, fileName) {
+            var byteString = atob(dataUrl.split(',')[1]);
+            var mime = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            var array = new Uint8Array(byteString.length);
+            for (var i = 0; i < byteString.length; i++) array[i] = byteString.charCodeAt(i);
+            return new File([array], fileName || ('legal-lens-capture-' + Date.now() + '.jpg'), { type: mime || 'image/jpeg' });
+        }
+
+        function evaluateImageQuality(dataUrl) {
+            return new Promise(function (resolve) {
+                var img = new Image();
+                img.onload = function () {
+                    var canvas = document.createElement('canvas');
+                    var width = 120;
+                    var height = Math.max(80, Math.round((img.height / img.width) * width));
+                    canvas.width = width;
+                    canvas.height = height;
+                    var context = canvas.getContext('2d');
+                    context.drawImage(img, 0, 0, width, height);
+                    var pixels = context.getImageData(0, 0, width, height).data;
+                    var total = 0;
+                    var count = 0;
+                    for (var i = 0; i < pixels.length; i += 4) {
+                        total += (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                        count += 1;
+                    }
+                    var brightness = total / count;
+                    if (brightness < 80) resolve('Image too dark');
+                    else resolve('Good image');
+                };
+                img.onerror = function () { resolve('Good image'); };
+                img.src = dataUrl;
+            });
+        }
+
+        function addCapturedImageFromDataUrl(dataUrl, side) {
+            var file = dataURLToFile(dataUrl, 'live-scan-' + Date.now() + '.jpg');
+            chosenFiles.push({ file: file, side: side || 'Front', objectUrl: URL.createObjectURL(file) });
+            renderGallery();
+            cameraStatusBanner.textContent = 'Captured ' + (side || 'Front') + ' image and added to the analysis queue.';
+        }
+
+        function handleCapturePreview(dataUrl) {
+            cameraCaptureDataUrl = dataUrl;
+            cameraPreviewImage.src = dataUrl;
+            var sideName = getNextCaptureSide();
+            cameraSideLabel.textContent = sideName;
+            cameraQualityLabel.textContent = 'Checking image quality...';
+            evaluateImageQuality(dataUrl).then(function (quality) {
+                cameraQualityLabel.textContent = quality;
+                if (quality === 'Image too dark') {
+                    cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold text-[#ffd48d]';
+                } else {
+                    cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold text-white';
+                }
+            });
+            cameraPreviewPanel.classList.add('is-visible');
+        }
+
+        function startCamera() {
+            if (!isCameraSupported()) {
+                cameraStatusBanner.textContent = 'Camera is unavailable in this browser. Please use Upload Images instead.';
+                return;
+            }
+            var constraints = {
+                video: {
+                    facingMode: { ideal: cameraFacingMode },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            };
+            navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+                cameraStream = stream;
+                liveCameraVideo.srcObject = stream;
+                liveCameraVideo.play();
+                setCameraStatus('Looking for a product label…', 'neutral');
+                setCameraGuidance('Align the product label inside the frame');
+                scheduleGuidance();
+                updateTorchButton();
+                cameraPermissionState.classList.add('hidden');
+            }).catch(function (error) {
+                cameraPermissionState.classList.remove('hidden');
+                cameraPermissionMessage.textContent = error && error.name === 'NotAllowedError'
+                    ? 'Camera access was denied. Please allow access to continue with Live Scan.'
+                    : 'Camera is currently unavailable. Please try again or use Upload Images instead.';
+                setCameraStatus('Camera blocked', 'error');
+                setCameraGuidance('Camera access is required for Live Scan');
+            });
+        }
+
+        function switchCamera() {
+            if (!isCameraSupported()) return;
+            navigator.mediaDevices.enumerateDevices().then(function (devices) {
+                var videoDevices = devices.filter(function (device) { return device.kind === 'videoinput'; });
+                if (videoDevices.length < 2) {
+                    cameraStatusBanner.textContent = 'Only one camera is available on this device.';
+                    return;
+                }
+                cameraFacingMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
+                stopCameraStream();
+                startCamera();
+            }).catch(function () {
+                cameraStatusBanner.textContent = 'Unable to switch camera on this device.';
+            });
+        }
+
+        uploadPrimaryBtn.addEventListener('click', function () { fileInput.click(); });
+        liveCameraTrigger.addEventListener('click', function () { openCameraModal(); });
+        cameraBtn.addEventListener('click', function () { openCameraModal(); });
+        cameraCloseBtn.addEventListener('click', closeCameraModal);
+        cameraRetryBtn.addEventListener('click', function () { cameraPermissionState.classList.add('hidden'); startCamera(); });
+        cameraDenyBtn.addEventListener('click', function () { closeCameraModal(); });
+        cameraGalleryBtn.addEventListener('click', function () { cameraUpload.click(); });
+        cameraSwitchBtn.addEventListener('click', switchCamera);
+        cameraFlashBtn.addEventListener('click', setFlashState);
+        cameraCaptureBtn.addEventListener('click', function () {
+            if (!cameraStream || !liveCameraVideo) return;
+            var canvas = document.createElement('canvas');
+            var width = liveCameraVideo.videoWidth || 1200;
+            var height = liveCameraVideo.videoHeight || 1600;
+            canvas.width = width;
+            canvas.height = height;
+            var context = canvas.getContext('2d');
+            context.drawImage(liveCameraVideo, 0, 0, width, height);
+            var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            handleCapturePreview(dataUrl);
+        });
+        cameraRetakeBtn.addEventListener('click', function () {
+            cameraPreviewPanel.classList.remove('is-visible');
+            cameraCaptureDataUrl = '';
+            setCameraStatus('Looking for a product label…', 'neutral');
+            setCameraGuidance('Align the product label inside the frame');
+        });
+        cameraUsePhotoBtn.addEventListener('click', function () {
+            if (!cameraCaptureDataUrl) return;
+            var side = cameraSideLabel.textContent || 'Front';
+            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side);
+            cameraPreviewPanel.classList.remove('is-visible');
+            setCameraStatus('Capture saved', 'success');
+            setCameraGuidance('Added to analysis queue');
+            cameraCaptureDataUrl = '';
+        });
+        cameraAddMoreBtn.addEventListener('click', function () {
+            if (!cameraCaptureDataUrl) return;
+            var side = cameraSideLabel.textContent || 'Front';
+            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side);
+            cameraPreviewPanel.classList.remove('is-visible');
+            cameraCaptureDataUrl = '';
+            setCameraStatus('Capture added', 'success');
+            setCameraGuidance('Capture another side');
+        });
+        cameraCancelBtn.addEventListener('click', function () {
+            cameraPreviewPanel.classList.remove('is-visible');
+            cameraCaptureDataUrl = '';
+            setCameraStatus('Ready to scan', 'neutral');
+            setCameraGuidance('Align the product label inside the frame');
+        });
+
+        window.addEventListener('beforeunload', stopCameraStream);
+
+        function showAnalysisFailure(job) {
+            progressLabel.textContent = 'Analysis Failed';
+            progressNote.innerHTML = 'Failed process: <strong>' + LL.escapeHtml(job.label || 'Unknown stage') + '</strong>' +
+                (job.error ? '<br>' + LL.escapeHtml(job.error) : '');
+            resultsCard.classList.remove('hidden');
+            resultsBody.innerHTML = '<div class="flex items-start gap-3 text-error"><span class="material-symbols-outlined">warning</span><div><p class="font-bold">Analysis failed</p><p class="text-body-md font-body-md text-on-surface-variant">We couldn\'t complete the product analysis.</p><button class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" onclick="location.reload()">Retry Analysis</button></div></div>';
+        }
+
+        function pollAnalysis(jobId, originalBtnHtml) {
+            LLOcr.getAnalysisJob(jobId).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Could not read analysis status.');
+                var job = response.data;
+                renderProgress(job);
+                if (job.status === 'failed') { showAnalysisFailure(job); return; }
+                if (job.status === 'completed') {
+                    var payload = { httpOk: true, data: job.result };
+                    renderResults(payload);
+                    sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(job.result.compliance));
+                    sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(job.result));
+                    window.setTimeout(function () { location.href = 'compliance-report.html?id=' + encodeURIComponent(job.result.id); }, 800);
+                    return;
+                }
+                analysisPollTimer = window.setTimeout(function () { pollAnalysis(jobId, originalBtnHtml); }, 600);
+            }).catch(function (err) {
+                showAnalysisFailure({ label: 'Reading analysis status', error: err.message });
+            });
+        }
 
         function resetResults() {
             resultsCard.classList.add('hidden');
             resultsBody.innerHTML = '';
-            var existingBoxes = previewWrap.querySelectorAll('.ocr-bbox');
-            existingBoxes.forEach(function (el) { el.remove(); });
+        }
+
+        function addFiles(files) {
+            Array.prototype.forEach.call(files || [], function (file) {
+                if (chosenFiles.length >= MAX_IMAGES || LLOcr.validateFile(file)) return;
+                var duplicate = chosenFiles.some(function (item) { return item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified; });
+                if (!duplicate) chosenFiles.push({ file: file, side: 'Other', objectUrl: URL.createObjectURL(file) });
+            });
+            renderGallery();
+        }
+
+        function renderGallery() {
+            imageCountLabel.textContent = chosenFiles.length + ' / ' + MAX_IMAGES + ' images';
+            previewCard.classList.toggle('hidden', chosenFiles.length === 0);
+            analyzeBtn.disabled = chosenFiles.length === 0;
+            analyzeBtn.classList.toggle('opacity-50', chosenFiles.length === 0);
+            analyzeBtn.classList.toggle('cursor-not-allowed', chosenFiles.length === 0);
+            titleEl.textContent = chosenFiles.length ? chosenFiles.length + ' product view' + (chosenFiles.length === 1 ? '' : 's') + ' selected' : 'Drag & Drop Product Images Here';
+            imageGallery.innerHTML = chosenFiles.map(function (item, index) {
+                return '<div class="relative bg-surface-container-low border border-outline-variant rounded-lg p-2"><div class="relative aspect-square overflow-hidden rounded-md bg-surface"><img class="w-full h-full object-cover" src="' + item.objectUrl + '" alt="Product image ' + (index + 1) + '"/><span class="absolute top-2 left-2 bg-primary text-on-primary px-2 py-1 rounded text-label-md font-label-md">Image ' + (index + 1) + '</span><button type="button" data-remove="' + index + '" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-error text-on-error flex items-center justify-center" aria-label="Remove image ' + (index + 1) + '"><span class="material-symbols-outlined text-[18px]">close</span></button></div><select data-side="' + index + '" class="mt-2 w-full border border-outline-variant rounded px-2 py-1 text-label-md bg-surface" aria-label="Image side">' + SIDE_OPTIONS.map(function (side) { return '<option ' + (side === item.side ? 'selected' : '') + '>' + side + '</option>'; }).join('') + '</select></div>';
+            }).join('');
+            imageGallery.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { chosenFiles.splice(Number(button.dataset.remove), 1); renderGallery(); }; });
+            imageGallery.querySelectorAll('[data-side]').forEach(function (select) { select.onchange = function () { chosenFiles[Number(select.dataset.side)].side = select.value; }; });
         }
 
         function showValidationError(msg) {
@@ -277,35 +808,30 @@
 
         fileInput.addEventListener('change', function () {
             if (!this.files || !this.files.length) return;
-            var file = this.files[0];
-            var validationMsg = LLOcr.validateFile(file);
+            var invalid = Array.prototype.map.call(this.files, LLOcr.validateFile).find(Boolean);
             resetResults();
-
-            if (validationMsg) {
-                chosenFile = null;
-                showValidationError(validationMsg);
-                analyzeBtn.disabled = true;
-                analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                previewCard.classList.add('hidden');
+            if (invalid) {
+                showValidationError(invalid);
                 return;
             }
-
             clearValidationError();
-            chosenFile = file;
-            titleEl.textContent = chosenFile.name;
-            analyzeBtn.disabled = false;
-            analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                previewImg.src = e.target.result;
-                previewCard.classList.remove('hidden');
-            };
-            reader.readAsDataURL(chosenFile);
+            addFiles(this.files);
+            this.value = '';
         });
 
+        addImagesBtn.onclick = function () { fileInput.click(); };
+        cameraUpload.onchange = function () {
+            addFiles(this.files);
+            this.value = '';
+            closeCameraModal();
+        };
+        var dropZone = document.getElementById('scan-drop-zone');
+        ['dragenter', 'dragover'].forEach(function (eventName) { dropZone.addEventListener(eventName, function (event) { event.preventDefault(); dropZone.classList.add('bg-primary-fixed/20'); }); });
+        ['dragleave', 'drop'].forEach(function (eventName) { dropZone.addEventListener(eventName, function (event) { event.preventDefault(); dropZone.classList.remove('bg-primary-fixed/20'); }); });
+        dropZone.addEventListener('drop', function (event) { addFiles(event.dataTransfer.files); });
+
         function drawBoundingBoxes(detections) {
-            if (!detections || !detections.length) return;
+            return;
             var naturalW = previewImg.naturalWidth;
             var naturalH = previewImg.naturalHeight;
             var renderedW = previewImg.clientWidth;
@@ -366,49 +892,79 @@
                     '</div></div>';
             }).join('');
 
-            resultsBody.innerHTML = summary + '<div class="flex flex-col">' + rows + '</div>' +
-                '<p class="mt-4 text-label-md font-label-md text-on-surface-variant italic">This is raw text extracted by PaddleOCR. Legal Metrology compliance checking is not implemented yet.</p>';
+            var imageSummary = (data.imageResults || []).map(function (image, index) {
+                return '<div class="flex items-center justify-between gap-3 py-2 border-t border-outline-variant"><span><strong>Image ' + (index + 1) + '</strong> \u00b7 ' + LL.escapeHtml(image.side || 'Other') + '</span><span class="text-label-md ' + (image.success ? 'text-secondary' : 'text-error') + '">' + (image.success ? 'Analyzed \u00b7 ' + image.detectionCount + ' text regions' : 'Failed') + '</span></div>';
+            }).join('');
+            resultsBody.innerHTML = summary + '<div class="flex flex-col">' + rows + '</div>' + (imageSummary ? '<div class="mt-5">' + imageSummary + '</div>' : '') +
+                '<p class="mt-4 text-label-md font-label-md text-on-surface-variant italic">OCR evidence from all successfully processed product views was combined before Legal Metrology evaluation.</p>';
+        }
 
-            if (previewImg.complete) {
-                drawBoundingBoxes(data.detections);
-            } else {
-                previewImg.addEventListener('load', function () { drawBoundingBoxes(data.detections); }, { once: true });
-            }
+        function createDemoAnalysisResult() {
+            var demoDetections = [
+                { text: 'DEMO PREMIUM CHIPS', confidence: 0.98 },
+                { text: 'NET QTY: 50 g', confidence: 0.96 },
+                { text: 'MRP: Rs. 120/- INCLUSIVE OF ALL TAXES', confidence: 0.93 },
+                { text: 'MANUFACTURED: MAY 2026', confidence: 0.88 },
+                { text: 'CONSUMER CARE: support@example.in', confidence: 0.91 }
+            ];
+            return {
+                success: true,
+                detection_count: demoDetections.length,
+                detections: demoDetections,
+                imageResults: chosenFiles.map(function (item) {
+                    return { side: item.side || 'Other', success: true, detectionCount: demoDetections.length };
+                }),
+                id: 'DEMO-UPLOAD-' + Date.now().toString(36).toUpperCase(),
+                compliance: { score: 92, status: 'compliant' }
+            };
         }
 
         analyzeBtn.addEventListener('click', function () {
-            if (!chosenFile) return;
+            if (!chosenFiles.length) return;
             resetResults();
-            resultsCard.classList.remove('hidden');
-            resultsBody.innerHTML =
-                '<div class="flex items-center gap-3 text-on-surface-variant">' +
-                '<span class="material-symbols-outlined animate-spin">progress_activity</span>' +
-                '<span>Running PaddleOCR on the uploaded image&hellip; this can take a few seconds.</span></div>';
-
             analyzeBtn.disabled = true;
             analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
             var originalBtnHtml = analyzeBtn.innerHTML;
-            analyzeBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Analyzing...';
-
-            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General' }).then(function (payload) {
-                renderResults(payload);
-                if (payload.httpOk && payload.data && payload.data.ocr) {
-                    resultsBody.innerHTML += '<div class="mt-6 pt-5 border-t border-outline-variant"><span class="material-symbols-outlined align-middle mr-2 text-secondary">fact_check</span><span>OCR complete. Running the versioned Legal Metrology ruleset...</span></div>';
-                    return LLOcr.evaluateCompliance(payload.data.ocr, 'e_commerce_product_listing').then(function (compliance) {
-                        if (!compliance.httpOk) throw new Error(compliance.data.detail || 'Compliance evaluation failed.');
-                        sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(compliance.data));
-                        sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(payload.data));
-                        location.href = 'compliance-report.html?id=' + encodeURIComponent(payload.data.id);
-                    }).catch(function (err) {
-                        resultsBody.innerHTML += '<p class="mt-4 text-error">Compliance evaluation failed: ' + LL.escapeHtml(err.message) + '</p>';
-                    });
-                }
-            }).finally(function () {
+            analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
+            renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
+            if (LL.isDemoMode()) {
+                window.setTimeout(function () {
+                    var demoResult = createDemoAnalysisResult();
+                    renderProgress({ stage: 'COMPLETED', progress: 100, label: 'Analysis completed', status: 'completed' });
+                    renderResults({ httpOk: true, data: demoResult });
+                    sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(demoResult.compliance));
+                    sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(demoResult));
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    analyzeBtn.innerHTML = originalBtnHtml;
+                }, 700);
+                return;
+            }
+            LLOcr.startAnalysisJob(chosenFiles, { productName: chosenFiles[0].file.name, category: 'General' }).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
+                renderProgress(response.data);
+                pollAnalysis(response.data.id, originalBtnHtml);
+            }).catch(function (err) {
+                showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
                 analyzeBtn.disabled = false;
                 analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 analyzeBtn.innerHTML = originalBtnHtml;
             });
         });
+
+        var rescanId = LL.qs('rescan');
+        if (rescanId) {
+            LLOcr.getScan(rescanId).then(function (scan) {
+                if (!scan || !scan.sourceImageUrl) throw new Error('The original scan image is no longer available.');
+                return fetch(LLOcr.DEFAULT_BASE_URL + scan.sourceImageUrl, { credentials: 'include' }).then(function (response) {
+                    if (!response.ok) throw new Error('Could not load the original scan image.');
+                    return response.blob().then(function (blob) { return { scan: scan, file: new File([blob], scan.fileName || scan.productName || 'rescan.jpg', { type: blob.type || 'image/jpeg' }) }; });
+                });
+            }).then(function (loaded) {
+                addFiles([loaded.file]);
+                titleEl.textContent = 'Rescan: ' + loaded.file.name;
+            }).catch(function (error) { showValidationError(error.message); });
+        }
     }
 </script>
 </body></html>

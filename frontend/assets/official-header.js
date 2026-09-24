@@ -94,6 +94,11 @@
   }
 
   function start() {
+    var session = global.LL && global.LL.getSession ? global.LL.getSession() : null;
+    if (session && session.demoMode === true) {
+      render({ fullName: session.name || 'Inspector Rajesh Kumar', email: session.email || 'rajesh.kumar@enforcement.gov.in', emailVerified: true, role: 'official' });
+      return;
+    }
     if (!global.LLAuth || !global.LLAuth.me) return;
     global.LLAuth.me().then(function (result) {
       if (!result.user || result.user.role !== "official") throw new Error("official role required");

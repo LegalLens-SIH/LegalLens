@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -12,10 +12,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <!-- Tailwind CSS -->
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="stylesheet" href="assets/tailwind.css">
 <!-- Tailwind Configuration -->
 <script id="tailwind-config">
-      tailwind.config = {
+      window.tailwind = window.tailwind || {}; window.tailwind.config = {
         darkMode: "class",
         theme: {
           extend: {
@@ -110,6 +110,10 @@
         .material-symbols-outlined.fill {
             font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
+    </style>
+    <style>
+        .history-modal-backdrop { background: rgba(0, 24, 47, .48); }
+        .history-modal { width: min(92vw, 430px); }
     </style>
 </head>
 <body class="bg-background text-on-background antialiased min-h-screen">
@@ -242,9 +246,12 @@
 <label class="block text-label-md font-label-md text-on-surface-variant mb-1.5 uppercase tracking-wider">Compliance Status</label>
 <select class="border border-outline-variant rounded-lg py-2 pl-3 pr-8 text-body-md font-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-surface min-w-[160px] min-h-[44px] appearance-none cursor-pointer" id="filter-status">
 <option value="">All Statuses</option>
-<option value="compliant">Compliant</option>
-<option value="flagged">Flagged (Critical)</option>
-<option value="pending">Pending Review</option>
+<option value="success">Fully Compliant</option>
+<option value="mostly">Mostly Compliant</option>
+<option value="partial">Partially Compliant</option>
+<option value="action">Action Required</option>
+<option value="failed">Non-Compliant</option>
+<option value="manual">Manual Verification</option>
 </select>
 </div>
 <!-- Product Category Dropdown -->
@@ -297,9 +304,16 @@
 <div class="h-8"></div>
 </div>
 </main>
+<div class="hidden fixed inset-0 z-[100] history-modal-backdrop items-center justify-center p-4" id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+<div class="history-modal bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl overflow-hidden">
+<div class="p-5 border-b border-outline-variant flex items-start justify-between gap-4"><div><p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider" id="history-modal-kicker">History action</p><h2 class="text-headline-md font-headline-md text-primary mt-1" id="history-modal-title">Confirm action</h2></div><button class="text-on-surface-variant hover:text-primary" id="history-modal-close" type="button" aria-label="Close"><span class="material-symbols-outlined">close</span></button></div>
+<div class="p-5" id="history-modal-body"></div>
+<div class="p-5 border-t border-outline-variant flex justify-end gap-3" id="history-modal-actions"></div>
+</div>
+</div>
 <script src="assets/app.js"></script>
 <script src="assets/auth-client.js"></script>
-<script src="assets/official-header.js"></script>
+<script src="assets/shell.js"></script>
 <script src="assets/ocr-client.js"></script>
 <script>
     if (LL.requireRole('official')) {
@@ -308,15 +322,90 @@
         var categorySelect = document.getElementById('filter-category');
         var body = document.getElementById('history-body');
         var summaryEl = document.getElementById('pagination-summary');
+        var modal = document.getElementById('history-modal');
+        var modalTitle = document.getElementById('history-modal-title');
+        var modalKicker = document.getElementById('history-modal-kicker');
+        var modalBody = document.getElementById('history-modal-body');
+        var modalActions = document.getElementById('history-modal-actions');
+        var activeScan = null;
 
-        var STATUS_STYLE = {
-            compliant: { icon: 'check_circle', label: 'Compliant', cls: 'bg-secondary-container text-on-secondary-container', action: 'View Report' },
-            flagged: { icon: 'error', label: 'Action Required', cls: 'bg-error-container text-on-error-container border border-error/20', action: 'Review Issue', actionCls: 'text-error hover:text-on-error-container' },
-            pending: { icon: 'pending', label: 'In Review', cls: 'bg-tertiary-container text-on-tertiary-container', action: 'View Details' }
-        };
-        STATUS_STYLE.partial = { icon: 'warning', label: 'Partially Compliant', cls: 'bg-tertiary-container text-on-tertiary-container', action: 'View Report' };
-        STATUS_STYLE.manual_review = { icon: 'fact_check', label: 'Manual Verification', cls: 'bg-tertiary-container text-on-tertiary-container', action: 'View Report' };
-        STATUS_STYLE.not_applicable = { icon: 'remove_circle_outline', label: 'Not Applicable', cls: 'bg-surface-variant text-on-surface-variant', action: 'View Report' };
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            activeScan = null;
+        }
+
+        function scanSummary(scan) {
+            var meta = LL.complianceStatus(scan);
+            return '<div class="bg-surface-container-low border border-outline-variant rounded-lg p-4 space-y-2 text-body-md">' +
+                '<div class="font-bold text-primary text-body-lg">' + LL.escapeHtml(scan.productName || scan.fileName || 'Unnamed product') + '</div>' +
+                '<div class="grid grid-cols-2 gap-x-4 gap-y-2 text-on-surface-variant"><span>Scan ID</span><strong class="text-on-surface break-all">' + LL.escapeHtml(scan.id) + '</strong><span>Score</span><strong class="text-on-surface">' + (meta.score === null ? 'N/A' : LL.escapeHtml(String(meta.score)) + '%') + '</strong><span>Category</span><strong class="text-on-surface">' + LL.escapeHtml(scan.category || 'General') + '</strong><span>Status</span><strong class="text-on-surface">' + LL.escapeHtml(meta.label) + '</strong></div></div>';
+        }
+
+        function showModal(scan, kind) {
+            activeScan = scan;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            if (kind === 'delete') {
+                showDeleteStepOne(scan);
+            } else {
+                modalKicker.textContent = 'Rescan verification \u00b7 Step 1 of 2';
+                modalTitle.textContent = 'Rescan this product?';
+                modalBody.innerHTML = scanSummary(scan) + '<p class="mt-4 text-body-md text-on-surface-variant">The original image will be loaded into the analysis screen so you can confirm it before starting a new scan.</p>';
+                modalActions.innerHTML = '<button class="px-4 py-2 border border-outline-variant rounded-lg text-primary font-bold" type="button" id="modal-cancel">Cancel</button><button class="px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" id="modal-rescan-continue">Continue</button>';
+                document.getElementById('modal-rescan-continue').onclick = function () { showRescanStepTwo(scan); };
+            }
+            document.getElementById('modal-cancel').onclick = closeModal;
+        }
+
+        function showDeleteStepOne(scan) {
+            modalKicker.textContent = 'Delete verification \u00b7 Step 1 of 2';
+            modalTitle.textContent = 'Review before deleting';
+            modalBody.innerHTML = scanSummary(scan) + '<p class="mt-4 text-body-md text-error">This will permanently remove the scan record, uploaded image, and related History entry.</p>';
+            modalActions.innerHTML = '<button class="px-4 py-2 border border-outline-variant rounded-lg text-primary font-bold" type="button" id="modal-cancel">Cancel</button><button class="px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" id="modal-delete-continue">Continue</button>';
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-delete-continue').onclick = function () { showDeleteStepTwo(scan); };
+        }
+
+        function showDeleteStepTwo(scan) {
+            modalKicker.textContent = 'Delete verification \u00b7 Step 2 of 2';
+            modalTitle.textContent = 'Confirm permanent deletion';
+            modalBody.innerHTML = scanSummary(scan) + '<div class="mt-4 p-3 rounded-lg bg-error-container text-on-error-container text-body-md font-bold">This cannot be undone. Confirm only if you want to permanently delete this record.</div>';
+            modalActions.innerHTML = '<button class="px-4 py-2 border border-outline-variant rounded-lg text-primary font-bold" type="button" id="modal-cancel">Cancel</button><button class="px-4 py-2 bg-error text-on-error rounded-lg font-bold flex items-center gap-2" type="button" id="modal-confirm-delete"><span class="material-symbols-outlined text-[18px]">delete_forever</span> Confirm Delete</button>';
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-confirm-delete').onclick = confirmDelete;
+        }
+
+        function showRescanStepTwo(scan) {
+            modalKicker.textContent = 'Rescan verification \u00b7 Step 2 of 2';
+            modalTitle.textContent = 'Ready to rescan?';
+            modalBody.innerHTML = scanSummary(scan) + '<p class="mt-4 text-body-md text-on-surface-variant">Confirm to open the existing image for a fresh OCR and compliance analysis.</p>';
+            modalActions.innerHTML = '<button class="px-4 py-2 border border-outline-variant rounded-lg text-primary font-bold" type="button" id="modal-cancel">Cancel</button><button class="px-4 py-2 bg-secondary text-on-secondary rounded-lg font-bold flex items-center gap-2" type="button" id="modal-confirm-rescan"><span class="material-symbols-outlined text-[18px]">refresh</span> Confirm Rescan</button>';
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-confirm-rescan').onclick = function () {
+                sessionStorage.setItem('legallense_rescan_v1', JSON.stringify({ id: scan.id, productName: scan.productName, category: scan.category, manufacturer: scan.manufacturer }));
+                location.href = 'new-compliance-scan.html?rescan=' + encodeURIComponent(scan.id);
+            };
+        }
+
+        function confirmDelete() {
+            var button = document.getElementById('modal-confirm-delete');
+            button.disabled = true;
+            button.textContent = 'Deleting...';
+            LLOcr.deleteScan(activeScan.id).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Delete failed');
+                scans = scans.filter(function (scan) { return scan.id !== activeScan.id; });
+                closeModal();
+                render(scans);
+            }).catch(function (error) {
+                button.disabled = false;
+                button.innerHTML = '<span class="material-symbols-outlined text-[18px]">delete</span> Delete';
+                modalBody.insertAdjacentHTML('beforeend', '<p class="mt-3 text-error text-body-md">' + LL.escapeHtml(error.message) + '</p>');
+            });
+        }
+
+        document.getElementById('history-modal-close').onclick = closeModal;
+        modal.addEventListener('click', function (event) { if (event.target === modal) closeModal(); });
 
         function render(scans) {
             var q = (searchInput.value || '').toLowerCase();
@@ -324,7 +413,8 @@
             var categoryFilter = categorySelect.value;
 
             var filtered = scans.filter(function (s) {
-                if (statusFilter && s.status !== statusFilter) return false;
+                var compliance = LL.complianceStatus(s);
+                if (statusFilter && compliance.type !== statusFilter) return false;
                 if (categoryFilter && s.category !== categoryFilter) return false;
                 if (q && (s.id + s.productName + s.manufacturer).toLowerCase().indexOf(q) === -1) return false;
                 return true;
@@ -332,20 +422,22 @@
 
             body.innerHTML = '';
             filtered.forEach(function (scan) {
-                var meta = STATUS_STYLE[scan.status] || STATUS_STYLE.pending;
+                var meta = LL.complianceStatus(scan);
                 var tr = document.createElement('tr');
-                tr.className = 'hover:bg-surface/50 transition-colors group' + (scan.status === 'flagged' ? ' bg-error-container/5' : '');
+                tr.className = 'hover:bg-surface/50 transition-colors group' + (meta.type === 'action' || meta.type === 'failed' ? ' bg-error-container/5' : '');
                 tr.innerHTML =
                     '<td class="py-4 px-6"><div class="font-bold text-primary font-headline-md text-[14px]">#' + LL.escapeHtml(scan.id) + '</div>' +
                     '<div class="text-on-surface-variant text-label-md font-label-md mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">schedule</span> ' + LL.fmtDateTime(scan.date) + '</div></td>' +
                     '<td class="py-4 px-6"><div class="font-semibold text-on-background">' + LL.escapeHtml(scan.productName) + '</div>' +
                     '<div class="text-on-surface-variant text-label-md font-label-md mt-1">' + LL.escapeHtml(scan.category) + '</div></td>' +
                     '<td class="py-4 px-6 text-on-surface-variant">' + LL.escapeHtml(scan.manufacturer) + '</td>' +
-                    '<td class="py-4 px-6"><span class="inline-flex items-center gap-1.5 ' + meta.cls + ' px-3 py-1 rounded-full text-label-md font-label-md"><span class="material-symbols-outlined text-[16px] fill">' + meta.icon + '</span> ' + meta.label + '</span></td>' +
-                    '<td class="py-4 px-6 text-right"><button class="' + (meta.actionCls || 'text-primary hover:text-secondary') + ' font-medium text-label-md font-label-md flex items-center justify-end gap-1 ml-auto opacity-70 group-hover:opacity-100 transition-opacity">' + meta.action + ' <span class="material-symbols-outlined text-[18px]">arrow_forward</span></button></td>';
-                tr.querySelector('button').addEventListener('click', function () {
+                    '<td class="py-4 px-6"><div class="inline-flex items-center gap-1.5 ' + meta.cls + ' px-3 py-1 rounded-full text-label-md font-label-md"><span class="material-symbols-outlined text-[16px] fill">' + meta.icon + '</span> ' + meta.label + '</div><div class="text-label-md font-label-md text-on-surface-variant mt-1">Compliance Score: ' + (meta.score === null ? 'N/A' : LL.escapeHtml(String(meta.score)) + '%') + '</div></td>' +
+                    '<td class="py-4 px-6 text-right"><div class="flex justify-end items-center gap-3"><button class="text-primary hover:text-secondary font-medium text-label-md font-label-md" type="button">View</button><button class="text-secondary hover:text-primary font-medium text-label-md font-label-md" type="button">Rescan</button><button class="text-error hover:text-on-error-container font-medium text-label-md font-label-md" type="button">Delete</button></div></td>';
+                tr.querySelectorAll('button')[0].addEventListener('click', function () {
                     location.href = 'compliance-report.html?id=' + encodeURIComponent(scan.id);
                 });
+                tr.querySelectorAll('button')[1].addEventListener('click', function () { showModal(scan, 'rescan'); });
+                tr.querySelectorAll('button')[2].addEventListener('click', function () { showModal(scan, 'delete'); });
                 body.appendChild(tr);
             });
 
@@ -363,7 +455,7 @@
 
         document.getElementById('export-btn').addEventListener('click', function () {
             var rows = [['Scan ID', 'Date', 'Product', 'Category', 'Manufacturer', 'Status', 'Score']];
-            scans.forEach(function (s) { rows.push([s.id, LL.fmtDateTime(s.date), s.productName, s.category, s.manufacturer, s.status, s.score]); });
+            scans.forEach(function (s) { var compliance = LL.complianceStatus(s); rows.push([s.id, LL.fmtDateTime(s.date), s.productName, s.category, s.manufacturer, compliance.label, compliance.score === null ? 'N/A' : compliance.score]); });
             LL.exportCSV('legallense_scan_history.csv', rows);
         });
 
