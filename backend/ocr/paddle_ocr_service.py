@@ -24,6 +24,7 @@ repeatedly from a FastAPI process instead of a one-shot CLI script.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -37,12 +38,36 @@ logger = logging.getLogger("legallense.ocr.service")
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
+# Phase 2B production tuning (benchmarked 2026-09-16/17 against this
+# project's real 10-fixture image set - see training/benchmark_results/
+# phase2_* and backend/ocr/README.md's "Production OCR performance tuning"
+# section for the full methodology and numbers). PaddleX's own default is
+# 10 CPU threads (paddlex/inference/models/runners/paddle_static/config/
+# pp_option.py's _get_default_config, read from this exact env var at
+# PREDICTOR-CONSTRUCTION time, i.e. lazily, on PaddleOCRService's first
+# .run() call - not at import time, so setting it here at module level is
+# still early enough). On this deployment's 13th-gen Intel Core i5-1340P
+# (4 performance cores + 8 efficiency cores), capping at 4 threads (the
+# P-cores only, avoiding P+E core scheduling contention) measured faster
+# than the 10-thread default across the real fixture set. setdefault (not
+# a hard overwrite) so an operator can still override via a real
+# environment variable for different hardware - re-benchmark before
+# changing this value on a different machine.
+os.environ.setdefault("PADDLE_PDX_CPU_NUM_THREADS", "4")
+
 # PP-OCRv6 (the current default models pulled in by lang="en") crashes on this
 # CPU's oneDNN/PIR executor path in paddlepaddle 3.3.1 with:
 #   NotImplementedError: (Unimplemented) ConvertPirAttribute2RuntimeAttribute
 #   not support [pir::ArrayAttribute<pir::DoubleAttribute>]
 # Disabling MKL-DNN sidesteps it entirely (confirmed working end-to-end) at a
 # small inference-speed cost on CPU. See backend/ocr/README.md for details.
+# Re-confirmed by direct reproduction during the Phase 2B production-tuning
+# pass (2026-09-17): the exact same error, same paddlepaddle==3.3.1 pin,
+# surfaces on the first real inference call (engine.predict(), not engine
+# construction) - see backend/ocr/README.md's tuning section. Do not
+# re-enable without first upgrading paddlepaddle and re-testing; this is a
+# real PaddlePaddle/PaddleX oneDNN-PIR-executor incompatibility, not
+# something a config workaround here can fix.
 DEFAULT_ENABLE_MKLDNN = False
 
 

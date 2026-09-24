@@ -36,10 +36,11 @@ from backend.ocr.gemini_service import (
     find_ambiguous_fields,
 )
 from backend.ocr.paddle_ocr_service import OCRInitializationError, PaddleOCRService
-from backend.ocr.preprocessing import PREPROCESSING_ENABLED, PreprocessOptions
+from backend.ocr.preprocessing import MAX_SIDE_DEFAULT, PREPROCESSING_ENABLED, PreprocessOptions
 from backend.ocr.schemas import OCRError, OCRResult
 from backend.ocr.yolo_service import YOLO_ENABLED, YOLOService
 from backend.services.compliance_engine import ComplianceEngine, normalize_ocr_result
+from backend.services.ocr_modes import DEFAULT_OCR_MODE, InvalidOCRModeError, forced_preprocess_options_for_mode, parse_ocr_mode
 from backend.services.structured_extraction import build_structured_extraction
 
 logger = logging.getLogger("legallense.api.ocr")
@@ -58,21 +59,36 @@ _compliance_engine = ComplianceEngine()
 # OCR runs exactly as it did before YOLO26 was introduced.
 _yolo_service = YOLOService() if YOLO_ENABLED else None
 
-# Accuracy Fix #2 A/B flag - OCR_PREPROCESSING_ENABLED=false (default)
-# preserves today's exact baseline behavior (no preprocess_options passed to
-# PaddleOCRService.run() at all, same as before this flag existed). When
-# true, applies denoise + CLAHE contrast enhancement ONLY - resize is
-# deliberately EXCLUDED from this bundle despite being part of this
-# project's own documented "preprocessing enabled" convention (README.md,
-# test_ocr.py's --preprocess flag): 7 of the 10 real benchmark fixtures
-# exceed the 2000px resize threshold and would be downscaled, and resizing
-# down is a SPEED optimization (see resize_if_large's own docstring/
-# README: "keeps inference fast on huge phone photos"), not an accuracy
-# one - it can only ever reduce the pixel density available for the
-# dense/small print this project's OCR failures are already concentrated
-# in. Grayscale is also excluded, matching this project's own existing
-# default (never part of the --preprocess bundle either).
-_preprocess_options = PreprocessOptions(denoise=True, enhance_contrast=True) if PREPROCESSING_ENABLED else None
+# Phase 2B production tuning (2026-09-17): resize (downscale to
+# PreprocessOptions.max_side=2000px before OCR) is now the UNCONDITIONAL
+# baseline for every OCR call, regardless of ocr_mode - benchmarked across
+# this project's real 10-fixture image set at ~3.3x faster (258s -> 79s
+# mean end-to-end per image; see training/benchmark_results/phase2_* and
+# backend/ocr/README.md's "Production OCR performance tuning" section for
+# the full methodology, per-image numbers, and the one confirmed accuracy
+# trade-off: a glare-damaged fixture (Ferrero_back.jpg) lost a previously-
+# correct country_of_origin read at this resize ceiling. Per this
+# project's existing "OCR non-detection is not confirmed physical
+# absence" principle (see compliance_engine.py), a field lost to resize
+# still only ever produces NEEDS_MANUAL_VERIFICATION, never a fabricated
+# FAIL - it is a manual-review case, not treated as a confirmed absence.
+#
+# Previously this was an opt-in-only denoise+contrast bundle gated behind
+# OCR_PREPROCESSING_ENABLED (an unrelated, separate toggle - see below);
+# resize was deliberately excluded from it for exactly the accuracy
+# reason above. That reasoning still holds for THIS specific trade-off,
+# but real end-to-end benchmarking (not just the a-priori concern) showed
+# the net effect across the real fixture set nets out positive (one field
+# regressed, one improved, zero new FALSE_PASS) at a large enough speed
+# win to justify making it the default. denoise/enhance_contrast remain
+# EXACTLY as before: still opt-in only via OCR_PREPROCESSING_ENABLED,
+# completely unrelated to and unaffected by this change.
+_preprocess_options = PreprocessOptions(
+    resize=True,
+    max_side=MAX_SIDE_DEFAULT,
+    denoise=PREPROCESSING_ENABLED,
+    enhance_contrast=PREPROCESSING_ENABLED,
+)
 
 # Gemini is an AI/vision FALLBACK for ambiguous/low-confidence fields only -
 # see backend/ocr/gemini_service.py. Disabled by default (GEMINI_ENABLED) and
@@ -200,9 +216,16 @@ def _public_scan(scan: dict[str, Any]) -> dict[str, Any]:
     return public
 
 
-@router.post("/api/ocr", response_model=OCRResult)
-async def run_ocr(file: Optional[UploadFile] = File(None)):
-    """Accept one image (JPG/JPEG/PNG/WEBP), run it through PaddleOCRService, return OCRResult JSON."""
+async def _run_ocr_core(file: Optional[UploadFile], preprocess_options: Optional[PreprocessOptions]):
+    """Shared OCR-execution body for the /api/ocr route and create_scan
+    below - extracted ONLY so create_scan can pass a per-request,
+    mode-resolved `preprocess_options` (Phase 2B) without changing
+    run_ocr's public FastAPI signature/contract (adding a non-Form/File
+    parameter there would turn it into an implicit request-body field and
+    silently change /api/ocr's existing API). Behavior is byte-for-byte
+    identical to what this function's body was before this refactor -
+    run_ocr (below) calls it with the exact same module-level
+    `_preprocess_options` it always used."""
 
     if file is None or not file.filename:
         logger.warning("OCR request received with no file attached")
@@ -240,7 +263,10 @@ async def run_ocr(file: Optional[UploadFile] = File(None)):
         tmp_path.write_bytes(contents)
         logger.info("Saved upload '%s' (%d bytes) to temp file for OCR", original_name, len(contents))
 
-        run_options = {"yolo_service": _yolo_service, "preprocess_options": _preprocess_options}
+        run_options = {
+            "yolo_service": _yolo_service,
+            "preprocess_options": preprocess_options,
+        }
         if _active_progress_job.get():
             run_options["progress_callback"] = _report_progress
         result = _service.run(str(tmp_path), **run_options)
@@ -275,16 +301,46 @@ async def run_ocr(file: Optional[UploadFile] = File(None)):
             logger.warning("Failed to clean up temp file %s", tmp_path, exc_info=True)
 
 
+@router.post("/api/ocr", response_model=OCRResult)
+async def run_ocr(file: Optional[UploadFile] = File(None)):
+    """Accept one image (JPG/JPEG/PNG/WEBP), run it through PaddleOCRService, return OCRResult JSON."""
+    return await _run_ocr_core(file, _preprocess_options)
+
+
 @router.post("/api/scans")
 async def create_scan(
     file: Optional[UploadFile] = File(None),
     product_name: str = Form(""),
     category: str = Form("General"),
     manufacturer: str = Form("Not specified"),
+    ocr_mode: str = Form(DEFAULT_OCR_MODE),
     user: dict[str, Any] = Depends(official_user),
 ):
     """Run OCR and persist the original scan record in MongoDB."""
     _report_progress("INITIALIZING")
+
+    try:
+        resolved_ocr_mode = parse_ocr_mode(ocr_mode)
+    except InvalidOCRModeError as exc:
+        return _error_response(
+            400,
+            file.filename if file is not None else "",
+            "invalid_ocr_mode",
+            str(exc),
+        )
+
+    # Phase 2B: "standard" defers to the EXISTING module-level
+    # _preprocess_options (which now unconditionally includes resize as of
+    # the 2026-09-17 tuning pass, plus denoise/enhance_contrast only when
+    # the pre-existing, unrelated OCR_PREPROCESSING_ENABLED env flag is
+    # set) so a caller that never sends ocr_mode - or explicitly sends
+    # "standard" - gets that same production baseline. Only high_accuracy
+    # forces a specific, benchmarked PreprocessOptions bundle regardless
+    # of that env flag ("fast" was retired - see ocr_modes.py).
+    effective_preprocess_options = (
+        _preprocess_options if resolved_ocr_mode == "standard" else forced_preprocess_options_for_mode(resolved_ocr_mode)
+    )
+
     original_contents = await file.read() if file is not None else b""
     if file is not None:
         await file.seek(0)
@@ -303,7 +359,7 @@ async def create_scan(
     # run_ocr()/preprocessing touches them - the hash corresponds to the
     # exact analyzed upload, never a resized/preprocessed derivative.
     source_image_sha256 = compute_image_sha256(original_contents) if original_contents else None
-    response = await run_ocr(file)
+    response = await _run_ocr_core(file, effective_preprocess_options)
     if response.status_code != 200:
         return response
 
@@ -393,6 +449,9 @@ async def create_scan(
         # exact hash of the analyzed upload, never consulted by
         # ComplianceEngine and never an authenticity/fraud signal.
         scan["sourceImageSha256"] = source_image_sha256
+    # Phase 2B: evidence/traceability only - which OCR mode actually
+    # produced this scan's OCR result, never consulted by ComplianceEngine.
+    scan["ocrMode"] = resolved_ocr_mode
     status_map = {
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",

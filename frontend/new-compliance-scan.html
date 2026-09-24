@@ -244,6 +244,19 @@
 </div>
 <p class="hidden mt-3 text-body-md font-body-md text-error" id="file-validation-error"></p>
 <div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="camera-status-banner">Camera is ready when needed.</div>
+<!-- Phase 2B: OCR mode selection - two fixed, server-validated modes only
+     (see backend/services/ocr_modes.py). "Standard" is the production
+     baseline as of the 2026-09-17 tuning pass (includes an automatic
+     image resize for speed); "fast" was retired the same day once resize
+     was promoted into "Standard" and stopped being a distinct tradeoff. -->
+<div class="mt-6 bg-surface border border-outline-variant rounded-xl p-5">
+<label class="text-body-md font-body-md font-bold text-on-surface mb-1 block" for="ocr-mode-select">OCR mode</label>
+<p class="text-label-md font-label-md text-on-surface-variant mb-3">Choose how the label image is processed before text recognition. Standard matches today's default behavior.</p>
+<select class="w-full sm:w-72 bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-body-md font-body-md" id="ocr-mode-select">
+<option value="standard" selected="">Standard (default)</option>
+<option value="high_accuracy">High Accuracy (denoise + contrast enhancement, slower)</option>
+</select>
+</div>
 <!-- Image preview + bounding-box overlay (populated after a file is chosen / OCR completes) -->
 <div class="hidden mt-6 bg-surface border border-outline-variant rounded-xl p-4" id="preview-card">
 <div class="flex items-center justify-between gap-3 mb-4"><h4 class="text-body-lg font-body-lg font-bold text-on-surface">Selected Product Views</h4><span class="text-label-md font-label-md text-on-surface-variant" id="image-count-label">0 / 8 images</span></div>
@@ -422,6 +435,7 @@
         var cameraCaptureSideIndex = 0;
         var cameraCaptureDataUrl = '';
         var cameraDeviceIds = [];
+        var ocrModeSelect = document.getElementById('ocr-mode-select');
         var analysisStages = [
             { key: 'INITIALIZING', label: 'Initializing analysis', progress: 10 },
             { key: 'IMAGE_UPLOADED', label: 'Images uploaded successfully', progress: 20 },
@@ -925,9 +939,10 @@
             analyzeBtn.disabled = true;
             analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
             var originalBtnHtml = analyzeBtn.innerHTML;
-            analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
-            renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
+
             if (LL.isDemoMode()) {
+                analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
+                renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
                 window.setTimeout(function () {
                     var demoResult = createDemoAnalysisResult();
                     renderProgress({ stage: 'COMPLETED', progress: 100, label: 'Analysis completed', status: 'completed' });
@@ -940,12 +955,42 @@
                 }, 700);
                 return;
             }
-            LLOcr.startAnalysisJob(chosenFiles, { productName: chosenFiles[0].file.name, category: 'General' }).then(function (response) {
-                if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
-                renderProgress(response.data);
-                pollAnalysis(response.data.id, originalBtnHtml);
+
+            if (chosenFiles.length > 1) {
+                analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
+                renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
+                LLOcr.startAnalysisJob(chosenFiles, { productName: chosenFiles[0].file.name, category: 'General' }).then(function (response) {
+                    if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
+                    renderProgress(response.data);
+                    pollAnalysis(response.data.id, originalBtnHtml);
+                }).catch(function (err) {
+                    showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
+                }).finally(function () {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    analyzeBtn.innerHTML = originalBtnHtml;
+                });
+                return;
+            }
+
+            var chosenFile = chosenFiles[0].file;
+            analyzeBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Analyzing...';
+            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General', ocrMode: ocrModeSelect ? ocrModeSelect.value : 'standard' }).then(function (payload) {
+                renderResults(payload);
+                if (payload.httpOk && payload.data && payload.data.ocr) {
+                    resultsBody.innerHTML += '<div class="mt-6 pt-5 border-t border-outline-variant"><span class="material-symbols-outlined align-middle mr-2 text-secondary">fact_check</span><span>OCR complete. Running the versioned Legal Metrology ruleset...</span></div>';
+                    return LLOcr.evaluateCompliance(payload.data.ocr, 'e_commerce_product_listing').then(function (compliance) {
+                        if (!compliance.httpOk) throw new Error(compliance.data.detail || 'Compliance evaluation failed.');
+                        sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(compliance.data));
+                        sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(payload.data));
+                        location.href = 'compliance-report.html?id=' + encodeURIComponent(payload.data.id);
+                    }).catch(function (err) {
+                        resultsBody.innerHTML += '<p class="mt-4 text-error">Compliance evaluation failed: ' + LL.escapeHtml(err.message) + '</p>';
+                    });
+                }
             }).catch(function (err) {
                 showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
+            }).finally(function () {
                 analyzeBtn.disabled = false;
                 analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 analyzeBtn.innerHTML = originalBtnHtml;

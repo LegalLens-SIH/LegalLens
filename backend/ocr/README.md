@@ -125,6 +125,54 @@ CPU inference speed versus MKL-DNN acceleration. If you upgrade
 `True` and re-test - `PaddleOCRService(enable_mkldnn=True)` is fully
 supported as an override in the meantime.
 
+**Re-confirmed 2026-09-17** during the production performance-tuning pass
+below: `enable_mkldnn=True` was tried again with everything else at the
+current best config (resize on, `cpu_threads=4`) and reproduced the exact
+same error, at the exact same `paddlepaddle==3.3.1` pin, surfacing on the
+first real inference call (`engine.predict()`, not engine construction).
+Not attempted again without a `paddlepaddle` version change.
+
+## Production OCR performance tuning (2026-09-17)
+
+Baseline (no preprocessing, `enable_mkldnn=False`, PaddleX's default 10
+CPU threads) measured **258.2s mean end-to-end per image** across this
+project's real 10-fixture set (`training/benchmark_e2e.py`, results in
+`training/benchmark_results/phase2_baseline*`). Two isolated, evidence-
+gated changes were tested and adopted as the new production default:
+
+1. **`PreprocessOptions(resize=True, max_side=2000)`, unconditional for
+   every OCR call** (previously only available behind the now-retired
+   "fast" OCR mode - see `backend/services/ocr_modes.py`). Alone: **85.4s
+   mean** (-67%). A `max_side=2400` alternative was also tested, isolated
+   to the two fixtures with resize-related accuracy changes
+   (`training/benchmark_results/phase2_resize_ceiling_2400*`) - it did
+   NOT recover the regression below and additionally re-broke an
+   improvement, so **2000 remains the value**, not 2400.
+2. **`PADDLE_PDX_CPU_NUM_THREADS=4`** (this deployment's 13th-gen Intel
+   Core i5-1340P has 4 performance cores + 8 efficiency cores; PaddleX
+   defaults to 10 threads, which spans both core types). Set via
+   `os.environ.setdefault(...)` in `paddle_ocr_service.py` so an operator
+   can still override it for different hardware - re-benchmark before
+   changing this value on another machine. Combined with resize: **79.3s
+   mean** (-69% vs. baseline, a further -7% vs. resize alone). Field-level
+   diff against resize-alone: zero classification changes - thread count
+   only affects scheduling, never OCR output.
+
+**The one confirmed, known accuracy trade-off**: resize cost
+`Ferrero_back.jpg`'s `country_of_origin` field (CORRECT -> FALSE_NOT_DETECTED
+- a glare-damaged label that apparently needed the extra resolution) and
+separately *improved* `DarkFantasy_back.jpg`'s
+`manufacturer_packer_importer_details` field (FALSE_NOT_DETECTED -> CORRECT).
+Zero new FALSE_PASS was observed in any pass. Per this project's existing
+"OCR non-detection is not confirmed physical absence" principle (see
+`compliance_engine.py`), a field lost to resize still only ever produces
+`NEEDS_MANUAL_VERIFICATION` - **treat a missed fine-print/low-resolution/
+glare-damaged field as a manual-review case, not as a confirmed absence,
+and never as evidence the compliance engine "got it wrong."**
+
+Raw per-pass results (JSONL + summaries) are kept in
+`training/benchmark_results/phase2_*` for anyone re-verifying this.
+
 ## Test image
 
 `backend/test_images/synthetic_label.png` is a **synthetically generated**

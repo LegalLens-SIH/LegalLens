@@ -357,6 +357,29 @@
 </div>
 </div>
 </div>
+<!-- Phase 2A: E-commerce Listing Verification - a structurally SEPARATE,
+     supplementary evidence section. Never merged with the physical-package
+     compliance checklist above: the deterministic ComplianceEngine result
+     above remains the sole legal authority, and nothing here can change it. -->
+<section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="listing-verification-card">
+<div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-4">
+<span class="material-symbols-outlined text-primary">storefront</span>
+<h3 class="text-body-lg font-body-lg font-bold text-primary">E-commerce Listing Verification</h3>
+</div>
+<p class="text-label-md font-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mb-4" id="listing-verification-disclaimer">This comparison is supplementary evidence only and does not determine legal compliance. The physical package compliance result above remains authoritative.</p>
+<div class="flex flex-col sm:flex-row gap-3 mb-4">
+<input class="flex-1 bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-body-md font-body-md" id="listing-url-input" placeholder="https://www.example-marketplace.com/product/..." type="url"/>
+<button class="px-5 py-2.5 rounded bg-secondary text-on-secondary font-bold text-body-md font-body-md hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2" id="listing-verify-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">travel_explore</span>
+                    Verify Listing
+                </button>
+</div>
+<p class="hidden text-label-md font-label-md text-error mb-3" id="listing-url-error"></p>
+<div class="hidden" id="listing-verification-loading">
+<div class="flex items-center gap-3 text-on-surface-variant"><span class="material-symbols-outlined animate-spin">progress_activity</span><span>Retrieving and comparing the listing&hellip;</span></div>
+</div>
+<div class="hidden" id="listing-verification-result"></div>
+</section>
 <!-- Footer Actions -->
 <div class="mt-8 pt-6 border-t border-outline-variant flex flex-col sm:flex-row justify-end items-center gap-4">
 <button class="no-print w-full sm:w-auto px-6 py-2.5 rounded border border-primary text-primary hover:bg-surface-container-low transition-colors font-semibold text-body-md font-body-md flex items-center justify-center gap-2" id="export-pdf-btn" title="Print or save this report as PDF">
@@ -817,6 +840,90 @@
                 viewCaseBtn.addEventListener('click', function () { location.href = 'case-details.html?id=' + encodeURIComponent(scan.caseId); });
                 logActionBtn.addEventListener('click', function () { location.href = 'log-case-action.html?id=' + encodeURIComponent(scan.caseId); });
             }
+
+            // --- Phase 2A: E-commerce Listing Verification -----------------
+            // Structurally separate render path from the compliance
+            // checklist above - reads/writes only scan.listingVerification,
+            // never touches scan.compliance.
+            (function initListingVerification() {
+                var urlInput = document.getElementById('listing-url-input');
+                var verifyBtn = document.getElementById('listing-verify-btn');
+                var urlError = document.getElementById('listing-url-error');
+                var loadingEl = document.getElementById('listing-verification-loading');
+                var resultEl = document.getElementById('listing-verification-result');
+
+                var OUTCOME_STYLE = {
+                    MATCH: { text: 'text-secondary', icon: 'check_circle', label: 'Match' },
+                    MISMATCH: { text: 'text-error', icon: 'cancel', label: 'Mismatch' },
+                    REVIEW_REQUIRED: { text: 'text-tertiary-container', icon: 'warning', label: 'Review Required' },
+                    LISTING_FIELD_UNAVAILABLE: { text: 'text-on-surface-variant', icon: 'help', label: 'Not on Listing' },
+                    PHYSICAL_FIELD_UNAVAILABLE: { text: 'text-on-surface-variant', icon: 'help', label: 'Not on Package' },
+                    NOT_APPLICABLE: { text: 'text-on-surface-variant', icon: 'remove', label: 'Not Applicable' }
+                };
+
+                function renderListingResult(result) {
+                    resultEl.classList.remove('hidden');
+                    var listing = result.listing || {};
+                    if (listing.retrieval_status !== 'SUCCESS') {
+                        resultEl.innerHTML =
+                            '<div class="flex items-start gap-3 p-4 bg-tertiary-fixed-dim/10 border border-tertiary-fixed-dim/40 rounded">' +
+                            '<span class="material-symbols-outlined text-tertiary-container">warning</span>' +
+                            '<div><p class="font-bold text-on-surface">Listing could not be verified (' + LL.escapeHtml(listing.retrieval_status || 'UNKNOWN_ERROR') + ')</p>' +
+                            '<p class="text-body-md font-body-md text-on-surface-variant mt-1">' + LL.escapeHtml(listing.error_message || 'The listing page could not be retrieved or read. This is a retrieval limitation, not a compliance finding.') + '</p></div></div>';
+                        return;
+                    }
+
+                    var rows = (result.comparisons || []).map(function (c) {
+                        var style = OUTCOME_STYLE[c.outcome] || OUTCOME_STYLE.NOT_APPLICABLE;
+                        return '<div class="flex items-start justify-between gap-4 py-2.5 border-b border-outline-variant/50 last:border-0">' +
+                            '<div class="flex-1"><p class="text-body-md font-body-md font-semibold text-on-surface">' + LL.escapeHtml(c.label) + '</p>' +
+                            '<p class="text-label-md font-label-md text-on-surface-variant mt-0.5">Package: ' + LL.escapeHtml(c.physical_value || '—') + ' &nbsp;|&nbsp; Listing: ' + LL.escapeHtml(c.listing_value || '—') + '</p>' +
+                            '<p class="text-label-md font-label-md text-on-surface-variant mt-0.5">' + LL.escapeHtml(c.explanation) + '</p></div>' +
+                            '<span class="shrink-0 flex items-center gap-1 ' + style.text + ' font-bold text-label-md font-label-md"><span class="material-symbols-outlined text-[18px]">' + style.icon + '</span>' + style.label + '</span></div>';
+                    }).join('') || '<p class="text-body-md font-body-md text-on-surface-variant">No comparable fields were available on either side.</p>';
+
+                    var evidenceRows = (listing.evidence || []).map(function (e) {
+                        return '<li>' + LL.escapeHtml(e.field.replace(/_/g, ' ')) + ': "' + LL.escapeHtml(e.extracted_value) + '" (' + LL.escapeHtml(e.extraction_source) + ')</li>';
+                    }).join('');
+
+                    resultEl.innerHTML =
+                        '<div class="mb-3 text-label-md font-label-md text-on-surface-variant">Retrieved from <a class="text-primary underline" href="' + LL.escapeHtml(listing.final_url || listing.source_url) + '" target="_blank" rel="noopener">' + LL.escapeHtml(listing.final_url || listing.source_url) + '</a>' + (listing.product_name ? ' &middot; ' + LL.escapeHtml(listing.product_name) : '') + '</div>' +
+                        '<div class="flex flex-col">' + rows + '</div>' +
+                        (result.price_note ? '<p class="mt-3 text-label-md font-label-md text-on-surface-variant italic">' + LL.escapeHtml(result.price_note) + '</p>' : '') +
+                        (evidenceRows ? '<details class="mt-4"><summary class="cursor-pointer text-label-md font-label-md font-semibold text-primary">View listing evidence/provenance</summary><ul class="mt-2 text-label-md font-label-md text-on-surface-variant list-disc list-inside space-y-1">' + evidenceRows + '</ul></details>' : '') +
+                        ((listing.extraction_warnings || []).length ? '<p class="mt-3 text-label-md font-label-md text-tertiary-container">' + LL.escapeHtml(listing.extraction_warnings.join(' ')) + '</p>' : '');
+                }
+
+                if (scan.listingVerification) {
+                    renderListingResult(scan.listingVerification);
+                }
+
+                if (verifyBtn) {
+                    verifyBtn.addEventListener('click', function () {
+                        urlError.classList.add('hidden');
+                        var url = (urlInput.value || '').trim();
+                        if (!url) {
+                            urlError.textContent = 'Enter a product listing URL.';
+                            urlError.classList.remove('hidden');
+                            return;
+                        }
+                        resultEl.classList.add('hidden');
+                        loadingEl.classList.remove('hidden');
+                        verifyBtn.disabled = true;
+                        LLOcr.verifyListing(scan.id, url).then(function (response) {
+                            loadingEl.classList.add('hidden');
+                            verifyBtn.disabled = false;
+                            if (!response.httpOk) {
+                                urlError.textContent = (response.data && (response.data.detail || response.data.message)) || 'Listing verification request failed.';
+                                urlError.classList.remove('hidden');
+                                return;
+                            }
+                            scan.listingVerification = response.data;
+                            renderListingResult(response.data);
+                        });
+                    });
+                }
+            })();
         }
                 });
     }

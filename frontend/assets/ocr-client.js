@@ -65,6 +65,9 @@
     formData.append("product_name", metadata.productName || file.name);
     formData.append("category", metadata.category || "General");
     formData.append("manufacturer", metadata.manufacturer || "Not specified");
+    // Phase 2B: optional per-scan OCR mode (see backend/services/ocr_modes.py) -
+    // omitted/left as "standard" preserves today's exact default behavior.
+    formData.append("ocr_mode", metadata.ocrMode || "standard");
 
     return fetch(url, { method: "POST", body: formData, credentials: "include" })
       .then(function (response) {
@@ -138,6 +141,33 @@
     return fetch((baseUrl || DEFAULT_BASE_URL) + "/api/cases", { credentials: "include" }).then(function (response) { return response.json(); });
   }
 
+  // Phase 2A: e-commerce listing verification (backend/api/listing.py) -
+  // supplementary evidence for an already-persisted scan the official
+  // owns. Never touches compliance/status/score.
+  function verifyListing(scanId, url, baseUrl) {
+    var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(scanId) + "/listing-verification";
+    return fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ url: url }),
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        return { httpOk: response.ok, status: response.status, data: data };
+      });
+    }).catch(function (networkErr) {
+      return { httpOk: false, status: 0, data: { detail: "Could not reach the listing verification backend. " + networkErr.message } };
+    });
+  }
+
+  function getListingVerification(scanId, baseUrl) {
+    var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(scanId) + "/listing-verification";
+    return fetch(endpoint, { credentials: "include", cache: "no-store" }).then(function (response) {
+      if (!response.ok) return null;
+      return response.json();
+    });
+  }
+
   global.LLOcr = {
     runOcr: runOcr,
     createScan: createScan,
@@ -148,6 +178,8 @@
     deleteScan: deleteScan,
     evaluateCompliance: evaluateCompliance,
     getCases: getCases,
+    verifyListing: verifyListing,
+    getListingVerification: getListingVerification,
     validateFile: validateFile,
     DEFAULT_BASE_URL: DEFAULT_BASE_URL,
   };
