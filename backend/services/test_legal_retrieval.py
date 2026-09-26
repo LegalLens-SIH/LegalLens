@@ -22,10 +22,13 @@ import pytest
 
 from backend.services.legal_retrieval import (
     LegalCorpusError,
+    get_corpus_status,
     get_legal_basis,
     load_corpus,
     lookup_by_rule_id,
 )
+from backend.models.legal import LegalCorpusStatus
+from backend.services import legal_retrieval
 
 REAL_CORPUS_PATH = Path(__file__).resolve().parents[1] / "legal_corpus" / "legal_metrology_packaged_commodities_2011.json"
 
@@ -51,6 +54,14 @@ def test_real_corpus_loads_without_error():
     sources, provisions = load_corpus(REAL_CORPUS_PATH)
     assert len(sources) >= 5
     assert len(provisions) == 11
+
+
+def test_legacy_corpus_reports_schema_version_one_without_fabricated_coverage():
+    status = get_corpus_status(REAL_CORPUS_PATH)
+    assert status.schema_version == 1
+    assert status.corpus_id == "IN-LM-PACKAGED-COMMODITIES-2011-LEGAL-CORPUS"
+    assert status.unresolved_fields == []
+    assert status.blocked_fields == []
 
 
 # --- Coverage completeness (T016, T017) ---
@@ -105,6 +116,21 @@ def test_unit_sale_price_effective_date_is_represented():
     provision = lookup_by_rule_id("LMPC-R6-MANDATORY-DECLARATIONS", "unit_sale_price")[0]
     assert "01.04.2023" in provision.source.citation
     assert provision.is_currently_effective is True
+    assert provision.effective_from.isoformat() == "2023-04-01"
+
+
+def test_source_verification_states_reflect_existing_provenance_notes():
+    primary_verified = lookup_by_rule_id("LMPC-R6-MANDATORY-DECLARATIONS", "maximum_retail_price_mrp")[0]
+    secondary_cross_checked = lookup_by_rule_id("LMPC-R6-MANDATORY-DECLARATIONS", "unit_sale_price")[0]
+    assert primary_verified.source.verification_status == "verified"
+    assert secondary_cross_checked.source.verification_status == "secondary_cross_checked"
+
+
+def test_effective_dates_are_exposed_only_where_existing_citations_state_them():
+    country = lookup_by_rule_id("LMPC-R6-MANDATORY-DECLARATIONS", "country_of_origin")[0]
+    mrp = lookup_by_rule_id("LMPC-R6-MANDATORY-DECLARATIONS", "maximum_retail_price_mrp")[0]
+    assert country.effective_from.isoformat() == "2018-01-01"
+    assert mrp.effective_from.isoformat() == "2018-01-01"
 
 
 # --- Source correctness / provenance (T026) ---
@@ -198,6 +224,7 @@ def test_get_legal_basis_not_available_case_never_carries_provisions():
     assert result.status == "not_available"
     assert result.retrieval_method is None
     assert result.provisions == []
+    assert result.availability_reason == "not_in_verified_corpus"
 
 
 def test_get_legal_basis_returns_the_correct_unit_sale_price_provision():
@@ -215,6 +242,18 @@ def test_get_legal_basis_returns_the_correct_unit_sale_price_provision():
 def test_get_legal_basis_unknown_rule_id_also_not_available_not_an_error():
     result = get_legal_basis("LMGEN-R12-VERIFICATION-INTERVALS")
     assert result.status == "not_available"
+    assert result.provisions == []
+
+
+@pytest.mark.parametrize(
+    ("manifest_field", "expected_reason"),
+    [("unresolved_fields", "legal_source_unresolved"), ("blocked_fields", "legal_source_blocked")],
+)
+def test_explicit_unresolved_or_blocked_fields_return_no_provisions(monkeypatch, manifest_field, expected_reason):
+    monkeypatch.setattr(legal_retrieval, "_CORPUS_STATUS", LegalCorpusStatus(corpus_id="test", **{manifest_field: ["country_of_origin"]}))
+    result = get_legal_basis("LMPC-R6-MANDATORY-DECLARATIONS", "country_of_origin")
+    assert result.status == "not_available"
+    assert result.availability_reason == expected_reason
     assert result.provisions == []
 
 
@@ -262,3 +301,43 @@ def test_load_corpus_rejects_provision_with_unknown_source_id(tmp_path):
     path = _write_corpus(tmp_path, [], [orphan_provision])
     with pytest.raises(LegalCorpusError):
         load_corpus(path)
+
+
+def test_load_corpus_rejects_invalid_schema_version(tmp_path):
+    path = tmp_path / "corpus.json"
+    path.write_text(json.dumps({"schema_version": 0, "sources": [], "provisions": []}), encoding="utf-8")
+    with pytest.raises(LegalCorpusError, match="schema_version"):
+        load_corpus(path)
+
+
+def test_load_corpus_rejects_invalid_effective_date_range(tmp_path):
+    source = {
+        "source_id": "X", "title": "T", "citation": "C", "version": "V",
+        "acquired_at": "2026-01-01", "is_amendment": False, "amends_source_id": None,
+        "verification_note": "checked", "effective_from": "2026-02-01", "effective_until": "2026-01-01",
+    }
+    with pytest.raises(LegalCorpusError, match="ending before"):
+        load_corpus(_write_corpus(tmp_path, [source], []))
+
+
+def test_load_corpus_rejects_unknown_amendment_source(tmp_path):
+    source = {
+        "source_id": "X", "title": "T", "citation": "C", "version": "V",
+        "acquired_at": "2026-01-01", "is_amendment": True, "amends_source_id": "MISSING",
+        "verification_note": "checked",
+    }
+    with pytest.raises(LegalCorpusError, match="unknown source_id"):
+        load_corpus(_write_corpus(tmp_path, [source], []))
+
+
+def test_load_corpus_accepts_explicit_verification_state_and_effective_dates(tmp_path):
+    source = {
+        "source_id": "X", "title": "T", "citation": "C", "version": "V",
+        "acquired_at": "2026-01-01", "is_amendment": False, "amends_source_id": None,
+        "verification_note": "checked", "verification_status": "verified",
+        "effective_from": "2026-01-01",
+    }
+    sources, provisions = load_corpus(_write_corpus(tmp_path, [source], []))
+    assert sources["X"].verification_status == "verified"
+    assert sources["X"].effective_from.isoformat() == "2026-01-01"
+    assert provisions == []

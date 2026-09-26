@@ -10,8 +10,19 @@
   var DB_KEY = "legallense_db_v2";
   var SESSION_KEY = "legallense_session_v1";
   var DEMO_KEY = "legallense_demo_session_v1";
+  var DEMO_MODE = false;
 
-  // The backend is always reached on port 8000, but on WHICHEVER hostname
+  function parseDemoModeOverride() {
+    var raw = (global.location && global.location.search) ? global.location.search : "";
+    var match = raw.match(/[?&]demo=(true|1|yes)/i);
+    return !!match;
+  }
+
+  DEMO_MODE = parseDemoModeOverride();
+  global.LL_DEMO_MODE = DEMO_MODE;
+
+  // Production contract: demo/mock data is intentionally disabled unless an
+  // explicit opt-in flag is present. See docs/PRODUCTION_CONTRACT.md.
   // this page itself was loaded from (localhost vs 127.0.0.1) - not
   // hardcoded to one, because browsers treat those as different sites for
   // SameSite cookie purposes. If this page is served from 127.0.0.1 while
@@ -304,6 +315,8 @@
       var secure = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
       if (secure && secure.role) return secure;
 
+      if (global.LL_DEMO_MODE !== true) return null;
+
       var demo = JSON.parse(localStorage.getItem(DEMO_KEY) || "null");
       if (demo && demo.role) return demo;
 
@@ -383,32 +396,33 @@
   }
 
   function getDemoSessionByRole(role) {
-    if (role === "official" || role === "enforcement_official") {
+    if (role === "manufacturer") {
       return {
-        role: "enforcement_official",
+        role: "manufacturer",
         demoMode: true,
-        name: "Demo Enforcement Official",
-        email: "demo.official@legallens.gov.in",
-        org: "Enforcement Division",
+        name: "Demo Manufacturer",
+        email: "demo.manufacturer@legallens.in",
+        org: "Demo Manufacturing Ltd.",
         loggedInAt: nowISO()
       };
     }
     return {
-      role: "official",
+      role: "enforcement_official",
       demoMode: true,
-      name: "Demo Enforcement Official",
-      email: "demo.official@legallens.gov.in",
+      name: "Demo Official",
+      email: "demo.official@example.com",
       org: "Enforcement Division",
       loggedInAt: nowISO()
     };
   }
 
   function isDemoMode() {
-    var session = getSession();
-    return !!(session && session.demoMode === true);
+    return global.LL_DEMO_MODE === true;
   }
 
   function startDemoMode(role) {
+    DEMO_MODE = true;
+    global.LL_DEMO_MODE = true;
     var session = getDemoSessionByRole(role);
     localStorage.setItem(DEMO_KEY, JSON.stringify(session));
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));

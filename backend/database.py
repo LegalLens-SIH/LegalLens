@@ -42,6 +42,8 @@ def connect_to_mongodb() -> Database:
     _database.scans.create_index([("userId", 1), ("date", -1)])
     _database.sessions.create_index("expiresAt", expireAfterSeconds=0)
     _database.history.create_index([("userId", 1), ("createdAt", -1)])
+    _database.audit_events.create_index([("entityId", 1), ("createdAt", -1)])
+    _database.audit_events.create_index("eventHash", unique=True)
     logger.info("Connected to MongoDB database '%s'", DATABASE_NAME)
     return _database
 

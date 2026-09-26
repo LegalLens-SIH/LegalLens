@@ -4,7 +4,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.database import get_database
 from backend.models.compliance import ComplianceResult
+from backend.services.audit import append_audit_event
 from backend.services.compliance_engine import ComplianceEngine
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
@@ -18,7 +20,25 @@ class ComplianceRequest(BaseModel):
 
 @router.post("/evaluate", response_model=ComplianceResult)
 def evaluate_compliance(request: ComplianceRequest) -> ComplianceResult:
+    db = get_database()
     try:
-        return engine.evaluate(request.ocr_result, request.validation_profile)
+        result = engine.evaluate(request.ocr_result, request.validation_profile)
+        entity_id = str(request.ocr_result.get("document_id") or request.ocr_result.get("id") or "manual_evaluation")
+        append_audit_event(
+            db,
+            event_type="compliance_evaluation",
+            entity_type="compliance",
+            entity_id=entity_id,
+            user_id=request.ocr_result.get("userId"),
+            actor_role="system",
+            action="compliance_evaluated",
+            details={
+                "validation_profile": request.validation_profile,
+                "overall_status": result.overall_status,
+                "compliance_score": result.compliance_score,
+                "summary": result.summary,
+            },
+        )
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

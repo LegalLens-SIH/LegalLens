@@ -58,6 +58,25 @@
       });
   }
 
+  function evaluateCaptureQuality(file, baseUrl) {
+    var url = (baseUrl || DEFAULT_BASE_URL) + "/api/captures/quality";
+    var formData = new FormData();
+    formData.append("file", file, file.name);
+    return fetch(url, { method: "POST", body: formData, credentials: "include" })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          return { httpOk: response.ok, status: response.status, data: data };
+        });
+      })
+      .catch(function (networkErr) {
+        return {
+          httpOk: false,
+          status: 0,
+          data: { detail: "Could not evaluate capture quality. " + networkErr.message },
+        };
+      });
+  }
+
   function createScan(file, metadata, baseUrl) {
     var url = (baseUrl || DEFAULT_BASE_URL) + "/api/scans";
     var formData = new FormData();
@@ -68,6 +87,8 @@
     // Phase 2B: optional per-scan OCR mode (see backend/services/ocr_modes.py) -
     // omitted/left as "standard" preserves today's exact default behavior.
     formData.append("ocr_mode", metadata.ocrMode || "standard");
+    formData.append("image_side", metadata.imageSide || "Other");
+    formData.append("capture_quality_requested", metadata.captureQualityRequested ? "true" : "false");
 
     return fetch(url, { method: "POST", body: formData, credentials: "include" })
       .then(function (response) {
@@ -86,6 +107,7 @@
     var files = Array.isArray(file) ? file : [file];
     files.forEach(function (item) { formData.append("file", item.file || item, (item.file || item).name); });
     formData.append("image_sides", JSON.stringify(files.map(function (item) { return item.side || "Other"; })));
+    formData.append("capture_quality_requested", JSON.stringify(files.map(function (item) { return !!item.captureQuality; })));
     formData.append("product_name", metadata.productName || (files[0].file || files[0]).name);
     formData.append("category", metadata.category || "General");
     formData.append("manufacturer", metadata.manufacturer || "Not specified");
@@ -170,6 +192,7 @@
 
   global.LLOcr = {
     runOcr: runOcr,
+    evaluateCaptureQuality: evaluateCaptureQuality,
     createScan: createScan,
     startAnalysisJob: startAnalysisJob,
     getAnalysisJob: getAnalysisJob,

@@ -16,9 +16,10 @@ from pydantic import BaseModel, Field
 from backend.api.auth import manufacturer_user
 from backend.api.ocr import run_ocr
 from backend.database import get_database
+from backend.services.audit import append_audit_event
 from backend.ocr.schemas import OCRResult
 from backend.services.compliance_engine import ComplianceEngine
-from backend.services.image_integrity import compute_image_sha256
+from backend.services.image_integrity import compute_image_sha256, sniff_image_mime_type
 
 SELF_CHECK_IMAGES_COLLECTION = "self_check_images"
 # Manufacturer self-checks are always a retail packaged-commodity label
@@ -112,6 +113,7 @@ async def create_self_check(
     # before run_ocr()/preprocessing touches them - see
     # backend/services/image_integrity.py.
     source_image_sha256 = compute_image_sha256(original_contents)
+    source_mime_type = sniff_image_mime_type(original_contents, file.content_type)
     ocr_response = await run_ocr(file)
     if ocr_response.status_code != 200:
         return ocr_response
@@ -139,6 +141,7 @@ async def create_self_check(
         # backend/services/image_integrity.py. Never consulted by
         # ComplianceEngine and never an authenticity/fraud signal.
         "sourceImageSha256": source_image_sha256,
+        "sourceMimeType": source_mime_type,
         # Official review workflow (additive, orthogonal to complianceResult above -
         # never derived from or fed back into the deterministic engine's own
         # output). None/empty here means "private draft, not yet submitted to
@@ -160,6 +163,57 @@ async def create_self_check(
     )
     revision["sourceImageId"] = str(image_id)
     db.productRevisions.insert_one(revision)
+    append_audit_event(
+        db,
+        event_type="compliance_decision",
+        entity_type="revision",
+        entity_id=revision["revisionId"],
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="self_check_compliance_evaluated",
+        file_name=result.image,
+        source_image_sha256=source_image_sha256,
+        details={
+            "validation_profile": SELF_CHECK_VALIDATION_PROFILE,
+            "overall_status": compliance.overall_status,
+            "compliance_score": compliance.compliance_score,
+            "summary": compliance.summary,
+        },
+    )
+    append_audit_event(
+        db,
+        event_type="upload",
+        entity_type="revision",
+        entity_id=revision["revisionId"],
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="self_check_uploaded",
+        file_name=result.image,
+        source_image_sha256=source_image_sha256,
+        details={
+            "productId": product["productId"],
+            "productName": resolved_product_name,
+            "mimeType": source_mime_type,
+            "version": version,
+        },
+    )
+    append_audit_event(
+        db,
+        event_type="ocr_run",
+        entity_type="revision",
+        entity_id=revision["revisionId"],
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="self_check_ocr_completed",
+        file_name=result.image,
+        source_image_sha256=source_image_sha256,
+        details={
+            "engine": "paddleocr",
+            "detection_count": result.detection_count,
+            "confidence": max((d.confidence for d in result.detections), default=0.0),
+            "validationProfile": SELF_CHECK_VALIDATION_PROFILE,
+        },
+    )
     # The product-portfolio summary (manufacturer-dashboard.html, /api/auth/
     # dashboard) still speaks the pre-existing simple "compliant" /
     # "needs_fix" vocabulary for latestStatus - preserved as-is here so those
@@ -215,4 +269,5 @@ def get_self_check_image(revision_id: str, user: dict[str, Any] = Depends(manufa
         image = GridFS(db, collection=SELF_CHECK_IMAGES_COLLECTION).get(ObjectId(revision["sourceImageId"]))
     except NoFile as exc:
         raise HTTPException(status_code=404, detail="Source image not found") from exc
-    return StreamingResponse(image, media_type=image.content_type or "application/octet-stream")
+    mime_type = getattr(image, "_file", {}).get("contentType") or getattr(image, "_file", {}).get("content_type")
+    return StreamingResponse(image, media_type=mime_type or "application/octet-stream")

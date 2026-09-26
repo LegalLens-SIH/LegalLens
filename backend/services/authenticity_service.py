@@ -26,12 +26,13 @@ the caller to write a second temp file.
 from __future__ import annotations
 
 import io
+import hashlib
 import logging
 from typing import Any, Optional
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 
-from backend.models.authenticity import AuthenticityEvidence, ExifEvidence
+from backend.models.authenticity import AuthenticityEvidence, ElaEvidence, ExifEvidence
 
 logger = logging.getLogger("legallense.services.authenticity")
 
@@ -108,9 +109,45 @@ def extract_exif_evidence(image_bytes: bytes) -> ExifEvidence:
         return ExifEvidence(available=False, error=f"{type(exc).__name__}: {exc}")
 
 
+def extract_ela_evidence(image_bytes: bytes) -> ElaEvidence:
+    """Compute a deterministic JPEG recompression-difference signal.
+
+    This records method parameters and a digest of the difference pixels.
+    It is an integrity/review signal only; the score is not a tampering
+    determination and is never consulted by compliance evaluation.
+    """
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            if img.format != "JPEG":
+                return ElaEvidence(available=False, error="JPEG recompression analysis is only applicable to JPEG images")
+            original = img.convert("RGB")
+            recompressed_bytes = io.BytesIO()
+            quality = 90
+            original.save(recompressed_bytes, format="JPEG", quality=quality, subsampling=0, optimize=False)
+            recompressed_bytes.seek(0)
+            with Image.open(recompressed_bytes) as recompressed_image:
+                recompressed = recompressed_image.convert("RGB")
+            difference = ImageChops.difference(original, recompressed)
+            channel_means = ImageStat.Stat(difference).mean
+            score = min(max(sum(channel_means) / (len(channel_means) * 255.0), 0.0), 1.0)
+            difference_digest = hashlib.sha256(difference.tobytes()).hexdigest()
+            return ElaEvidence(
+                available=True,
+                method="jpeg_recompression_difference",
+                normalized_score=score,
+                recompression_quality=quality,
+                difference_sha256=difference_digest,
+                image_width=original.width,
+                image_height=original.height,
+            )
+    except Exception as exc:
+        logger.warning("JPEG recompression evidence failed; continuing without it: %s", exc)
+        return ElaEvidence(available=False, error=f"{type(exc).__name__}: {exc}")
+
+
 def build_authenticity_evidence(image_bytes: bytes) -> AuthenticityEvidence:
-    """Entry point for the result pipeline: wraps extract_exif_evidence
-    into the top-level AuthenticityEvidence container. Never raises (see
-    extract_exif_evidence's own docstring), so callers can attach this
-    unconditionally alongside OCR/compliance without special-casing."""
-    return AuthenticityEvidence(exif=extract_exif_evidence(image_bytes))
+    """Entry point for the result pipeline: wraps EXIF and ELA evidence into
+    the top-level AuthenticityEvidence container. Never raises; callers can
+    attach this unconditionally alongside OCR/compliance without
+    special-casing."""
+    return AuthenticityEvidence(exif=extract_exif_evidence(image_bytes), ela=extract_ela_evidence(image_bytes))

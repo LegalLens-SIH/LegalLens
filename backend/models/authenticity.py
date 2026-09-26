@@ -54,16 +54,39 @@ class ExifEvidence(BaseModel):
     )
 
 
+class ElaEvidence(BaseModel):
+    """Additive ELA-style evidence for a single uploaded image.
+
+    This is intentionally a lightweight, privacy-safe proxy: it carries a
+    normalized numeric score and metadata about the method, but never stores
+    raw pixel-level diff maps or GPS coordinates. The score is evidence only
+    and is never used as a fraud verdict by the compliance pipeline.
+    """
+
+    available: bool = Field(False, description="Whether JPEG recompression-difference evidence was computed")
+    method: str = Field("jpeg_recompression_difference", description="The evidence method used")
+    normalized_score: Optional[float] = Field(
+        None, ge=0, le=1,
+        description="Normalized mean recompression difference in [0, 1]; evidence only, never a fraud verdict",
+    )
+    recompression_quality: Optional[int] = Field(None, ge=1, le=100)
+    difference_sha256: Optional[str] = Field(None, description="SHA-256 of the recompression difference pixels")
+    image_width: Optional[int] = Field(None, gt=0)
+    image_height: Optional[int] = Field(None, gt=0)
+    error: Optional[str] = Field(
+        None, description="Unavailable reason or computation error; never affects OCR/compliance processing",
+    )
+
+
 class AuthenticityEvidence(BaseModel):
     """Top-level container for independent authenticity evidence - additive
     and parallel to (never consulted by) the OCR/extraction/compliance
     pipeline. See backend/services/authenticity_service.py's module
     docstring for the full architectural note.
 
-    Deliberately just a container for now (only `exif`); other evidence
-    types (ELA, noise/compression analysis, ...) are explicitly out of
-    scope for this task. A future task would add those as sibling fields
-    here, never by changing what `exif` means or how it is produced.
+    The evidence set may grow over time; `exif` and `ela` are sibling
+    blocks and both are evidence-only metadata, never a fraud verdict.
     """
 
     exif: ExifEvidence
+    ela: ElaEvidence = Field(default_factory=lambda: ElaEvidence(available=False))

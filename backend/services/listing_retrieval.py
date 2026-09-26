@@ -24,13 +24,16 @@ target. See backend/services/test_listing_retrieval.py.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
 import httpx
 
+from backend.database import get_database
 from backend.models.listing import ListingRetrievalStatus
+from backend.services.audit import append_audit_event
 from backend.services.url_safety import UnsafeURLError, validate_public_url
 
 logger = logging.getLogger("legallense.services.listing_retrieval")
@@ -59,6 +62,7 @@ class RetrievalOutcome:
     content_type: Optional[str] = None
     http_status: Optional[int] = None
     error_message: Optional[str] = None
+    body_sha256: Optional[str] = None
 
 
 def _charset_from_content_type(content_type: str) -> str:
@@ -83,6 +87,19 @@ class ListingFetcher:
         except UnsafeURLError as exc:
             status = _REASON_TO_STATUS.get(exc.reason_code, "INVALID_URL")
             logger.info("Listing URL rejected (%s): %s", status, exc)
+            try:
+                db = get_database()
+                append_audit_event(
+                    db,
+                    event_type="url_fetch",
+                    entity_type="listing_url",
+                    entity_id=url,
+                    actor_role="system",
+                    action="fetch_blocked",
+                    details={"requested_url": url, "reason_code": exc.reason_code, "status": status},
+                )
+            except Exception:
+                pass
             return RetrievalOutcome(status=status, requested_url=url, error_message=str(exc))
 
         current_url = safe.url
@@ -146,11 +163,11 @@ class ListingFetcher:
                                     error_message=f"HTTP {response.status_code}",
                                 )
 
-                            if content_type and content_type not in ALLOWED_CONTENT_TYPES:
+                            if content_type not in ALLOWED_CONTENT_TYPES:
                                 return RetrievalOutcome(
                                     status="UNSUPPORTED_CONTENT_TYPE", requested_url=url, final_url=current_url,
                                     http_status=response.status_code, content_type=content_type,
-                                    error_message=f"Unsupported content type '{content_type}'",
+                                    error_message=f"Missing or unsupported content type '{content_type or '(missing)'}'",
                                 )
 
                             declared_length = response.headers.get("content-length")
@@ -187,10 +204,31 @@ class ListingFetcher:
                             except LookupError:
                                 html_text = bytes(body).decode("utf-8", errors="replace")
 
-                            return RetrievalOutcome(
+                            result = RetrievalOutcome(
                                 status="SUCCESS", requested_url=url, final_url=current_url,
                                 html=html_text, content_type=content_type, http_status=response.status_code,
+                                body_sha256=hashlib.sha256(body).hexdigest(),
                             )
+                            try:
+                                db = get_database()
+                                append_audit_event(
+                                    db,
+                                    event_type="url_fetch",
+                                    entity_type="listing_url",
+                                    entity_id=current_url,
+                                    actor_role="system",
+                                    action="fetch_completed",
+                                    details={
+                                        "requested_url": url,
+                                        "final_url": current_url,
+                                        "status": result.status,
+                                        "http_status": result.http_status,
+                                        "content_type": result.content_type,
+                                    },
+                                )
+                            except Exception:
+                                pass
+                            return result
                     except httpx.TimeoutException as exc:
                         return RetrievalOutcome(
                             status="TIMEOUT", requested_url=url, final_url=current_url, error_message=str(exc),

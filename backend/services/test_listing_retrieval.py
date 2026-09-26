@@ -94,6 +94,16 @@ def test_redirect_to_a_private_address_is_blocked(monkeypatch):
     assert result.status == "REDIRECT_BLOCKED"
 
 
+def test_redirect_to_cloud_metadata_ip_is_blocked():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "shop.example":
+            return httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data/"})
+        raise AssertionError("must never actually connect to the metadata endpoint")
+
+    result = _fetcher_for(handler).fetch("https://shop.example/redirect-to-metadata")
+    assert result.status == "REDIRECT_BLOCKED"
+
+
 def test_redirect_with_no_location_header_is_a_connection_failure():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(302)
@@ -133,6 +143,15 @@ def test_unsupported_content_type_is_rejected():
 
     result = _fetcher_for(handler).fetch("https://shop.example/brochure.pdf")
     assert result.status == "UNSUPPORTED_CONTENT_TYPE"
+
+
+def test_missing_content_type_is_rejected():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>untyped page</html>")
+
+    result = _fetcher_for(handler).fetch("https://shop.example/no-content-type")
+    assert result.status == "UNSUPPORTED_CONTENT_TYPE"
+    assert "Missing or unsupported" in result.error_message
 
 
 def test_oversized_response_by_content_length_is_rejected():

@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from backend.api.auth import official_user
 from backend.api.manufacturer import SELF_CHECK_IMAGES_COLLECTION, public_revision
 from backend.database import get_database
+from backend.services.audit import append_audit_event
 
 router = APIRouter(prefix="/api/official", tags=["official"])
 
@@ -130,7 +131,8 @@ def get_revision_image(revision_id: str, user: dict[str, Any] = Depends(official
         image = GridFS(db, collection=SELF_CHECK_IMAGES_COLLECTION).get(ObjectId(revision["sourceImageId"]))
     except NoFile as exc:
         raise HTTPException(status_code=404, detail="Source image not found") from exc
-    return StreamingResponse(image, media_type=image.content_type or "application/octet-stream")
+    mime_type = getattr(image, "_file", {}).get("contentType") or getattr(image, "_file", {}).get("content_type")
+    return StreamingResponse(image, media_type=mime_type or "application/octet-stream")
 
 
 @router.post("/revisions/{revision_id}/decision")
@@ -156,6 +158,21 @@ def record_decision(revision_id: str, payload: DecisionRequest, user: dict[str, 
     db.productRevisions.update_one(
         {"revisionId": revision_id},
         {"$push": {"decisionHistory": entry}, "$set": {"officialDecision": entry, "reviewStatus": "DECISION_RECORDED"}},
+    )
+    append_audit_event(
+        db,
+        event_type="compliance_decision",
+        entity_type="revision",
+        entity_id=revision_id,
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="official_decision_recorded",
+        details={
+            "officialName": user.get("fullName", "Official"),
+            "action": payload.action,
+            "remarks": payload.remarks.strip(),
+            "decisionHistoryLength": len(revision.get("decisionHistory", [])) + 1,
+        },
     )
     db.history.insert_one({
         "userId": user["_id"], "actionType": "official_decision_recorded",

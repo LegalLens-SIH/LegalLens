@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import os
 from contextvars import ContextVar
 from io import BytesIO
 import tempfile
@@ -22,12 +23,20 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import JSONResponse, StreamingResponse
 from gridfs import GridFS
 from gridfs.errors import NoFile
+from PIL import Image
 from starlette.datastructures import Headers
 
 from backend.database import get_database
 from backend.api.auth import official_user
+from backend.services.audit import append_audit_event
 from backend.services.authenticity_service import build_authenticity_evidence
-from backend.services.image_integrity import compute_image_sha256
+from backend.services.capture_quality import evaluate_capture_bytes
+from backend.services.evidence_package import assemble_evidence_package_from_scan, record_evidence_package
+from backend.services.image_integrity import compute_image_sha256, sniff_image_mime_type
+from backend.services.legibility_validator import measure_ocr_detection
+from backend.services.pdp_detector import PDPDetectorService
+from backend.ocr.ensemble import run_ensemble
+from backend.ocr.tesseract_service import TesseractOCRService
 from backend.ocr.gemini_service import (
     GEMINI_API_KEY,
     GEMINI_ENABLED,
@@ -58,6 +67,7 @@ _compliance_engine = ComplianceEngine()
 # for every request. Disabled entirely via YOLO_ENABLED=false, in which case
 # OCR runs exactly as it did before YOLO26 was introduced.
 _yolo_service = YOLOService() if YOLO_ENABLED else None
+_pdp_detector_service = PDPDetectorService()
 
 # Phase 2B production tuning (2026-09-17): resize (downscale to
 # PreprocessOptions.max_side=2000px before OCR) is now the UNCONDITIONAL
@@ -97,6 +107,11 @@ _preprocess_options = PreprocessOptions(
 # network call happens until a request is actually made), same lazy pattern
 # as _yolo_service above.
 _gemini_service = GeminiService() if GEMINI_ENABLED else None
+
+TESSERACT_ENABLED = os.getenv("TESSERACT_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+_raw_tesseract_mode = os.getenv("TESSERACT_MODE", "secondary").strip().lower()
+TESSERACT_MODE = _raw_tesseract_mode if _raw_tesseract_mode in {"secondary", "fallback"} else "secondary"
+_tesseract_service = TesseractOCRService()
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB safety cap for local dev
@@ -162,9 +177,67 @@ def _deduplicate_detections(results: list[OCRResult]) -> list[Any]:
     return unique
 
 
-def _error_response(status_code: int, image: str, code: str, message: str) -> JSONResponse:
+def _error_response(status_code: int, image: str, code: str, message: str, secondary_ocr: dict[str, Any] | None = None) -> JSONResponse:
     result = OCRResult(success=False, image=image, error=OCRError(code=code, message=message))
-    return JSONResponse(status_code=status_code, content=result.model_dump())
+    content = result.model_dump()
+    if secondary_ocr is not None:
+        content["secondary_ocr"] = secondary_ocr
+    return JSONResponse(status_code=status_code, content=content)
+
+
+def _secondary_ocr_evidence(contents: bytes, paddle_result: OCRResult | None) -> dict[str, Any] | None:
+    if not TESSERACT_ENABLED:
+        return None
+    paddle_has_text = paddle_result is not None and paddle_result.success and paddle_result.detection_count > 0
+    if TESSERACT_MODE == "fallback" and paddle_has_text:
+        return None
+    if not _tesseract_service.enabled:
+        return {
+            "status": "unavailable",
+            "mode": TESSERACT_MODE,
+            "engine": "tesseract",
+            "provenance": "secondary_review_only",
+            "used_for_compliance": False,
+            "message": "Tesseract was requested but its optional Python package or native binary is unavailable.",
+        }
+    try:
+        with Image.open(BytesIO(contents)) as source_image:
+            image = source_image.convert("RGB")
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "mode": TESSERACT_MODE,
+            "engine": "tesseract",
+            "provenance": "secondary_review_only",
+            "used_for_compliance": False,
+            "message": f"Could not decode the source image for secondary OCR: {type(exc).__name__}",
+        }
+
+    candidate = _tesseract_service.run(image)
+    if not candidate.get("success"):
+        return {
+            "status": "unavailable",
+            "mode": TESSERACT_MODE,
+            "engine": "tesseract",
+            "provenance": "secondary_review_only",
+            "used_for_compliance": False,
+            "result": candidate,
+        }
+
+    paddle_succeeded = paddle_has_text
+    evidence: dict[str, Any] = {
+        "status": "secondary_completed" if paddle_succeeded else "fallback_review_required",
+        "mode": TESSERACT_MODE,
+        "engine": "tesseract",
+        "provenance": "secondary_review_only",
+        "authoritative_engine": "paddleocr" if paddle_succeeded else None,
+        "used_for_compliance": False,
+        "requires_manual_review": not paddle_succeeded,
+        "result": candidate,
+    }
+    if paddle_succeeded:
+        evidence["comparison"] = run_ensemble(paddle_result.model_dump(), candidate)
+    return evidence
 
 
 # There is no frontend control for retail/wholesale/instrument-audit
@@ -214,6 +287,49 @@ def _public_scan(scan: dict[str, Any]) -> dict[str, Any]:
     if public.get("userId") is not None:
         public["userId"] = str(public["userId"])
     return public
+
+
+def _unavailable_font_measurements(detections: list[dict[str, Any]]) -> dict[str, Any]:
+    """Retain OCR geometry while refusing physical measurements without scale."""
+    items = []
+    for index, detection in enumerate(detections):
+        region_id = f"region_{index}"
+        measurement = measure_ocr_detection(
+            detection=detection,
+            calibration=None,
+            evidence_region_ids=[region_id],
+        )
+        items.append({"detection_id": region_id, **measurement})
+    return {
+        "status": "review_required",
+        "available": False,
+        "review_reason": "No validated barcode-symbol geometry and verified physical reference dimension are available for this scan.",
+        "items": items,
+    }
+
+
+def _capture_assessment(contents: bytes, *, filename: str, side: str) -> dict[str, Any]:
+    try:
+        quality = evaluate_capture_bytes(contents)
+        return {
+            "status": "assessed",
+            "filename": filename,
+            "side": side,
+            "quality": quality,
+        }
+    except ValueError as exc:
+        return {
+            "status": "unavailable",
+            "filename": filename,
+            "side": side,
+            "quality": {
+                "acceptable": False,
+                "reasons": [f"Capture quality could not be assessed: {exc}"],
+                "source_image_sha256": compute_image_sha256(contents),
+                "framing_status": "manual_visual_check_required",
+                "physical_calibration": {"status": "unavailable", "review_required": True},
+            },
+        }
 
 
 async def _run_ocr_core(file: Optional[UploadFile], preprocess_options: Optional[PreprocessOptions]):
@@ -270,6 +386,16 @@ async def _run_ocr_core(file: Optional[UploadFile], preprocess_options: Optional
         if _active_progress_job.get():
             run_options["progress_callback"] = _report_progress
         result = _service.run(str(tmp_path), **run_options)
+        if _pdp_detector_service.enabled:
+            source_image_sha256 = compute_image_sha256(contents)
+            try:
+                source_image = PaddleOCRService.load_image(str(tmp_path))
+            except Exception:
+                source_image = None
+            result.pdp_detection = _pdp_detector_service.run(
+                source_image,
+                source_image_sha256=source_image_sha256,
+            )
         # Swap the temp filename back out for the original, client-facing name,
         # and scrub the server-side temp path out of any error message so no
         # internal filesystem detail reaches the browser.
@@ -277,6 +403,7 @@ async def _run_ocr_core(file: Optional[UploadFile], preprocess_options: Optional
         result.image_path = None
         if result.error is not None:
             result.error.message = result.error.message.replace(str(tmp_path), original_name)
+        result.secondary_ocr = _secondary_ocr_evidence(contents, result)
 
         status_code = 200 if result.success else 422
         logger.info(
@@ -287,11 +414,13 @@ async def _run_ocr_core(file: Optional[UploadFile], preprocess_options: Optional
 
     except OCRInitializationError as exc:
         logger.exception("PaddleOCR engine failed to initialize")
-        return _error_response(503, original_name, "engine_init_failed", "OCR engine failed to initialize")
+        secondary_ocr = _secondary_ocr_evidence(contents, None)
+        return _error_response(503, original_name, "engine_init_failed", "OCR engine failed to initialize", secondary_ocr)
 
     except Exception:
         logger.exception("Unexpected error while processing OCR request for %s", original_name)
-        return _error_response(500, original_name, "internal_error", "Unexpected server error during OCR processing")
+        secondary_ocr = _secondary_ocr_evidence(contents, None)
+        return _error_response(500, original_name, "internal_error", "Unexpected server error during OCR processing", secondary_ocr)
 
     finally:
         try:
@@ -307,6 +436,54 @@ async def run_ocr(file: Optional[UploadFile] = File(None)):
     return await _run_ocr_core(file, _preprocess_options)
 
 
+@router.post("/api/captures/quality")
+async def assess_capture_quality(
+    file: Optional[UploadFile] = File(None),
+    user: dict[str, Any] = Depends(official_user),
+):
+    if file is None or not file.filename:
+        raise HTTPException(status_code=400, detail="No image was uploaded")
+    filename = Path(file.filename).name
+    if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="Unsupported image type")
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty")
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds the 15MB upload limit")
+    try:
+        quality = evaluate_capture_bytes(contents)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    database = get_database()
+    source_hash = quality["source_image_sha256"]
+    event = append_audit_event(
+        database,
+        event_type="capture_evaluation",
+        entity_type="capture",
+        entity_id=source_hash,
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="capture_quality_accepted" if quality["acceptable"] else "capture_quality_rejected",
+        file_name=filename,
+        source_image_sha256=source_hash,
+        details={
+            "acceptable": quality["acceptable"],
+            "reasons": quality["reasons"],
+            "dimensions": [quality["image_width"], quality["image_height"]],
+            "framing_status": quality["framing_status"],
+            "physical_calibration": quality["physical_calibration"],
+        },
+    )
+    return {
+        "success": True,
+        "filename": filename,
+        "quality": quality,
+        "audit_event_hash": event["eventHash"],
+    }
+
+
 @router.post("/api/scans")
 async def create_scan(
     file: Optional[UploadFile] = File(None),
@@ -314,6 +491,8 @@ async def create_scan(
     category: str = Form("General"),
     manufacturer: str = Form("Not specified"),
     ocr_mode: str = Form(DEFAULT_OCR_MODE),
+    image_side: str = Form("Other"),
+    capture_quality_requested: bool = Form(False),
     user: dict[str, Any] = Depends(official_user),
 ):
     """Run OCR and persist the original scan record in MongoDB."""
@@ -359,6 +538,12 @@ async def create_scan(
     # run_ocr()/preprocessing touches them - the hash corresponds to the
     # exact analyzed upload, never a resized/preprocessed derivative.
     source_image_sha256 = compute_image_sha256(original_contents) if original_contents else None
+    source_mime_type = sniff_image_mime_type(original_contents, file.content_type if file is not None else None)
+    capture_assessment = (
+        _capture_assessment(original_contents, filename=Path(file.filename).name, side=image_side)
+        if capture_quality_requested and original_contents and file is not None
+        else None
+    )
     response = await _run_ocr_core(file, effective_preprocess_options)
     if response.status_code != 200:
         return response
@@ -369,7 +554,9 @@ async def create_scan(
 
     _report_progress("OCR_PROCESSING")
 
-    ocr_dict = result.model_dump()
+    secondary_ocr = result.secondary_ocr
+    pdp_detection = result.pdp_detection
+    ocr_dict = result.model_dump(exclude={"secondary_ocr", "pdp_detection"})
     # Computed once and reused for both the Gemini ambiguous-field check and
     # structured extraction below (see find_ambiguous_fields' and
     # build_structured_extraction's `normalized` parameter) - a cheap, pure,
@@ -422,6 +609,15 @@ async def create_scan(
     compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
     _report_progress("RULE_VALIDATION")
     scan = _scan_document(result, product_name.strip(), category.strip(), manufacturer.strip(), result.image)
+    font_measurements = _unavailable_font_measurements([d.model_dump() for d in result.detections])
+    scan["fontHeightMeasurements"] = font_measurements["items"]
+    scan["measurementReview"] = {key: value for key, value in font_measurements.items() if key != "items"}
+    if capture_assessment is not None:
+        scan["captureAssessments"] = [capture_assessment]
+    if secondary_ocr is not None:
+        scan["secondaryOcr"] = secondary_ocr
+    if pdp_detection is not None:
+        scan["pdpDetection"] = pdp_detection
     if gemini_fields_used:
         # Provenance only - never fed back into ComplianceEngine/NormalizedField,
         # which is entirely unaware this key exists; purely an audit trail for
@@ -449,6 +645,8 @@ async def create_scan(
         # exact hash of the analyzed upload, never consulted by
         # ComplianceEngine and never an authenticity/fraud signal.
         scan["sourceImageSha256"] = source_image_sha256
+    if source_mime_type:
+        scan["sourceMimeType"] = source_mime_type
     # Phase 2B: evidence/traceability only - which OCR mode actually
     # produced this scan's OCR result, never consulted by ComplianceEngine.
     scan["ocrMode"] = resolved_ocr_mode
@@ -486,8 +684,148 @@ async def create_scan(
         scan_id=scan["id"],
         user_id=user["_id"],
     )
+    upload_audit = append_audit_event(
+        database,
+        event_type="upload",
+        entity_type="scan",
+        entity_id=scan["id"],
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="scan_uploaded",
+        file_name=result.image,
+        source_image_sha256=source_image_sha256,
+        details={
+            "fileHash": source_image_sha256,
+            "mimeType": source_mime_type,
+            "productName": product_name.strip(),
+            "category": category.strip(),
+            "manufacturer": manufacturer.strip(),
+        },
+    )
+    ocr_audit = append_audit_event(
+        database,
+        event_type="ocr_run",
+        entity_type="scan",
+        entity_id=scan["id"],
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="ocr_completed",
+        file_name=result.image,
+        source_image_sha256=source_image_sha256,
+        details={
+            "engine": "paddleocr",
+            "detection_count": result.detection_count,
+            "confidence": max((d.confidence for d in result.detections), default=0.0),
+            "ocrMode": resolved_ocr_mode,
+            "preprocessingApplied": result.preprocessing_applied,
+        },
+    )
+    authenticity_audit = None
+    if authenticity is not None:
+        authenticity_audit = append_audit_event(
+            database,
+            event_type="image_authenticity_analysis",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="integrity_evidence_collected",
+            file_name=result.image,
+            source_image_sha256=source_image_sha256,
+            details={
+                "exif_available": authenticity.exif.available,
+                "ela_available": authenticity.ela.available,
+                "ela_method": authenticity.ela.method,
+                "ela_difference_sha256": authenticity.ela.difference_sha256,
+                "is_compliance_verdict": False,
+            },
+        )
+    capture_audit = None
+    if capture_assessment is not None:
+        capture_quality = capture_assessment["quality"]
+        capture_audit = append_audit_event(
+            database,
+            event_type="capture_evaluation",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="camera_capture_assessed" if capture_assessment["status"] == "assessed" else "camera_capture_quality_unavailable",
+            file_name=result.image,
+            source_image_sha256=source_image_sha256,
+            details={
+                "side": capture_assessment["side"],
+                "quality_status": capture_assessment["status"],
+                "acceptable": capture_quality.get("acceptable", False),
+                "reasons": capture_quality.get("reasons", []),
+                "physical_calibration": capture_quality.get("physical_calibration"),
+            },
+        )
+    pdp_audit = None
+    if pdp_detection is not None:
+        pdp_audit = append_audit_event(
+            database,
+            event_type="experimental_pdp_detection",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action=str(pdp_detection.get("status", "pdp_unavailable")),
+            file_name=result.image,
+            source_image_sha256=source_image_sha256,
+            details={
+                "model_hash": pdp_detection.get("model_hash"),
+                "status": pdp_detection.get("status"),
+                "detection_count": len(pdp_detection.get("detections", [])),
+                "production_authority": False,
+                "used_for_compliance": False,
+            },
+        )
+    secondary_ocr_audit = None
+    if secondary_ocr is not None:
+        secondary_result = secondary_ocr.get("result") if isinstance(secondary_ocr.get("result"), dict) else {}
+        secondary_ocr_audit = append_audit_event(
+            database,
+            event_type="secondary_ocr_run",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action=str(secondary_ocr.get("status", "secondary_ocr_unavailable")),
+            file_name=result.image,
+            source_image_sha256=source_image_sha256,
+            details={
+                "mode": secondary_ocr.get("mode"),
+                "engine": "tesseract",
+                "status": secondary_ocr.get("status"),
+                "detection_count": secondary_result.get("detection_count", 0),
+                "used_for_compliance": False,
+                "provenance": secondary_ocr.get("provenance"),
+            },
+        )
     scan["sourceImageId"] = str(image_id)
     scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
+    package = assemble_evidence_package_from_scan(
+        evidence_id=scan["id"],
+        ocr_result=ocr_dict,
+        compliance_result=compliance.model_dump(),
+        audit_refs=[
+            event["eventHash"]
+            for event in (upload_audit, ocr_audit, authenticity_audit, secondary_ocr_audit, capture_audit, pdp_audit)
+            if event is not None and event.get("eventHash")
+        ],
+        scan_evidence=scan,
+        source_images=[{
+            "contents": original_contents,
+            "file_name": result.image,
+            "mime_type": source_mime_type,
+            "sha256": source_image_sha256,
+        }],
+    )
+    package_audit = record_evidence_package(database, package, entity_id=scan["id"], entity_type="scan")
+    scan["evidencePackageId"] = package.package_id
+    scan["evidenceMerkleRoot"] = package.merkle_root
+    scan["evidencePackageAuditHash"] = package_audit["eventHash"]
     database.scans.insert_one(scan)
     database.history.insert_one({
         "userId": user["_id"],
@@ -522,6 +860,8 @@ async def _run_analysis_job(
             body = result.body.decode("utf-8") if result.body else "{}"
             payload = __import__("json").loads(body)
             message = payload.get("error", {}).get("message", "Analysis failed")
+            if payload.get("secondary_ocr") is not None:
+                _analysis_jobs[job_id]["secondaryOcr"] = payload["secondary_ocr"]
             _report_progress(_analysis_jobs[job_id].get("stage", "OCR_PROCESSING"), error=message)
             return
         _report_progress("COMPLETED", result=result)
@@ -554,14 +894,26 @@ def _run_image_ocr(contents: bytes, filename: str, progress_callback: Any) -> OC
             preprocess_options=_preprocess_options,
             progress_callback=progress_callback,
         )
+        if _pdp_detector_service.enabled:
+            try:
+                source_image = PaddleOCRService.load_image(str(tmp_path))
+            except Exception:
+                source_image = None
+            result.pdp_detection = _pdp_detector_service.run(
+                source_image,
+                source_image_sha256=compute_image_sha256(contents),
+            )
         result.image = filename
         result.image_path = None
         if result.error is not None:
             result.error.message = result.error.message.replace(str(tmp_path), filename)
+        result.secondary_ocr = _secondary_ocr_evidence(contents, result)
         return result
     except Exception as exc:
         logger.exception("OCR failed for multi-image upload %s", filename)
-        return OCRResult(success=False, image=filename, error=OCRError(code="internal_error", message=str(exc)))
+        failed = OCRResult(success=False, image=filename, error=OCRError(code="internal_error", message=str(exc)))
+        failed.secondary_ocr = _secondary_ocr_evidence(contents, failed)
+        return failed
     finally:
         try:
             if tmp_path.exists():
@@ -583,10 +935,37 @@ async def _run_multi_analysis_job(
     try:
         total = len(images)
         _report_analysis_update(12, "IMAGE_VALIDATION", f"Validating {total} uploaded images", imageCount=total)
+        panel_hashes: list[dict[str, Any]] = []
+        panel_authenticity: list[dict[str, Any]] = []
         for index, image in enumerate(images):
             image_number = index + 1
             start = 18 + round(index / total * 57)
             _report_analysis_update(start, "IMAGE_PREPROCESSING", f"Preparing image {image_number} of {total}", currentImage=image_number, currentSide=image["side"])
+            source_sha256 = compute_image_sha256(image["contents"])
+            authenticity = build_authenticity_evidence(image["contents"]).model_dump()
+            image["sha256"] = source_sha256
+            image["authenticity"] = authenticity
+            panel_hashes.append({
+                "side": image["side"],
+                "fileName": image["filename"],
+                "sha256": source_sha256,
+            })
+            panel_authenticity.append({
+                "side": image["side"],
+                "fileName": image["filename"],
+                "evidence": authenticity,
+            })
+            if image.get("capture_quality_requested"):
+                image["capture_assessment"] = _capture_assessment(
+                    image["contents"], filename=image["filename"], side=image["side"],
+                )
+            else:
+                image["capture_assessment"] = {
+                    "status": "not_assessed",
+                    "filename": image["filename"],
+                    "side": image["side"],
+                    "quality": {"acceptable": None, "reasons": ["No live-camera quality preflight was supplied for this image."]},
+                }
 
             def image_progress(stage: str, image_number: int = image_number, side: str = image["side"]) -> None:
                 offsets = {"IMAGE_PREPROCESSING": 0, "OBJECT_DETECTION": 10, "OCR_PROCESSING": 28}
@@ -600,6 +979,12 @@ async def _run_multi_analysis_job(
 
         successful = [item for item in image_results if item["result"].success]
         if not successful:
+            secondary_candidates = [
+                {"side": item["image"]["side"], "fileName": item["image"]["filename"], "result": item["result"].secondary_ocr}
+                for item in image_results if item["result"].secondary_ocr is not None
+            ]
+            if secondary_candidates and job_id in _analysis_jobs:
+                _analysis_jobs[job_id]["secondaryOcr"] = secondary_candidates
             _report_progress("OCR_PROCESSING", error="No uploaded image could be processed")
             return
 
@@ -627,6 +1012,11 @@ async def _run_multi_analysis_job(
         _report_analysis_update(95, "RULE_VALIDATION", "Checking Legal Metrology rules", processedImages=len(successful), failedImages=total - len(successful))
 
         scan = _scan_document(combined, product_name.strip(), category.strip(), manufacturer.strip(), combined.image)
+        font_measurements = _unavailable_font_measurements([d.model_dump() for d in combined.detections])
+        secondary_candidates = [
+            {"side": item["image"]["side"], "fileName": item["image"]["filename"], "result": item["result"].secondary_ocr}
+            for item in image_results if item["result"].secondary_ocr is not None
+        ]
         scan.update({
             "userId": user["_id"], "success": True, "image": combined.image,
             "full_text": combined.full_text, "detections": [d.model_dump() for d in combined.detections],
@@ -634,27 +1024,135 @@ async def _run_multi_analysis_job(
             "error": None, "compliance": compliance.model_dump(), "status": _status_for_compliance(compliance.overall_status),
             "score": compliance.compliance_score, "structuredExtraction": structured_extraction.model_dump(),
             "imagesProcessed": len(successful), "imagesRequested": total,
+            "panelHashes": panel_hashes,
+            "panelAuthenticity": panel_authenticity,
+            "captureAssessments": [image["capture_assessment"] for image in images],
+            "pdpDetections": [
+                {"side": item["image"]["side"], "fileName": item["image"]["filename"], "result": item["result"].pdp_detection}
+                for item in image_results
+                if item["result"].pdp_detection is not None
+            ],
+            "secondaryOcr": secondary_candidates,
+            "fontHeightMeasurements": font_measurements["items"],
+            "measurementReview": {key: value for key, value in font_measurements.items() if key != "items"},
+            "sourceMimeType": sniff_image_mime_type(successful[0]["image"]["contents"], successful[0]["image"]["content_type"]),
             "imageResults": [{"fileName": item["image"]["filename"], "side": item["image"]["side"], "success": item["result"].success, "detectionCount": item["result"].detection_count, "error": item["result"].error.model_dump() if item["result"].error else None} for item in image_results],
         })
         database = get_database()
         source_images = []
-        for item in successful:
+        for item in image_results:
             image = item["image"]
             image_id = GridFS(database, collection="scan_images").put(image["contents"], filename=image["filename"], content_type=image["content_type"], scan_id=scan["id"], user_id=user["_id"])
-            source_images.append({"id": str(image_id), "fileName": image["filename"], "side": image["side"], "detectionCount": item["result"].detection_count})
+            source_images.append({
+                "id": str(image_id),
+                "fileName": image["filename"],
+                "side": image["side"],
+                "detectionCount": item["result"].detection_count,
+                "success": item["result"].success,
+                "sha256": image["sha256"],
+            })
         scan["sourceImages"] = source_images
         if source_images:
             scan["sourceImageId"] = source_images[0]["id"]
             scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
             for source_image in source_images:
                 source_image["url"] = f"/api/scans/{scan['id']}/images/{source_images.index(source_image)}"
+
+        upload_audit = append_audit_event(
+            database,
+            event_type="upload",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_scan_uploaded",
+            file_name=combined.image,
+            details={"panelHashes": panel_hashes, "imageCount": total},
+        )
+        authenticity_audit = append_audit_event(
+            database,
+            event_type="image_authenticity_analysis",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_integrity_evidence_collected",
+            file_name=combined.image,
+            details={"panelAuthenticity": panel_authenticity, "is_compliance_verdict": False},
+        )
+        capture_audit = append_audit_event(
+            database,
+            event_type="capture_evaluation",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_capture_assessments_recorded",
+            file_name=combined.image,
+            details={"capture_assessments": scan["captureAssessments"], "compliance_affected": False},
+        )
+        pdp_audit = append_audit_event(
+            database,
+            event_type="experimental_pdp_detection",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_candidates_recorded",
+            file_name=combined.image,
+            details={"panel_detections": scan["pdpDetections"], "production_authority": False, "used_for_compliance": False},
+        ) if scan["pdpDetections"] else None
+        secondary_ocr_audit = append_audit_event(
+            database,
+            event_type="secondary_ocr_run",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_secondary_ocr_recorded",
+            file_name=combined.image,
+            details={"panels": secondary_candidates, "used_for_compliance": False, "engine": "tesseract"},
+        ) if secondary_candidates else None
+        ocr_audit = append_audit_event(
+            database,
+            event_type="ocr_run",
+            entity_type="scan",
+            entity_id=scan["id"],
+            user_id=user["_id"],
+            actor_role=user.get("role"),
+            action="multi_image_ocr_completed",
+            file_name=combined.image,
+            details={"engine": "paddleocr", "detection_count": combined.detection_count, "images_processed": len(successful), "images_requested": total},
+        )
+        package = assemble_evidence_package_from_scan(
+            evidence_id=scan["id"],
+            ocr_result=ocr_dict,
+            compliance_result=compliance.model_dump(),
+            audit_refs=[event["eventHash"] for event in (upload_audit, authenticity_audit, ocr_audit, capture_audit, pdp_audit, secondary_ocr_audit) if event is not None and event.get("eventHash")],
+            scan_evidence=scan,
+            source_images=[{
+                "contents": image["contents"],
+                "file_name": image["filename"],
+                "mime_type": sniff_image_mime_type(image["contents"], image["content_type"]),
+                "sha256": image["sha256"],
+                "side": image["side"],
+                "authenticity": image["authenticity"],
+                "capture_assessment": image["capture_assessment"],
+            } for image in images],
+        )
+        package_audit = record_evidence_package(database, package, entity_id=scan["id"], entity_type="scan")
+        scan["evidencePackageId"] = package.package_id
+        scan["evidenceMerkleRoot"] = package.merkle_root
+        scan["evidencePackageAuditHash"] = package_audit["eventHash"]
         database.scans.insert_one(scan)
         database.history.insert_one({"userId": user["_id"], "actionType": "scan_uploaded", "title": "Product label uploaded", "description": f"Multi-image OCR scan created for {scan['productName']}.", "documentId": scan["id"], "metadata": {"fileName": combined.image, "category": scan["category"], "imagesProcessed": len(successful)}, "createdAt": datetime.now(timezone.utc)})
         _report_analysis_update(98, "REPORT_GENERATION", "Generating unified compliance report", processedImages=len(successful), failedImages=total - len(successful))
         _report_progress("COMPLETED", result=_public_scan(scan))
     except Exception as exc:
         logger.exception("Multi-image analysis job %s failed", job_id)
-        _report_progress(_analysis_jobs[job_id].get("stage", "REPORT_GENERATION"), error=str(exc))
+        job = _analysis_jobs.get(job_id)
+        if job is not None:
+            _report_progress(job.get("stage", "REPORT_GENERATION"), error=str(exc))
     finally:
         _active_progress_job.reset(token)
 
@@ -676,6 +1174,7 @@ async def start_analysis_job(
     category: str = Form("General"),
     manufacturer: str = Form("Not specified"),
     image_sides: str = Form("[]"),
+    capture_quality_requested: str = Form("[]"),
     user: dict[str, Any] = Depends(official_user),
 ):
     if not file:
@@ -686,6 +1185,10 @@ async def start_analysis_job(
         requested_sides = __import__("json").loads(image_sides)
     except (TypeError, ValueError):
         requested_sides = []
+    try:
+        capture_quality_requests = __import__("json").loads(capture_quality_requested)
+    except (TypeError, ValueError):
+        capture_quality_requests = []
     images = []
     seen_names = set()
     for index, upload in enumerate(file):
@@ -702,7 +1205,13 @@ async def start_analysis_job(
             raise HTTPException(status_code=400, detail=f"File exceeds the 15MB limit: {filename}")
         seen_names.add(filename.casefold())
         side = requested_sides[index] if index < len(requested_sides) and requested_sides[index] in {"Front", "Back", "Left Side", "Right Side", "Top", "Bottom", "Other"} else "Other"
-        images.append({"contents": contents, "filename": filename, "content_type": upload.content_type, "side": side})
+        images.append({
+            "contents": contents,
+            "filename": filename,
+            "content_type": upload.content_type,
+            "side": side,
+            "capture_quality_requested": bool(capture_quality_requests[index]) if index < len(capture_quality_requests) else False,
+        })
 
     job_id = f"AN-{uuid.uuid4().hex[:12].upper()}"
     _analysis_jobs[job_id] = {"id": job_id, "userId": user["_id"], "status": "running", "stage": "INITIALIZING", "progress": 10, "label": "Initializing analysis", "imageCount": len(images)}

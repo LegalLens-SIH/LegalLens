@@ -10,12 +10,22 @@ specs/001-legal-rag/data-model.md for the full design rationale.
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 EffectiveStatus = Literal["original", "amended", "superseded"]
 RetrievalStatus = Literal["found", "not_available"]
 RetrievalMethod = Literal["deterministic_link"]
+LegalBasisAvailabilityReason = Literal["not_in_verified_corpus", "legal_source_unresolved", "legal_source_blocked"]
+LegalSourceVerificationStatus = Literal["verified", "secondary_cross_checked", "unresolved", "blocked"]
+
+
+class LegalCorpusStatus(BaseModel):
+    corpus_id: str
+    schema_version: int = Field(1, ge=1)
+    unresolved_fields: list[str] = Field(default_factory=list)
+    blocked_fields: list[str] = Field(default_factory=list)
 
 
 class LegalSourceDocument(BaseModel):
@@ -29,6 +39,9 @@ class LegalSourceDocument(BaseModel):
     is_amendment: bool = False
     amends_source_id: Optional[str] = None
     verification_note: str
+    verification_status: Optional[LegalSourceVerificationStatus] = None
+    effective_from: Optional[date] = None
+    effective_until: Optional[date] = None
 
 
 class LegalProvision(BaseModel):
@@ -40,6 +53,8 @@ class LegalProvision(BaseModel):
     effective_status: EffectiveStatus
     is_currently_effective: bool
     source: LegalSourceDocument
+    effective_from: Optional[date] = None
+    effective_until: Optional[date] = None
 
 
 class LegalBasisResult(BaseModel):
@@ -57,3 +72,8 @@ class LegalBasisResult(BaseModel):
     status: RetrievalStatus
     retrieval_method: Optional[RetrievalMethod] = None
     provisions: list[LegalProvision] = Field(default_factory=list)
+    availability_reason: Optional[LegalBasisAvailabilityReason] = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Explicit reason no provision was returned; never a legal conclusion",
+    )

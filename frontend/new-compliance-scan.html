@@ -244,6 +244,7 @@
 </div>
 <p class="hidden mt-3 text-body-md font-body-md text-error" id="file-validation-error"></p>
 <div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="camera-status-banner">Camera is ready when needed.</div>
+<div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="capture-manifest-status"></div>
 <!-- Phase 2B: OCR mode selection - two fixed, server-validated modes only
      (see backend/services/ocr_modes.py). "Standard" is the production
      baseline as of the 2026-09-17 tuning pass (includes an automatic
@@ -314,8 +315,11 @@
 <div class="text-label-md font-label-md text-white/70 uppercase">Quality check</div>
 <div class="text-body-lg font-body-lg font-bold" id="camera-quality-label">Good image</div>
 </div>
-<div class="rounded-full bg-success/15 px-3 py-1 text-label-md font-label-md text-secondary-fixed-dim" id="camera-side-label">Front</div>
+<select class="rounded-full bg-surface-container-high text-on-surface px-3 py-1 text-label-md font-label-md" id="camera-side-label" aria-label="Captured package panel">
+<option>Front</option><option>Back</option><option selected>Label</option><option>Left Side</option><option>Right Side</option><option>Top</option><option>Bottom</option><option>Other</option>
+</select>
 </div>
+<p class="text-label-md font-label-md text-white/75" id="camera-capture-guidance">Fit the whole label in frame and keep the package face-on. Framing and perspective are checked visually, not detected automatically.</p>
 <div class="flex flex-wrap gap-2">
 <button class="flex-1 rounded-lg bg-primary text-on-primary font-bold px-3 py-3" id="camera-use-photo-btn" type="button">Use Photo</button>
 <button class="flex-1 rounded-lg border border-white/15 bg-white/5 text-white font-bold px-3 py-3" id="camera-add-more-btn" type="button">Add Another Side</button>
@@ -375,6 +379,7 @@
 </main>
 </div>
 <script src="assets/app.js"></script>
+<script src="assets/capture-controller.js"></script>
 <script src="assets/auth-client.js"></script>
 <script src="assets/shell.js"></script>
 <script src="assets/ocr-client.js"></script>
@@ -416,6 +421,7 @@
         var cameraRetakeBtn = document.getElementById('camera-retake-btn');
         var cameraCancelBtn = document.getElementById('camera-cancel-btn');
         var cameraStatusBanner = document.getElementById('camera-status-banner');
+        var captureManifestStatus = document.getElementById('capture-manifest-status');
         var resultsCard = document.getElementById('ocr-results-card');
         var resultsBody = document.getElementById('ocr-results-body');
         var progressCard = document.getElementById('analysis-progress-card');
@@ -427,13 +433,14 @@
         var progressIcon = document.getElementById('analysis-progress-icon');
         var analysisPollTimer = null;
         var MAX_IMAGES = 8;
-        var SIDE_OPTIONS = ['Front', 'Back', 'Left Side', 'Right Side', 'Top', 'Bottom', 'Other'];
+        var SIDE_OPTIONS = ['Front', 'Back', 'Label', 'Left Side', 'Right Side', 'Top', 'Bottom', 'Other'];
         var cameraStream = null;
         var cameraFacingMode = 'environment';
         var cameraFlashOn = false;
         var cameraScanGuidanceTimer = null;
         var cameraCaptureSideIndex = 0;
         var cameraCaptureDataUrl = '';
+        var cameraQualityResult = null;
         var cameraDeviceIds = [];
         var ocrModeSelect = document.getElementById('ocr-mode-select');
         var analysisStages = [
@@ -544,19 +551,20 @@
         function scheduleGuidance() {
             if (cameraScanGuidanceTimer) clearInterval(cameraScanGuidanceTimer);
             var states = [
-                { status: 'Looking for a product label…', guidance: 'Align the product label inside the frame', tone: 'neutral' },
-                { status: 'Product detected — Ready to scan', guidance: 'Label aligned', tone: 'success' },
-                { status: 'Move closer', guidance: 'Bring the label closer to the frame', tone: 'warning' },
-                { status: 'Hold steady', guidance: 'Keep the product stable', tone: 'neutral' },
-                { status: 'Center the label', guidance: 'Move the product into the frame', tone: 'warning' }
+                { status: 'Frame the full label', guidance: 'Center every declaration and barcode inside the guide.', tone: 'neutral' },
+                { status: 'Keep the package face-on', guidance: 'Hold the label flat to the camera to reduce perspective distortion.', tone: 'neutral' },
+                { status: 'Avoid reflections', guidance: 'Tilt the light source, not the package, to reduce glare.', tone: 'neutral' },
+                { status: 'Hold steady', guidance: 'Keep the camera still before capturing.', tone: 'neutral' }
             ];
+            var stateIndex = 0;
             cameraScanGuidanceTimer = setInterval(function () {
-                var next = states[Math.floor(Math.random() * states.length)];
+                var next = states[stateIndex % states.length];
+                stateIndex += 1;
                 setCameraStatus(next.status, next.tone);
                 setCameraGuidance(next.guidance);
             }, 2600);
-            setCameraStatus('Looking for a product label…', 'neutral');
-            setCameraGuidance('Align the product label inside the frame');
+            setCameraStatus(states[0].status, states[0].tone);
+            setCameraGuidance(states[0].guidance);
         }
 
         function updateTorchButton() {
@@ -588,9 +596,7 @@
         }
 
         function getNextCaptureSide() {
-            var side = SIDE_OPTIONS[cameraCaptureSideIndex % SIDE_OPTIONS.length];
-            cameraCaptureSideIndex = (cameraCaptureSideIndex + 1) % SIDE_OPTIONS.length;
-            return side;
+            return SIDE_OPTIONS[cameraCaptureSideIndex % SIDE_OPTIONS.length];
         }
 
         function dataURLToFile(dataUrl, fileName) {
@@ -602,35 +608,19 @@
         }
 
         function evaluateImageQuality(dataUrl) {
-            return new Promise(function (resolve) {
-                var img = new Image();
-                img.onload = function () {
-                    var canvas = document.createElement('canvas');
-                    var width = 120;
-                    var height = Math.max(80, Math.round((img.height / img.width) * width));
-                    canvas.width = width;
-                    canvas.height = height;
-                    var context = canvas.getContext('2d');
-                    context.drawImage(img, 0, 0, width, height);
-                    var pixels = context.getImageData(0, 0, width, height).data;
-                    var total = 0;
-                    var count = 0;
-                    for (var i = 0; i < pixels.length; i += 4) {
-                        total += (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                        count += 1;
-                    }
-                    var brightness = total / count;
-                    if (brightness < 80) resolve('Image too dark');
-                    else resolve('Good image');
-                };
-                img.onerror = function () { resolve('Good image'); };
-                img.src = dataUrl;
+            var file = dataURLToFile(dataUrl, 'capture-quality-check.jpg');
+            return LLOcr.evaluateCaptureQuality(file).then(function (response) {
+                if (!response.httpOk || !response.data || !response.data.quality) {
+                    return { available: false, acceptable: false, reasons: [response.data && response.data.detail ? response.data.detail : 'Capture quality could not be verified. Retake the image or use file upload.'] };
+                }
+                return { available: true, ...response.data.quality };
             });
         }
 
-        function addCapturedImageFromDataUrl(dataUrl, side) {
+        function addCapturedImageFromDataUrl(dataUrl, side, captureQuality) {
             var file = dataURLToFile(dataUrl, 'live-scan-' + Date.now() + '.jpg');
-            chosenFiles.push({ file: file, side: side || 'Front', objectUrl: URL.createObjectURL(file) });
+            chosenFiles.push({ file: file, side: side || 'Front', captureQuality: captureQuality || null, objectUrl: URL.createObjectURL(file) });
+            cameraCaptureSideIndex = (SIDE_OPTIONS.indexOf(side || 'Front') + 1) % SIDE_OPTIONS.length;
             renderGallery();
             cameraStatusBanner.textContent = 'Captured ' + (side || 'Front') + ' image and added to the analysis queue.';
         }
@@ -639,15 +629,22 @@
             cameraCaptureDataUrl = dataUrl;
             cameraPreviewImage.src = dataUrl;
             var sideName = getNextCaptureSide();
-            cameraSideLabel.textContent = sideName;
+            cameraSideLabel.value = sideName;
             cameraQualityLabel.textContent = 'Checking image quality...';
+            cameraQualityResult = null;
+            cameraUsePhotoBtn.disabled = true;
+            cameraAddMoreBtn.disabled = true;
+            cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold text-white/75';
             evaluateImageQuality(dataUrl).then(function (quality) {
-                cameraQualityLabel.textContent = quality;
-                if (quality === 'Image too dark') {
-                    cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold text-[#ffd48d]';
-                } else {
-                    cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold text-white';
-                }
+                cameraQualityResult = quality;
+                cameraUsePhotoBtn.disabled = !quality.acceptable;
+                cameraAddMoreBtn.disabled = !quality.acceptable;
+                cameraUsePhotoBtn.classList.toggle('opacity-50', !quality.acceptable);
+                cameraAddMoreBtn.classList.toggle('opacity-50', !quality.acceptable);
+                cameraQualityLabel.textContent = quality.acceptable
+                    ? 'Accepted · ' + Math.round((quality.overall_score || 0) * 100) + '% quality'
+                    : (quality.available === false ? 'Quality check unavailable' : 'Retake recommended') + (quality.reasons && quality.reasons.length ? ' · ' + quality.reasons.join('; ') : '');
+                cameraQualityLabel.className = 'text-body-lg font-body-lg font-bold ' + (quality.acceptable ? 'text-secondary-fixed-dim' : 'text-[#ffd48d]');
             });
             cameraPreviewPanel.classList.add('is-visible');
         }
@@ -728,18 +725,18 @@
             setCameraGuidance('Align the product label inside the frame');
         });
         cameraUsePhotoBtn.addEventListener('click', function () {
-            if (!cameraCaptureDataUrl) return;
-            var side = cameraSideLabel.textContent || 'Front';
-            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side);
+            if (!cameraCaptureDataUrl || !cameraQualityResult || !cameraQualityResult.acceptable) return;
+            var side = cameraSideLabel.value || 'Front';
+            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side, cameraQualityResult);
             cameraPreviewPanel.classList.remove('is-visible');
             setCameraStatus('Capture saved', 'success');
             setCameraGuidance('Added to analysis queue');
             cameraCaptureDataUrl = '';
         });
         cameraAddMoreBtn.addEventListener('click', function () {
-            if (!cameraCaptureDataUrl) return;
-            var side = cameraSideLabel.textContent || 'Front';
-            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side);
+            if (!cameraCaptureDataUrl || !cameraQualityResult || !cameraQualityResult.acceptable) return;
+            var side = cameraSideLabel.value || 'Front';
+            addCapturedImageFromDataUrl(cameraCaptureDataUrl, side, cameraQualityResult);
             cameraPreviewPanel.classList.remove('is-visible');
             cameraCaptureDataUrl = '';
             setCameraStatus('Capture added', 'success');
@@ -759,7 +756,7 @@
             progressNote.innerHTML = 'Failed process: <strong>' + LL.escapeHtml(job.label || 'Unknown stage') + '</strong>' +
                 (job.error ? '<br>' + LL.escapeHtml(job.error) : '');
             resultsCard.classList.remove('hidden');
-            resultsBody.innerHTML = '<div class="flex items-start gap-3 text-error"><span class="material-symbols-outlined">warning</span><div><p class="font-bold">Analysis failed</p><p class="text-body-md font-body-md text-on-surface-variant">We couldn\'t complete the product analysis.</p><button class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" onclick="location.reload()">Retry Analysis</button></div></div>';
+            resultsBody.innerHTML = '<div class="flex items-start gap-3 text-error"><span class="material-symbols-outlined">warning</span><div><p class="font-bold">Analysis failed</p><p class="text-body-md font-body-md text-on-surface-variant">We couldn\'t complete the product analysis.</p><button class="mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg font-bold" type="button" onclick="location.reload()">Retry Analysis</button></div></div>' + renderSecondaryOcrEvidence({ secondaryOcr: job.secondaryOcr });
         }
 
         function pollAnalysis(jobId, originalBtnHtml) {
@@ -787,6 +784,30 @@
             resultsBody.innerHTML = '';
         }
 
+        function renderSecondaryOcrEvidence(data) {
+            var secondary = data && (data.secondary_ocr || data.secondaryOcr);
+            if (!secondary) return '';
+            if (Array.isArray(secondary)) {
+                return secondary.map(function (item) {
+                    return renderSecondaryOcrEvidence({ secondaryOcr: item.result, imageSide: item.side, imageName: item.fileName });
+                }).join('');
+            }
+            var candidate = secondary.result || {};
+            var detections = Array.isArray(candidate.detections) ? candidate.detections : [];
+            var lines = detections.map(function (detection) {
+                var confidence = Math.round((Number(detection.confidence) || 0) * 100);
+                return '<li class="py-1">' + LL.escapeHtml(detection.text || '') + ' <span class="text-label-md text-on-surface-variant">' + confidence + '%</span></li>';
+            }).join('');
+            var status = secondary.status === 'unavailable'
+                ? 'Tesseract secondary OCR unavailable.'
+                : 'Tesseract candidate for manual review only. It was not used for compliance.';
+            return '<section class="mt-5 rounded-lg border border-outline-variant bg-surface-container-low p-4">' +
+                '<h4 class="text-body-md font-body-md font-bold text-on-surface">' + (data.imageSide ? LL.escapeHtml(data.imageSide) + ' · ' : '') + status + '</h4>' +
+                (secondary.message ? '<p class="mt-1 text-label-md text-on-surface-variant">' + LL.escapeHtml(secondary.message) + '</p>' : '') +
+                (lines ? '<ul class="mt-2 text-body-md text-on-surface">' + lines + '</ul>' : '') +
+                '</section>';
+        }
+
         function addFiles(files) {
             Array.prototype.forEach.call(files || [], function (file) {
                 if (chosenFiles.length >= MAX_IMAGES || LLOcr.validateFile(file)) return;
@@ -794,6 +815,26 @@
                 if (!duplicate) chosenFiles.push({ file: file, side: 'Other', objectUrl: URL.createObjectURL(file) });
             });
             renderGallery();
+        }
+
+        function syncCaptureManifestStatus() {
+            var controller = window.LL && window.LL.captureController ? window.LL.captureController : null;
+            if (!controller || !captureManifestStatus) return;
+            controller.captured = {};
+            chosenFiles.forEach(function (item) {
+                if (item && item.side) {
+                    controller.record(item.side, { source: 'upload', name: item.file && item.file.name ? item.file.name : '' });
+                }
+            });
+            var status = controller.getStatus();
+            captureManifestStatus.classList.remove('hidden');
+            if (status.complete) {
+                captureManifestStatus.className = 'mt-4 rounded-lg border border-secondary/30 bg-secondary/10 px-4 py-3 text-body-md font-body-md text-secondary';
+                captureManifestStatus.textContent = 'Required product views captured: front, back, and label.';
+                return;
+            }
+            captureManifestStatus.className = 'mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant';
+            captureManifestStatus.textContent = 'Required views still missing: ' + status.missingPanels.join(', ') + '.';
         }
 
         function renderGallery() {
@@ -806,8 +847,9 @@
             imageGallery.innerHTML = chosenFiles.map(function (item, index) {
                 return '<div class="relative bg-surface-container-low border border-outline-variant rounded-lg p-2"><div class="relative aspect-square overflow-hidden rounded-md bg-surface"><img class="w-full h-full object-cover" src="' + item.objectUrl + '" alt="Product image ' + (index + 1) + '"/><span class="absolute top-2 left-2 bg-primary text-on-primary px-2 py-1 rounded text-label-md font-label-md">Image ' + (index + 1) + '</span><button type="button" data-remove="' + index + '" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-error text-on-error flex items-center justify-center" aria-label="Remove image ' + (index + 1) + '"><span class="material-symbols-outlined text-[18px]">close</span></button></div><select data-side="' + index + '" class="mt-2 w-full border border-outline-variant rounded px-2 py-1 text-label-md bg-surface" aria-label="Image side">' + SIDE_OPTIONS.map(function (side) { return '<option ' + (side === item.side ? 'selected' : '') + '>' + side + '</option>'; }).join('') + '</select></div>';
             }).join('');
-            imageGallery.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { chosenFiles.splice(Number(button.dataset.remove), 1); renderGallery(); }; });
-            imageGallery.querySelectorAll('[data-side]').forEach(function (select) { select.onchange = function () { chosenFiles[Number(select.dataset.side)].side = select.value; }; });
+            imageGallery.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { chosenFiles.splice(Number(button.dataset.remove), 1); renderGallery(); syncCaptureManifestStatus(); }; });
+            imageGallery.querySelectorAll('[data-side]').forEach(function (select) { select.onchange = function () { chosenFiles[Number(select.dataset.side)].side = select.value; syncCaptureManifestStatus(); }; });
+            syncCaptureManifestStatus();
         }
 
         function showValidationError(msg) {
@@ -879,7 +921,8 @@
                     '<div class="flex items-start gap-3 text-error">' +
                     '<span class="material-symbols-outlined">error</span>' +
                     '<div><p class="font-bold">OCR failed (' + LL.escapeHtml(code) + ')</p>' +
-                    '<p class="text-body-md font-body-md text-on-surface-variant">' + LL.escapeHtml(message) + '</p></div></div>';
+                    '<p class="text-body-md font-body-md text-on-surface-variant">' + LL.escapeHtml(message) + '</p></div></div>' +
+                    renderSecondaryOcrEvidence(data);
                 return;
             }
 
@@ -887,7 +930,8 @@
                 resultsBody.innerHTML =
                     '<div class="flex items-start gap-3 text-tertiary-container">' +
                     '<span class="material-symbols-outlined">warning</span>' +
-                    '<p>PaddleOCR ran successfully but found no text in this image.</p></div>';
+                    '<p>PaddleOCR ran successfully but found no text in this image.</p></div>' +
+                    renderSecondaryOcrEvidence(data);
                 return;
             }
 
@@ -910,6 +954,7 @@
                 return '<div class="flex items-center justify-between gap-3 py-2 border-t border-outline-variant"><span><strong>Image ' + (index + 1) + '</strong> \u00b7 ' + LL.escapeHtml(image.side || 'Other') + '</span><span class="text-label-md ' + (image.success ? 'text-secondary' : 'text-error') + '">' + (image.success ? 'Analyzed \u00b7 ' + image.detectionCount + ' text regions' : 'Failed') + '</span></div>';
             }).join('');
             resultsBody.innerHTML = summary + '<div class="flex flex-col">' + rows + '</div>' + (imageSummary ? '<div class="mt-5">' + imageSummary + '</div>' : '') +
+                renderSecondaryOcrEvidence(data) +
                 '<p class="mt-4 text-label-md font-label-md text-on-surface-variant italic">OCR evidence from all successfully processed product views was combined before Legal Metrology evaluation.</p>';
         }
 
@@ -975,7 +1020,7 @@
 
             var chosenFile = chosenFiles[0].file;
             analyzeBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Analyzing...';
-            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General', ocrMode: ocrModeSelect ? ocrModeSelect.value : 'standard' }).then(function (payload) {
+            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General', ocrMode: ocrModeSelect ? ocrModeSelect.value : 'standard', imageSide: chosenFiles[0].side, captureQualityRequested: !!chosenFiles[0].captureQuality }).then(function (payload) {
                 renderResults(payload);
                 if (payload.httpOk && payload.data && payload.data.ocr) {
                     resultsBody.innerHTML += '<div class="mt-6 pt-5 border-t border-outline-variant"><span class="material-symbols-outlined align-middle mr-2 text-secondary">fact_check</span><span>OCR complete. Running the versioned Legal Metrology ruleset...</span></div>';

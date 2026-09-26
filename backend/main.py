@@ -45,9 +45,13 @@ from backend.api.ocr import router as ocr_router
 from backend.api.auth import router as auth_router
 from backend.api.compliance import router as compliance_router
 from backend.api.extraction import router as extraction_router
+from backend.api.manufacturer import router as manufacturer_router
 from backend.api.official import router as official_router
 from backend.api.legal_basis import router as legal_basis_router
 from backend.api.listing import router as listing_router
+from backend.api.audit import router as audit_router
+from backend.api.em_maap import router as em_maap_router
+from backend.api.evidence import router as evidence_router
 from backend.database import close_mongodb, connect_to_mongodb
 
 logging.basicConfig(
@@ -88,9 +92,13 @@ app.include_router(ocr_router)
 app.include_router(auth_router)
 app.include_router(compliance_router)
 app.include_router(extraction_router)
+app.include_router(manufacturer_router)
 app.include_router(official_router)
 app.include_router(legal_basis_router)
 app.include_router(listing_router)
+app.include_router(audit_router)
+app.include_router(em_maap_router)
+app.include_router(evidence_router)
 
 
 @app.get("/api/health")

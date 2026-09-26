@@ -24,9 +24,11 @@ from pydantic import BaseModel, Field
 from backend.api.auth import official_user
 from backend.database import get_database
 from backend.models.listing import LISTING_COMPARISON_DISCLAIMER
+from backend.services.audit import append_audit_event
 from backend.services.listing_comparison import compare_listing_to_physical, price_advisory_note
 from backend.services.listing_extraction import extract_listing_data
 from backend.services.listing_retrieval import ListingFetcher
+from backend.services.evidence_package import build_evidence_package, record_evidence_package
 
 logger = logging.getLogger("legallense.api.listing")
 
@@ -81,9 +83,67 @@ def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict
         "review_required_count": sum(1 for c in comparisons if c.outcome == "REVIEW_REQUIRED"),
         "price_note": price_advisory_note(listing),
         "disclaimer": LISTING_COMPARISON_DISCLAIMER,
+        "source_page_sha256": outcome.body_sha256,
     }
 
-    get_database().scans.update_one({"id": scan_id, "userId": user["_id"]}, {"$set": {"listingVerification": result_dict}})
+    database = get_database()
+    retrieval_audit = append_audit_event(
+        database,
+        event_type="listing_verification",
+        entity_type="scan",
+        entity_id=scan_id,
+        user_id=user["_id"],
+        actor_role=user.get("role"),
+        action="listing_data_compared" if listing.retrieval_status == "SUCCESS" else "listing_retrieval_unavailable",
+        details={
+            "source_url": payload.url,
+            "final_url": listing.final_url,
+            "retrieval_status": listing.retrieval_status,
+            "source_page_sha256": outcome.body_sha256,
+            "discrepancy_count": result_dict["discrepancy_count"],
+            "review_required_count": result_dict["review_required_count"],
+            "is_compliance_verdict": False,
+        },
+    )
+    parent_package = database.evidence_packages.find_one({"package_id": scan.get("evidencePackageId")}) if scan.get("evidencePackageId") else None
+    raw_artifacts = {
+        "listing_verification": {
+            "artifact_type": "listing_verification",
+            "value": result_dict,
+            "source": "authenticated_listing_review",
+            "derived_from": [scan.get("evidencePackageId")] if scan.get("evidencePackageId") else [],
+            "metadata": {"source_url": payload.url, "final_url": listing.final_url, "retrieval_status": listing.retrieval_status},
+        },
+        "parent_scan_evidence": {
+            "artifact_type": "parent_evidence_package_reference",
+            "value": {
+                "package_id": (parent_package or {}).get("package_id"),
+                "merkle_root": (parent_package or {}).get("merkle_root"),
+            },
+            "source": "existing_scan_evidence",
+        },
+    }
+    if outcome.body_sha256:
+        raw_artifacts["source_page_digest"] = {
+            "artifact_type": "external_page_sha256",
+            "value": outcome.body_sha256,
+            "source": "safe_http_fetch",
+            "metadata": {"source_url": payload.url, "final_url": listing.final_url, "content_type": outcome.content_type},
+        }
+    package = build_evidence_package(
+        evidence_id=f"{scan_id}:listing-verification",
+        raw_artifacts=raw_artifacts,
+        audit_refs=[retrieval_audit["eventHash"]],
+        ruleset_digest=(scan.get("compliance") or {}).get("audit", {}).get("ruleset_digest"),
+    )
+    package_audit = record_evidence_package(database, package, entity_id=scan_id, entity_type="scan")
+    result_dict["evidence_package_id"] = package.package_id
+    result_dict["evidence_merkle_root"] = package.merkle_root
+    result_dict["evidence_package_audit_hash"] = package_audit["eventHash"]
+    database.scans.update_one(
+        {"id": scan_id, "userId": user["_id"]},
+        {"$set": {"listingVerification": result_dict}},
+    )
     logger.info(
         "Listing verification for scan %s: status=%s discrepancies=%d review_required=%d",
         scan_id, listing.retrieval_status, result_dict["discrepancy_count"], result_dict["review_required_count"],

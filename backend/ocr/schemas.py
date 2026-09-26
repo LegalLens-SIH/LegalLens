@@ -13,7 +13,7 @@ rewriting the schema.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -128,6 +128,16 @@ class OCRResult(BaseModel):
             "replacement for them. Empty in 'single_region' mode (the default, "
             "used by the pretrained generic model)."
         ),
+    )
+    secondary_ocr: Optional[dict[str, Any]] = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Opt-in, review-only secondary OCR evidence; never authoritative for compliance",
+    )
+    pdp_detection: Optional[dict[str, Any]] = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Opt-in experimental PDP detection evidence; never authoritative for OCR or compliance",
     )
     error: Optional[OCRError] = None
 

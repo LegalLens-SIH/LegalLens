@@ -24,6 +24,9 @@ touches OCR/preprocessing behavior in any way.
 from __future__ import annotations
 
 import hashlib
+import io
+
+from PIL import Image
 
 
 def compute_image_sha256(image_bytes: bytes) -> str:
@@ -32,3 +35,31 @@ def compute_image_sha256(image_bytes: bytes) -> str:
     changed byte anywhere produces a completely different digest. Never
     raises for any byte content, including empty bytes."""
     return hashlib.sha256(image_bytes).hexdigest()
+
+
+def sniff_image_mime_type(image_bytes: bytes, fallback: str | None = None) -> str | None:
+    """Best-effort MIME sniffing from the actual file bytes rather than the
+    client-supplied filename/content-type header.
+
+    This is deliberately conservative: if Pillow cannot identify the format
+    from the bytes, the original client hint is used as a fallback instead of
+    fabricating a result.
+    """
+    if not image_bytes:
+        return fallback
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            fmt = (image.format or "").lower()
+            if fmt == "jpeg":
+                return "image/jpeg"
+            if fmt == "png":
+                return "image/png"
+            if fmt == "webp":
+                return "image/webp"
+            if fmt == "bmp":
+                return "image/bmp"
+            if fmt in {"tiff", "tif"}:
+                return "image/tiff"
+    except Exception:
+        pass
+    return fallback

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function loadScripts() {
-  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-  const normalizedRoot = root.replace(/^([A-Za-z]:)\\D:\\/, '$1\\');
-  const appJs = fs.readFileSync(path.join(normalizedRoot, 'assets', 'app.js'), 'utf8');
-  const demoJs = fs.readFileSync(path.join(normalizedRoot, 'assets', 'demo-data.js'), 'utf8');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const appJs = fs.readFileSync(path.join(root, 'assets', 'app.js'), 'utf8');
+  const demoJs = fs.readFileSync(path.join(root, 'assets', 'demo-data.js'), 'utf8');
 
   const storage = {};
   const document = {
@@ -16,6 +16,7 @@ function loadScripts() {
     body: { appendChild() {}, insertBefore() {}, firstChild: null },
     head: { appendChild() {} },
     documentElement: { classList: { add() {} } },
+    getElementById() { return null; },
     querySelectorAll() { return []; },
     querySelector() { return null; },
     addEventListener() {},
@@ -82,11 +83,18 @@ test('demo mode exposes official and manufacturer demo sessions', () => {
   assert.equal(manufacturer.demoMode, true);
 });
 
-test('demo sessions stored in localStorage are recognized as authenticated by the centralized auth guard', () => {
+test('demo sessions stored in localStorage stay disabled until an explicit opt-in is enabled', () => {
   const context = loadScripts();
   const demoOfficial = { role: 'enforcement_official', demoMode: true, name: 'Demo Official', email: 'demo.official@example.com' };
   context.localStorage.setItem('legallense_demo_session_v1', JSON.stringify(demoOfficial));
 
+  assert.equal(context.LL.getSession(), null);
+  assert.equal(context.LL.getAuthState(), null);
+  assert.equal(context.LL.isDemoMode(), false);
+  assert.ok(Array.isArray(context.LL.getScans()));
+  assert.equal(context.LL.getScans().length, 0);
+
+  context.LL.startDemoMode('official');
   const auth = context.LL.getAuthState();
 
   assert.equal(auth.authenticated, true);

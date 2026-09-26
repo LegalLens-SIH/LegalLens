@@ -15,6 +15,16 @@ from backend.services.compliance_engine import ComplianceEngine
 client = TestClient(app)
 
 
+def test_legal_corpus_status_reports_version_and_unresolved_boundaries():
+    response = client.get("/api/compliance/legal-basis/status")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["schema_version"] == 1
+    assert body["corpus_id"] == "IN-LM-PACKAGED-COMMODITIES-2011-LEGAL-CORPUS"
+    assert body["unresolved_fields"] == []
+    assert body["blocked_fields"] == []
+
+
 # --- Found case (T022, T023) ---
 
 def test_lmpc_r6_maximum_retail_price_returns_found_with_citation_and_source():

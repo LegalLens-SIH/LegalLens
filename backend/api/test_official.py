@@ -211,6 +211,73 @@ def test_manufacturer_sees_official_decision_read_only_via_existing_revisions_en
         app.dependency_overrides.pop(manufacturer_user, None)
 
 
+def test_compliance_evaluation_records_an_audit_event():
+    sample = {
+        "document_id": "demo-001",
+        "version": "1",
+        "product_type": "food",
+        "package_type": "retail",
+        "brand": "Demo Brand",
+        "product_name": "Demo Product",
+        "net_content": "500 g",
+        "unit": "g",
+        "country_of_origin": "India",
+        "manufacturer_name": "Demo Manufacturing",
+        "manufacturer_address": "A-1 Demo Street",
+        "consumer_care_details": "1800-123-4567",
+        "date_of_manufacture": "2024-01-01",
+        "date_of_expiry": "2026-12-31",
+        "batch_number": "B123",
+        "mrp": "?199",
+        "ingredients": "Rice, Wheat",
+    }
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/compliance/evaluate",
+            json={"ocr_result": sample, "validation_profile": "e_commerce_product_listing"},
+        )
+        assert response.status_code == 200, response.text
+
+        event = get_database().audit_events.find_one({"entityType": "compliance", "entityId": "demo-001"})
+        assert event is not None, "expected a compliance audit event for the evaluated OCR result"
+        assert event["eventType"] == "compliance_evaluation"
+        assert event["action"] == "compliance_evaluated"
+
+
+def test_audit_events_are_append_only_and_reject_mutation_attempts(monkeypatch):
+    monkeypatch.setattr(ocr_module._service, "run", _echo_ocr_run)
+    try:
+        with TestClient(app) as client:
+            try:
+                app.dependency_overrides[manufacturer_user] = lambda: FAKE_MANUFACTURER
+                response = client.post(
+                    "/api/manufacturer/self-check",
+                    files={"file": ("label.png", IMAGE_A_BYTES, "image/png")},
+                    data={"product_id": "", "product_name": "Audit Trail Product"},
+                )
+                assert response.status_code == 200, response.text
+                revision_id = response.json()["revision"]["revisionId"]
+
+                app.dependency_overrides[manufacturer_user] = lambda: FAKE_MANUFACTURER
+                audit_events = get_database().audit_events.find({"entityId": revision_id}).sort("createdAt", -1)
+                event = next(audit_events, None)
+                assert event is not None, "expected at least one audit event for the uploaded revision"
+                event_id = str(event["_id"])
+
+                app.dependency_overrides[current_user] = lambda: FAKE_MANUFACTURER
+                patch_resp = client.patch(f"/api/audit/events/{event_id}", json={"details": {"tampered": True}})
+                assert patch_resp.status_code in (403, 405), patch_resp.text
+
+                delete_resp = client.delete(f"/api/audit/events/{event_id}")
+                assert delete_resp.status_code in (403, 405), delete_resp.text
+            finally:
+                app.dependency_overrides.pop(manufacturer_user, None)
+                app.dependency_overrides.pop(current_user, None)
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(manufacturer_user, None)
+
+
 def test_submit_is_guarded_against_duplicate_pending_submission(monkeypatch):
     monkeypatch.setattr(ocr_module._service, "run", _echo_ocr_run)
     try:

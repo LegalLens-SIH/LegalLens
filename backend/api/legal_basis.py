@@ -13,9 +13,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.models.legal import LegalBasisResult
+from backend.models.legal import LegalBasisResult, LegalCorpusStatus
 from backend.services.compliance_engine import load_ruleset
-from backend.services.legal_retrieval import get_legal_basis
+from backend.services.legal_retrieval import get_corpus_status, get_legal_basis
 
 router = APIRouter(prefix="/api/compliance", tags=["legal-basis"])
 
@@ -31,3 +31,8 @@ def read_legal_basis(rule_id: str = Query(...), field: str | None = Query(defaul
     if rule_id not in _KNOWN_RULE_IDS:
         raise HTTPException(status_code=422, detail=f"Unknown rule_id '{rule_id}'")
     return get_legal_basis(rule_id, field)
+
+
+@router.get("/legal-basis/status", response_model=LegalCorpusStatus)
+def read_legal_corpus_status() -> LegalCorpusStatus:
+    return get_corpus_status()

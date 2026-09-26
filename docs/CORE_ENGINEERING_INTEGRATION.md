@@ -1,0 +1,30 @@
+# Core Engineering Integration
+
+## Evidence and measurements
+
+- `calibrate_ean13_scale` accepts only checksum-valid EAN-13 text, source evidence with confidence at least 0.90, a valid four-corner symbol polygon, image bounds, and an explicit positive reference width with its source. It never supplies a GS1 default dimension. Current OCR does not produce barcode-symbol geometry and the repository has no verified physical reference, so scans do not receive a physical scale.
+- PDP geometry validates coordinates and image bounds, accepts perspective quadrilaterals, unions overlapping regions, and retains source regions. Its coverage status is advisory; it is not a compliance authority or a production detector result.
+- OCR text-height measurements support rotated quadrilaterals and preserve detection/evidence regions. Without calibration they return `review_required` with no millimetre value. A verified legal minimum font-height provision is also absent, so measured values cannot create a compliance pass/fail.
+- Single- and multi-image scans retain original bytes and SHA-256, collect EXIF and JPEG recompression-difference evidence, audit the analysis against the source hash, and link the evidence package to those audit hashes. Non-JPEG ELA evidence is unavailable. A difference score is an integrity/review signal only and is never interpreted as proof of tampering or fed to compliance.
+- Live camera captures use the existing sharpness/blur/glare service through an authenticated preflight. Low-resolution/blurred/glare-heavy captures are rejected by the camera UI; package framing and perspective remain explicit manual checks. Capture scores are recomputed from original bytes when persisted, hash/audit linked, and never change compliance decisions. Physical calibration is reported unavailable.
+- Tesseract is opt-in (`TESSERACT_ENABLED=false` by default) and produces word-box-derived line detections with confidence/provenance. In secondary mode, IoU comparison is saved for review; in fallback mode it runs only if Paddle has no detections. Tesseract output is never sent to ComplianceEngine. Missing native Tesseract is represented as unavailable.
+- Secure listing retrieval remains official-only and uses existing SSRF/redirect/size/timeout guards and conservative extraction. The fetched response-body SHA-256, source/final URLs, extracted comparisons, and audit event are committed in a supplemental evidence package linked to the owned scan. Listing values remain supplementary evidence.
+- The legal corpus loader now supports optional schema version, verification state, and effective-date metadata, validates dates/amendment links, and exposes unresolved/blocked coverage through a read-only status endpoint. The existing corpus file and legal text were not changed.
+- Stored scan packages can be timestamped through the existing RFC 3161 abstraction and transmitted to e-MAAP using hashes derived from the owned package. These operations return configured/unavailable states; no provider, credentials, or external API behavior is fabricated.
+- The existing compliance engine remains responsible for compliance and field-confidence review. The standalone confidence-gate helper is not injected into production because its required vision, barcode, and image-integrity confidence inputs are not currently produced as validated signals.
+
+## Benchmark status
+- Custom PDP inference now has a disabled-by-default adapter and checkpoint/report/hash gate; existing dataset schema and training/evaluation scripts remain the source of truth. No candidate model is installed or promoted.
+- Tesseract OCR/ensemble is opt-in (`TESSERACT_ENABLED=false` by default), emits only secondary review evidence, and has not been benchmarked because the native runtime is unavailable.
+
+- No LegalLens-trained/validated ONNX detector exists. The available `yolo26n.pt` files are identical generic pretrained checkpoints; the training tracker reports no accepted dataset instances. The existing generic model remains unchanged and is not treated as a PDP/compliance authority.
+- A Python Tesseract service and ensemble utility exist, but Tesseract is unavailable in this environment and no Tesseract.js package is configured. No comparison was possible; PaddleOCR remains authoritative.
+- The deterministic PaddleOCR benchmark completed 10/10 fixtures on 2026-09-26. It recorded 28 `CORRECT`, 12 `FALSE_NOT_DETECTED`, and 30 `GROUND_TRUTH_UNAVAILABLE` classifications, matching the checked-in resize+4-thread result with zero `FALSE_PASS` classifications. Mean end-to-end latency was 174,652 ms versus 79,332 ms in `phase2_resize_threads4_summary.json` (+120%). This single run is slower with no classification improvement; it is not evidence for promoting another path and should be repeated on an isolated, comparable host before drawing a performance conclusion.
+- The run output is in `training/benchmark_results/core_integration_20260926.jsonl` and its summary file.
+
+## Remaining prerequisites
+
+- A verified physical reference dimension and source, plus OCR/vision output that identifies barcode-symbol corners, are required before calibration can be enabled for scans.
+- A verified legal source is required before any font-height threshold can influence compliance.
+- A reviewed, labeled PDP dataset and validated LegalLens checkpoint (and downstream field-impact benchmark) are required before evaluating a custom detector for production.
+- An available Tesseract runtime and representative benchmark fixtures are required before comparing PaddleOCR with an ensemble.

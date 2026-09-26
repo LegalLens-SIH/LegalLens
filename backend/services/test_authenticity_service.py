@@ -13,7 +13,7 @@ from pathlib import Path
 from PIL import Image
 
 from backend.models.authenticity import AuthenticityEvidence, ExifEvidence
-from backend.services.authenticity_service import build_authenticity_evidence, extract_exif_evidence
+from backend.services.authenticity_service import build_authenticity_evidence, extract_ela_evidence, extract_exif_evidence
 from backend.services.compliance_engine import ComplianceEngine
 
 REAL_FIXTURE_WITH_EXIF = Path(__file__).resolve().parents[2] / "training" / "raw_images" / "Handwash_back.jpg"
@@ -140,6 +140,7 @@ def test_authenticity_evidence_wrapper_never_raises_on_malformed_input():
     result = build_authenticity_evidence(b"garbage")
     assert isinstance(result, AuthenticityEvidence)
     assert result.exif.available is False
+    assert result.ela.available is False
 
 
 # --- 5. Supported formats -----------------------------------------------------
@@ -163,6 +164,51 @@ def test_webp_format_supported_no_exif_assumed():
     ev = extract_exif_evidence(_plain_image_bytes("WEBP"))
     assert ev.available is False
     assert ev.error is None
+
+
+def test_clean_jpeg_produces_recompression_evidence_and_digest():
+    evidence = extract_ela_evidence(_jpeg_with_exif())
+    assert evidence.available is True
+    assert evidence.method == "jpeg_recompression_difference"
+    assert evidence.recompression_quality == 90
+    assert evidence.difference_sha256 is not None
+    assert len(evidence.difference_sha256) == 64
+    assert evidence.image_width == 20 and evidence.image_height == 20
+    assert 0 <= evidence.normalized_score <= 1
+
+
+def test_manipulated_jpeg_has_distinct_recompression_evidence():
+    clean = Image.new("RGB", (64, 64), color="white")
+    clean_bytes = io.BytesIO()
+    clean.save(clean_bytes, format="JPEG", quality=95)
+    clean_payload = clean_bytes.getvalue()
+    edited = Image.open(io.BytesIO(clean_payload)).convert("RGB")
+    for x in range(16, 48):
+        for y in range(16, 48):
+            edited.putpixel((x, y), (255, 0, 0))
+    edited_bytes = io.BytesIO()
+    edited.save(edited_bytes, format="JPEG", quality=75)
+
+    clean_evidence = extract_ela_evidence(clean_payload)
+    edited_evidence = extract_ela_evidence(edited_bytes.getvalue())
+    assert clean_evidence.available and edited_evidence.available
+    assert clean_evidence.difference_sha256 != edited_evidence.difference_sha256
+    assert not hasattr(edited_evidence, "tampered")
+    assert not hasattr(edited_evidence, "verdict")
+
+
+def test_non_jpeg_does_not_claim_ela_evidence():
+    evidence = extract_ela_evidence(_plain_image_bytes("PNG"))
+    assert evidence.available is False
+    assert evidence.normalized_score is None
+    assert evidence.error is not None
+
+
+def test_malformed_jpeg_analysis_fails_safely():
+    evidence = extract_ela_evidence(b"not a jpeg")
+    assert evidence.available is False
+    assert evidence.normalized_score is None
+    assert evidence.error is not None
 
 
 # --- 6. Compliance isolation --------------------------------------------------
@@ -248,11 +294,13 @@ def test_editing_software_tags_are_captured_as_plain_evidence_only():
 
 
 def test_exif_evidence_model_has_no_scoring_or_verdict_fields():
-    """Schema-level guarantee: ExifEvidence/AuthenticityEvidence expose
-    only descriptive fields, never a score or authenticity verdict."""
+    """Schema-level guarantee: ExifEvidence exposes only descriptive
+    fields, never a score or authenticity verdict, while AuthenticityEvidence
+    may include sibling evidence blocks such as ELA metadata without
+    changing the EXIF contract or adding any fraud verdict field."""
     field_names = set(ExifEvidence.model_fields.keys())
     assert field_names == {"available", "make", "model", "software", "datetime_original", "gps_present", "error"}
-    assert set(AuthenticityEvidence.model_fields.keys()) == {"exif"}
+    assert set(AuthenticityEvidence.model_fields.keys()) == {"exif", "ela"}
 
 
 # --- 8. Privacy: GPS presence only, never raw coordinates --------------------

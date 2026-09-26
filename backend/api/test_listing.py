@@ -14,6 +14,8 @@ tests.
 
 from __future__ import annotations
 
+import hashlib
+
 from bson import ObjectId
 from fastapi.testclient import TestClient
 from gridfs import GridFS
@@ -51,7 +53,7 @@ def _fixed_ocr_run(image_path: str, yolo_service=None, preprocess_options=None) 
 
 
 def _cleanup(db, official_id) -> None:
-    scans = list(db.scans.find({"userId": official_id}, {"sourceImageId": 1}))
+    scans = list(db.scans.find({"userId": official_id}, {"sourceImageId": 1, "id": 1}))
     fs = GridFS(db, collection="scan_images")
     for scan in scans:
         image_id = scan.get("sourceImageId")
@@ -61,6 +63,7 @@ def _cleanup(db, official_id) -> None:
             except Exception:
                 pass
     db.scans.delete_many({"userId": official_id})
+    db.evidence_packages.delete_many({"evidence_id": {"$in": [f"{scan['id']}:listing-verification" for scan in scans]}})
     db.history.delete_many({"userId": official_id})
 
 
@@ -100,7 +103,11 @@ def test_successful_verification_persists_comparisons_and_never_touches_complian
                         '{"name": "MRP", "value": "99"}]}'
                         "</script></head><body>x</body></html>"
                     )
-                    return RetrievalOutcome(status="SUCCESS", requested_url=url, final_url=url, html=html, content_type="text/html", http_status=200)
+                    return RetrievalOutcome(
+                        status="SUCCESS", requested_url=url, final_url=url, html=html,
+                        content_type="text/html", http_status=200,
+                        body_sha256=hashlib.sha256(html.encode("utf-8")).hexdigest(),
+                    )
 
                 monkeypatch.setattr(listing_module._fetcher, "fetch", fake_fetch)
 
@@ -115,6 +122,27 @@ def test_successful_verification_persists_comparisons_and_never_touches_complian
                 quantity_comparison = next(c for c in result["comparisons"] if c["field"] == "net_quantity")
                 assert quantity_comparison["outcome"] == "MISMATCH"  # physical 250g vs listing 500g
                 assert "disclaimer" in result and "NOT" in result["disclaimer"]
+                assert result["source_page_sha256"] == hashlib.sha256(
+                    (
+                        "<html><head><title>t</title>"
+                        '<script type="application/ld+json">'
+                        '{"@type": "Product", "name": "Test Product", '
+                        '"additionalProperty": [{"name": "Net Quantity", "value": "500 g"}, '
+                        '{"name": "MRP", "value": "99"}]}'
+                        "</script></head><body>x</body></html>"
+                    ).encode("utf-8")
+                ).hexdigest()
+                assert result["evidence_package_id"]
+                assert len(result["evidence_merkle_root"]) == 64
+                database = get_database()
+                package = database.evidence_packages.find_one({"package_id": result["evidence_package_id"]})
+                assert package is not None
+                package_artifacts = {artifact["artifact_id"]: artifact for artifact in package["artifacts"]}
+                assert package_artifacts["source_page_digest"]["artifact_type"] == "external_page_sha256"
+                verification_audit = database.audit_events.find_one({"entityId": scan["id"], "eventType": "listing_verification"})
+                assert verification_audit is not None
+                assert verification_audit["eventHash"] in package["audit_refs"]
+                assert result["evidence_merkle_root"] == package["merkle_root"]
 
                 # Re-fetch the scan and prove compliance is byte-for-byte unchanged.
                 get_response = client.get(f"/api/scans/{scan['id']}")

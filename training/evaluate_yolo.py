@@ -17,8 +17,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from _dataset_utils import has_real_files, resolve_split_dirs
@@ -55,6 +58,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--imgsz", type=int, default=640,
         help="Evaluation image size (default: 640, should normally match training)",
+    )
+    parser.add_argument(
+        "--report", default=None,
+        help="Optional path for a machine-readable evaluation report (never marks a checkpoint validated)",
     )
     return parser
 
@@ -145,6 +152,7 @@ def main(argv=None) -> int:
         )
 
     confusion_matrix = getattr(results, "confusion_matrix", None)
+    confusion_summary: dict[str, dict[str, int]] = {}
     if confusion_matrix is not None and getattr(confusion_matrix, "matrix", None) is not None:
         matrix = confusion_matrix.matrix
         names = results.names
@@ -157,6 +165,7 @@ def main(argv=None) -> int:
             tp = int(matrix[class_id, class_id])
             fp = int(matrix[class_id, :].sum()) - tp  # predicted this class, ground truth was something else (incl. background)
             fn = int(matrix[:, class_id].sum()) - tp  # ground truth this class, predicted something else (incl. missed)
+            confusion_summary[names[class_id]] = {"true_positive": tp, "false_positive": fp, "false_negative": fn}
             print(f"{names[class_id]:<24}{tp:>6}{fp:>6}{fn:>6}")
         print(
             "\nFP = model predicted this class where the truth was something else or nothing there; "
@@ -172,6 +181,54 @@ def main(argv=None) -> int:
         "missing real instances. Both call for more/better-varied labeled examples "
         "of that specific class, per training/README.md."
     )
+    if args.report:
+        class_metrics = []
+        if hasattr(results, "summary"):
+            class_metrics = results.summary()
+        else:
+            for index, class_id in enumerate(results.box.ap_class_index):
+                precision, recall, map50_class, map50_95_class = results.box.class_result(index)
+                class_metrics.append({
+                    "class_name": results.names[class_id],
+                    "precision": float(precision),
+                    "recall": float(recall),
+                    "map50": float(map50_class),
+                    "map50_95": float(map50_95_class),
+                })
+        report_path = Path(args.report).resolve()
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        metrics = {
+            "precision": float(mp),
+            "recall": float(mr),
+            "map50": float(map50),
+            "map50_95": float(map50_95),
+            "per_class": class_metrics,
+            "confusion": confusion_summary,
+            "speed_ms_per_image": {
+                str(key): float(value) for key, value in (getattr(results, "speed", {}) or {}).items()
+            },
+        }
+        report = {
+            "schema_version": 1,
+            "status": "evaluated",
+            "promotion_status": "not_promoted",
+            "model_identifier": weights_path.name,
+            "model_hash": hashlib.sha256(weights_path.read_bytes()).hexdigest(),
+            "dataset_identifier": str(Path(args.data).resolve()),
+            "dataset_hash": hashlib.sha256(Path(args.data).read_bytes()).hexdigest(),
+            "split": args.split,
+            "class_names": [results.names[key] for key in sorted(results.names)],
+            "evaluation_date": datetime.now(timezone.utc).isoformat(),
+            "metrics": metrics,
+            "test_counts": {
+                "images": int(getattr(results, "seen", 0)),
+                "classes_with_instances": len(seen_classes),
+            },
+            "environment": {"device": args.device, "image_size": args.imgsz},
+            "note": "Measured evaluation output only. This report does not establish production validation or promotion.",
+        }
+        report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"\nEvaluation report written to: {report_path} (status=evaluated, promotion_status=not_promoted)")
     return 0
 
 
