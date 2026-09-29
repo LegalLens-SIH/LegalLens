@@ -111,6 +111,7 @@
     formData.append("product_name", metadata.productName || (files[0].file || files[0]).name);
     formData.append("category", metadata.category || "General");
     formData.append("manufacturer", metadata.manufacturer || "Not specified");
+    formData.append("ocr_mode", metadata.ocrMode || "standard");
     return fetch(url, { method: "POST", body: formData, credentials: "include" }).then(function (response) {
       return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
     }).catch(function (networkErr) {
@@ -190,6 +191,38 @@
     });
   }
 
+  function timestampEvidencePackage(packageId, baseUrl) {
+    var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/evidence-packages/" + encodeURIComponent(packageId) + "/timestamp";
+    return fetch(endpoint, { method: "POST", credentials: "include" }).then(function (response) {
+      return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
+    }).catch(function (networkErr) {
+      return { httpOk: false, status: 0, data: { detail: "Could not reach the timestamp authority endpoint. " + networkErr.message } };
+    });
+  }
+
+  function transmitEvidencePackage(packageId, baseUrl) {
+    var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/em-maap/transmit-package/" + encodeURIComponent(packageId);
+    return fetch(endpoint, { method: "POST", credentials: "include" }).then(function (response) {
+      return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
+    }).catch(function (networkErr) {
+      return { httpOk: false, status: 0, data: { detail: "Could not reach the e-Maap endpoint. " + networkErr.message } };
+    });
+  }
+
+  function submitScanCalibration(scanId, calibration, baseUrl) {
+    var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(scanId) + "/calibration";
+    return fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(calibration),
+    }).then(function (response) {
+      return response.json().then(function (data) { return { httpOk: response.ok, status: response.status, data: data }; });
+    }).catch(function (networkErr) {
+      return { httpOk: false, status: 0, data: { detail: "Could not reach the calibration endpoint. " + networkErr.message } };
+    });
+  }
+
   global.LLOcr = {
     runOcr: runOcr,
     evaluateCaptureQuality: evaluateCaptureQuality,
@@ -203,6 +236,9 @@
     getCases: getCases,
     verifyListing: verifyListing,
     getListingVerification: getListingVerification,
+    timestampEvidencePackage: timestampEvidencePackage,
+    transmitEvidencePackage: transmitEvidencePackage,
+    submitScanCalibration: submitScanCalibration,
     validateFile: validateFile,
     DEFAULT_BASE_URL: DEFAULT_BASE_URL,
   };

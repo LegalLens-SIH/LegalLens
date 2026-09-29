@@ -7,6 +7,8 @@ from typing import Any
 def _scale_px_per_mm(calibration: dict[str, Any] | None) -> tuple[float | None, str | None]:
     if not isinstance(calibration, dict):
         return None, "A valid physical calibration is unavailable."
+    if calibration.get("status") != "calibrated" or calibration.get("acceptable") is not True:
+        return None, "Calibration is not an explicitly accepted, evidence-backed calibration."
     if calibration.get("status") in {"review_required", "invalid", "unavailable"} or calibration.get("acceptable") is False:
         return None, "Calibration was rejected or requires review."
     scale = calibration.get("scale_px_per_mm")
@@ -25,6 +27,7 @@ def validate_legibility(
     calibration: dict[str, Any] | None,
     geometry: dict[str, Any] | None,
     minimum_font_height_mm: float | None = None,
+    threshold_source: dict[str, Any] | None = None,
     review_default_threshold_mm: float = 2.0,
 ) -> dict[str, Any]:
     """Validate a text block's legibility using existing calibration/geometry output.
@@ -75,6 +78,7 @@ def validate_legibility(
             "status": "review_required",
             "estimated_height_mm": round(estimated_mm, 4),
             "minimum_font_height_mm": None,
+            "threshold_status": "unavailable",
             "review_reason": "No verified minimum font-height threshold is available; legal compliance requires manual review.",
             "calibration_used": calibration,
         }
@@ -92,21 +96,35 @@ def validate_legibility(
             "calibration_used": calibration,
         }
 
+    threshold_verified = (
+        isinstance(threshold_source, dict)
+        and threshold_source.get("verification_status") == "verified"
+        and bool(threshold_source.get("provision_id"))
+        and bool(threshold_source.get("citation"))
+    )
     if estimated_mm >= threshold:
         return {
-            "status": "eligible",
+            "status": "review_required",
             "estimated_height_mm": round(estimated_mm, 4),
-            "minimum_font_height_mm": threshold,
-            "review_reason": None,
+            "minimum_font_height_mm": threshold if threshold_verified else None,
+            "threshold_status": "verified_review_only" if threshold_verified else "unverified",
+            "threshold_comparison": "at_or_above" if threshold_verified else None,
+            "review_reason": "Measurement remains non-authoritative and requires review.",
             "calibration_used": calibration,
+            "threshold_source": threshold_source if threshold_verified else None,
+            "used_for_compliance": False,
         }
 
     return {
         "status": "review_required",
         "estimated_height_mm": round(estimated_mm, 4),
-        "minimum_font_height_mm": threshold,
-        "review_reason": "Text height is below the minimum font-height threshold; legal threshold requires verification.",
+        "minimum_font_height_mm": threshold if threshold_verified else None,
+        "threshold_status": "verified_review_only" if threshold_verified else "unverified",
+        "threshold_comparison": "below" if threshold_verified else None,
+        "review_reason": "Measurement remains non-authoritative and requires review; the legal threshold must be verified.",
         "calibration_used": calibration,
+        "threshold_source": threshold_source if threshold_verified else None,
+        "used_for_compliance": False,
     }
 
 
@@ -116,6 +134,7 @@ def measure_ocr_detection(
     calibration: dict[str, Any] | None,
     geometry: dict[str, Any] | None = None,
     minimum_font_height_mm: float | None = None,
+    threshold_source: dict[str, Any] | None = None,
     evidence_region_ids: list[str] | None = None,
     image_shape: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
@@ -131,6 +150,7 @@ def measure_ocr_detection(
             calibration=calibration,
             geometry=geometry,
             minimum_font_height_mm=minimum_font_height_mm,
+            threshold_source=threshold_source,
         )
         result["ocr_evidence"] = None
         return result
@@ -196,6 +216,7 @@ def measure_ocr_detection(
         calibration=calibration,
         geometry=geometry,
         minimum_font_height_mm=minimum_font_height_mm,
+        threshold_source=threshold_source,
     )
     raw_bbox = detection.get("bbox")
     if raw_bbox is None and polygon is not None:
@@ -208,4 +229,16 @@ def measure_ocr_detection(
         "polygon": detection.get("polygon"),
         "region_ids": evidence_region_ids if evidence_region_ids is not None else detection.get("evidence_region_ids", []),
     }
+    result.setdefault("source", "paddleocr")
+    result.setdefault("method", "ocr_polygon_text_height")
+    result.setdefault("confidence", detection.get("confidence"))
+    result.setdefault("status", "review_required")
+    result["authoritative"] = False
+    result["used_for_compliance"] = False
+    result["evidence_region"] = {
+        "bbox": detection.get("bbox"),
+        "polygon": detection.get("polygon"),
+        "region_ids": list(evidence_region_ids or []),
+    }
+    result["pixel_height"] = round(height_px, 4) if height_px > 0 else None
     return result

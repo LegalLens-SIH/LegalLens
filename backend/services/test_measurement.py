@@ -11,7 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from backend.services.measurement import CalibrationError, CalibratedMeasurement, estimate_height_mm
+from backend.services.measurement import (
+    CalibrationError, CalibratedMeasurement, estimate_height_mm,
+    measure_ocr_dimensions, measure_pixel_geometry,
+)
 
 
 def test_calibration_math_simple_1_to_1_scale():
@@ -79,3 +82,39 @@ def test_measurement_never_imported_by_compliance_engine():
     assert not any("measurement" in module for module in imported_modules), (
         f"compliance_engine.py must never import measurement.py; found: {imported_modules}"
     )
+
+
+def test_pixel_geometry_requires_explicit_calibration_and_preserves_evidence():
+    evidence = {"region_id": "ocr-1", "bbox": [10, 20, 50, 40]}
+    uncalibrated = measure_pixel_geometry(bbox=evidence["bbox"], evidence_region=evidence)
+    assert uncalibrated["status"] == "review_required"
+    assert uncalibrated["dimensions"] is None
+    assert uncalibrated["pixel_dimensions"] == {"width": 40.0, "height": 20.0}
+    assert uncalibrated["uncertainty"]["status"] == "not_quantified"
+
+    measured = measure_pixel_geometry(
+        bbox=evidence["bbox"], calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 2.0},
+        unit="cm", confidence=0.91, evidence_region=evidence, provenance={"source": "paddleocr"}, uncertainty_px=2,
+    )
+    assert measured["status"] == "experimental_measurement"
+    assert measured["dimensions"] == {"width": 2.0, "height": 1.0}
+    assert measured["uncertainty"]["absolute_bound"] == 0.1
+    assert measured["confidence"] == 0.91
+    assert measured["evidence_region"] == evidence
+    assert measured["provenance"] == {"source": "paddleocr"}
+    assert measured["authoritative"] is False
+    assert measured["used_for_compliance"] is False
+
+
+def test_malformed_geometry_and_rejected_scale_remain_review_only():
+    malformed = measure_pixel_geometry(bbox=[0, 0, float("nan"), 4])
+    rejected = measure_ocr_dimensions(
+        {"bbox": [0, 0, 20, 10], "confidence": 0.8},
+        calibration={"status": "calibrated", "acceptable": False, "scale_px_per_mm": 2},
+        evidence_region_ids=["ocr-2"],
+    )
+    assert malformed["available"] is False
+    assert malformed["dimensions"] is None
+    assert rejected["status"] == "review_required"
+    assert rejected["dimensions"] is None
+    assert rejected["evidence_region"]["region_ids"] == ["ocr-2"]

@@ -7,22 +7,22 @@ image + a short list of ambiguous field names in -> a proposed value and
 confidence PER FIELD out. This module NEVER makes a compliance decision
 (PASS/FAIL/NEEDS_MANUAL_VERIFICATION) - it only proposes text for fields the
 deterministic extractor (backend/services/compliance_engine.py's
-normalize_ocr_result) could not confidently resolve. Whatever value ends up
-in NormalizedOCRResult.fields - whether it came from whole-page alias
-matching, a YOLO region, or from here - is validated by the exact SAME
-deterministic rules (confidence thresholds, MRP/unit-price wording+amount
-checks, entity heading/continuation checks, ...) in compliance_engine.py.
-This module has no knowledge of, and no influence over, that logic beyond
-supplying a value/confidence pair through the SAME generic
-`ocr_result["fields"]` override mechanism normalize_ocr_result already
-exposes (see its `supplied_fields` handling) - nothing in
-compliance_engine.py was changed to support this.
+normalize_ocr_result) could not confidently resolve. Suggestions are
+attached only to the supporting StructuredExtraction result with explicit
+`ai_fallback` provenance; they are never passed to ComplianceEngine, whose
+input remains the original PaddleOCR result. The generic
+`ocr_result["fields"]` override is used only to shape that supporting
+extraction, not to replace authoritative OCR or compliance evidence.
+The proposals are marked `ai_fallback` in StructuredExtraction and are never
+fed into ComplianceEngine; its input remains the original PaddleOCR result.
+The generic `ocr_result["fields"]` override is used only to shape this
+supporting extraction, not to replace authoritative OCR or compliance
+evidence.
 
-Where this plugs in: backend/api/ocr.py's create_scan(), between a
-successful PaddleOCR run and the ComplianceEngine.evaluate() call - see
-that module for the actual wiring (find_ambiguous_fields ->
-GeminiService.suggest_fields -> apply_suggestions_to_ocr_result -> the
-SAME ComplianceEngine.evaluate() every scan already used).
+Where this plugs in: backend/api/ocr.py's create_scan(), after a
+successful PaddleOCR run. Suggestions are attached only to the supporting
+StructuredExtraction result with explicit `ai_fallback` provenance; the
+authoritative ComplianceEngine input remains the original PaddleOCR result.
 
 What counts as "ambiguous" (the low-confidence heuristic used here, spelled
 out per this task's explicit requirement to document the heuristic before
@@ -90,7 +90,7 @@ Usage:
         if ambiguous:
             suggestions = await GeminiService().suggest_fields(image_bytes, ambiguous, ocr_result.get("regions"))
             if suggestions:
-                ocr_result = apply_suggestions_to_ocr_result(ocr_result, suggestions)
+                supporting_extraction = apply_suggestions_to_ocr_result(ocr_result, suggestions)
     compliance = ComplianceEngine().evaluate(ocr_result, validation_profile)
 """
 
@@ -326,26 +326,18 @@ def _care_name(text: str) -> Optional[str]:
 
 
 def _normalize_value_for_rule_field(class_name: str, value: str) -> Any:
-    """Shape a Gemini-proposed value the same way compliance_engine.py's own
-    extraction already shapes it for the same field, so the SAME downstream
-    validation (which inspects the value's shape/wording, not just its
-    presence) behaves identically regardless of source:
+    """Shape a Gemini proposal for the supporting structured-extraction
+    schema. This does not run or supply input to compliance validation:
 
     - consumer_care: compliance_engine.py's _apply_consumer_care_region (the
       existing region-based path this mirrors) expects a
       {name, address, telephone_number, email_address} dict, not a bare
       string - phone/email are pulled out with the same patterns used
       throughout compliance_engine.py.
-    - mrp: _mrp_result requires the actual words "MRP"/"Maximum Retail
-      Price" to appear ON the value text (it treats that wording as
-      confirming evidence this line IS the MRP declaration, separate from
-      the amount itself). The prompt already asks Gemini for this wording,
-      but a defensive fallback prepends "MRP " when it's missing rather
-      than silently producing a value the deterministic engine would
-      reject as "amount without MRP wording".
-    - everything else: passed through unchanged - the generic
-      `_field_result`/YOLO_CLASS_TO_FIELDS path only checks detected+
-      confidence, no content-shape validation.
+        - mrp: prepend "MRP " when absent so the supporting extraction displays
+            the field as a labeled MRP proposal.
+        - everything else: passed through unchanged for display as supporting
+            extraction evidence.
     """
     if class_name == "consumer_care":
         phone = _PHONE_PATTERN.search(value)
@@ -364,20 +356,14 @@ def _normalize_value_for_rule_field(class_name: str, value: str) -> Any:
 def apply_suggestions_to_ocr_result(
     ocr_result: dict[str, Any], suggestions: list[GeminiFieldSuggestion],
 ) -> dict[str, Any]:
-    """Return a NEW ocr_result dict with `suggestions` merged into its
-    `fields` override map (never mutates the input - matches
-    normalize_ocr_result's own "never mutates" contract). Every mapped rule
-    field for a suggested class gets the SAME value/confidence, mirroring
-    how compliance_engine.py's own _apply_regions overlays a single YOLO
-    class detection onto every rule field it satisfies (e.g. both the
-    retail and wholesale field names for "entity_details").
+    """Return a NEW supporting-extraction dict with `suggestions` merged into
+    its `fields` override map (never mutates the input). Every mapped field
+    for a suggested class gets the same value/confidence. Callers must keep
+    this copy out of the authoritative ComplianceEngine input.
 
-    This is the ONLY place a Gemini result touches the pipeline: it lands
-    in `ocr_result["fields"]`, the exact same generic override
-    normalize_ocr_result already reads (see that function's
-    `supplied_fields` handling) for callers supplying pre-resolved field
-    values - nothing about that mechanism, or anything downstream of it in
-    compliance_engine.py, was changed to support this.
+    This is the only place a Gemini result is merged into supporting
+    extraction. It is not an OCR result and must not be used as input to
+    ComplianceEngine.
     """
     merged = dict(ocr_result)
     fields = dict(merged.get("fields") or {})

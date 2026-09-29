@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import shutil
+from pathlib import Path
 from collections import OrderedDict
 from typing import Any
 
@@ -19,7 +20,18 @@ class TesseractOCRService:
         requested = os.getenv("TESSERACT_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
         self.requested = requested if enabled is None else enabled
         configured_binary = os.getenv("TESSERACT_BINARY_PATH", "").strip()
-        tesseract_binary = binary_path or configured_binary or shutil.which("tesseract")
+        configured_binary = binary_path if binary_path is not None else configured_binary
+        configured_binary = configured_binary.strip() if configured_binary else ""
+        if configured_binary:
+            tesseract_binary = configured_binary if Path(configured_binary).is_file() else shutil.which(configured_binary)
+        else:
+            tesseract_binary = shutil.which("tesseract")
+            if not tesseract_binary and os.name == "nt":
+                program_files = Path(os.getenv("ProgramFiles", r"C:\Program Files"))
+                default_install = program_files / "Tesseract-OCR" / "tesseract.exe"
+                if default_install.is_file():
+                    tesseract_binary = str(default_install)
+        self.invalid_binary = bool(configured_binary and not tesseract_binary)
         self.enabled = self.requested and pytesseract is not None and bool(tesseract_binary)
         self.tesseract_binary = tesseract_binary
         self.language = os.getenv("TESSERACT_LANGUAGE", "eng").strip() or "eng"
@@ -28,6 +40,17 @@ class TesseractOCRService:
         except ValueError:
             page_segmentation_mode = 6
         self.page_segmentation_mode = page_segmentation_mode if page_segmentation_mode in _ALLOWED_PSM else 6
+        try:
+            timeout = float(os.getenv("TESSERACT_TIMEOUT_SECONDS", "12"))
+            max_pixels = int(os.getenv("TESSERACT_MAX_PIXELS", "24000000"))
+        except ValueError:
+            timeout, max_pixels = 12.0, 24_000_000
+        self.timeout_seconds = timeout if math.isfinite(timeout) and 1 <= timeout <= 60 else 12.0
+        self.max_pixels = max_pixels if 1 <= max_pixels <= 50_000_000 else 24_000_000
+        try:
+            self.max_detections = min(5000, max(1, int(os.getenv("TESSERACT_MAX_DETECTIONS", "2000"))))
+        except ValueError:
+            self.max_detections = 2000
 
     @staticmethod
     def _line_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -71,12 +94,20 @@ class TesseractOCRService:
                 "source": "tesseract",
                 "provenance": ["tesseract"],
             })
-        return detections
+        return detections[:5000]
 
     def run(self, image: Any | None) -> dict[str, Any]:
         if image is None:
             return {"success": False, "error_code": "missing_input", "message": "No image supplied"}
 
+        if self.requested and self.invalid_binary and pytesseract is not None:
+            return {
+                "success": False,
+                "error_code": "invalid_binary",
+                "message": "Configured Tesseract binary path does not identify an executable file.",
+                "engine": "tesseract",
+                "provenance": "secondary_review_only",
+            }
         if not self.enabled or pytesseract is None:
             return {
                 "success": False,
@@ -86,15 +117,47 @@ class TesseractOCRService:
                 "provenance": "secondary_review_only",
             }
 
+        size = getattr(image, "size", None)
+        shape = getattr(image, "shape", None)
+        try:
+            width, height = (image.size if isinstance(image.size, tuple) else (shape[1], shape[0]))
+        except (TypeError, AttributeError, IndexError):
+            width = height = 0
+        if not width or not height or width * height > self.max_pixels:
+            return {"success": False, "error_code": "image_limit_exceeded", "message": "Image dimensions exceed the configured Tesseract pixel limit.", "engine": "tesseract", "provenance": "secondary_review_only"}
+
         try:
             pytesseract.pytesseract.tesseract_cmd = self.tesseract_binary
+            available_languages = pytesseract.get_languages(config="")
+            requested_languages = [language.strip() for language in self.language.split("+") if language.strip()]
+            missing_languages = [language for language in requested_languages if language not in available_languages]
+            if missing_languages:
+                return {
+                    "success": False,
+                    "error_code": "language_unavailable",
+                    "message": "One or more configured Tesseract language models are unavailable.",
+                    "missing_languages": missing_languages,
+                    "available_languages": available_languages,
+                    "engine": "tesseract",
+                    "provenance": "secondary_review_only",
+                }
             data = pytesseract.image_to_data(
                 image,
                 lang=self.language,
                 config=f"--oem 3 --psm {self.page_segmentation_mode}",
                 output_type=pytesseract.Output.DICT,
+                timeout=self.timeout_seconds,
             )
-            detections = self._line_detections(data)
+            required_output = ("text", "conf", "left", "top", "width", "height", "block_num", "par_num", "line_num")
+            if not isinstance(data, dict) or any(key not in data for key in required_output):
+                return {
+                    "success": False,
+                    "error_code": "malformed_output",
+                    "message": "Tesseract returned malformed OCR data.",
+                    "engine": "tesseract",
+                    "provenance": "secondary_review_only",
+                }
+            detections = self._line_detections(data)[:self.max_detections]
             text = "\n".join(detection["text"] for detection in detections)
             return {
                 "success": True,
@@ -107,11 +170,29 @@ class TesseractOCRService:
                 "error_code": None,
                 "message": "OCR completed successfully",
             }
+        except RuntimeError as exc:  # pytesseract reports its subprocess timeout as RuntimeError.
+            not_found_error = getattr(pytesseract, "TesseractNotFoundError", None)
+            if not_found_error is not None and isinstance(exc, not_found_error):
+                return {
+                    "success": False,
+                    "error_code": "not_available",
+                    "message": "The configured Tesseract executable or language data is unavailable.",
+                    "engine": "tesseract",
+                    "provenance": "secondary_review_only",
+                }
+            timed_out = "timeout" in str(exc).lower()
+            return {
+                "success": False,
+                "error_code": "timeout" if timed_out else "ocr_failed",
+                "message": "Tesseract OCR timed out." if timed_out else f"Tesseract OCR failed ({type(exc).__name__}).",
+                "engine": "tesseract",
+                "provenance": "secondary_review_only",
+            }
         except Exception as exc:  # pragma: no cover - runtime/native OCR failures depend on image + binary
             return {
                 "success": False,
                 "error_code": "ocr_failed",
-                "message": f"Tesseract OCR failed: {exc}",
+                "message": f"Tesseract OCR failed ({type(exc).__name__}).",
                 "engine": "tesseract",
                 "provenance": "secondary_review_only",
             }

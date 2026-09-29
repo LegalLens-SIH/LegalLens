@@ -22,12 +22,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
+import platform
 import shutil
 import sys
 from pathlib import Path
 
-from _dataset_utils import has_real_files, resolve_split_dirs
+from _dataset_utils import build_dataset_manifest, has_real_files, resolve_split_dirs
 
 # Disable ultralytics' global auto-install-missing-packages behavior and its
 # Ultralytics HUB sync BEFORE importing ultralytics - this project's
@@ -109,18 +112,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--output", default=str(DEFAULT_OUTPUT_MODEL),
         help=f"Where to copy the best checkpoint (default: {DEFAULT_OUTPUT_MODEL})",
     )
-    parser.add_argument(
-        "--skip-dataset-check", action="store_true",
-        help="Skip the placeholder-dataset guard (advanced/debugging only)",
-    )
+    parser.add_argument("--seed", type=int, default=0, help="Deterministic training random seed")
     return parser
 
 
 def main(argv=None) -> int:
     args = build_arg_parser().parse_args(argv)
 
-    if not args.skip_dataset_check:
-        _check_dataset_ready(Path(args.data).resolve())
+    data_path = Path(args.data).resolve()
+    _check_dataset_ready(data_path)
+    base_path = Path(args.base).resolve()
+    if not base_path.is_file() or base_path.suffix.lower() != ".pt":
+        print("Base checkpoint must be an existing local .pt file; automatic model downloads are disabled.", file=sys.stderr)
+        return 1
+    dataset_manifest = build_dataset_manifest(data_path, ("train", "val"))
 
     # Imported after YOLO_AUTOINSTALL is set, and after the dataset check, so
     # a missing-dataset error surfaces before paying for ultralytics' import cost.
@@ -138,7 +143,7 @@ def main(argv=None) -> int:
     print(f"Device:      {args.device}")
     print(f"Runs dir:    {RUNS_DIR}")
 
-    model = YOLO(args.base)
+    model = YOLO(str(base_path))
     results = model.train(
         data=args.data,
         epochs=args.epochs,
@@ -147,6 +152,8 @@ def main(argv=None) -> int:
         imgsz=args.imgsz,
         device=args.device,
         workers=args.workers,
+        seed=args.seed,
+        deterministic=True,
         project=str(RUNS_DIR),
         name=RUN_NAME,
         exist_ok=True,
@@ -162,7 +169,28 @@ def main(argv=None) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(best_weights, output_path)
 
+    try:
+        import ultralytics
+        ultralytics_version = str(ultralytics.__version__)
+    except Exception:
+        ultralytics_version = "unavailable"
+    run_manifest = {
+        "schema_version": 1, "status": "training_completed_unvalidated",
+        "checkpoint_path": str(output_path.resolve()),
+        "checkpoint_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
+        "base_checkpoint_sha256": hashlib.sha256(base_path.read_bytes()).hexdigest(),
+        "dataset_yaml_sha256": hashlib.sha256(data_path.read_bytes()).hexdigest(),
+        "dataset_manifest": dataset_manifest,
+        "arguments": {"epochs": args.epochs, "patience": args.patience, "batch": args.batch, "image_size": args.imgsz, "device": args.device, "workers": args.workers, "seed": args.seed, "deterministic": True},
+        "environment": {"python": platform.python_version(), "ultralytics": ultralytics_version},
+        "completed_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "note": "Training output only. No validation or production promotion is implied.",
+    }
+    manifest_path = output_path.with_suffix(output_path.suffix + ".manifest.json")
+    manifest_path.write_text(json.dumps(run_manifest, indent=2, sort_keys=True), encoding="utf-8")
+
     print(f"\nBest checkpoint copied to: {output_path}")
+    print(f"Reproducibility manifest: {manifest_path}")
     print(f"Full training run (logs, curves, all epoch weights): {results.save_dir}")
     print(
         "\nNext step: backend\\.venv311\\Scripts\\python.exe training\\evaluate_yolo.py "

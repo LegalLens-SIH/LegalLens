@@ -43,6 +43,15 @@ class PreprocessOptions:
     denoise: bool = False
 
 
+def production_preprocess_options() -> PreprocessOptions:
+    return PreprocessOptions(
+        resize=True,
+        max_side=MAX_SIDE_DEFAULT,
+        denoise=PREPROCESSING_ENABLED,
+        enhance_contrast=PREPROCESSING_ENABLED,
+    )
+
+
 def resize_if_large(image: np.ndarray, max_side: int = MAX_SIDE_DEFAULT) -> np.ndarray:
     """Downscale so the longer side is at most `max_side`. Upscaling is not done here."""
     h, w = image.shape[:2]

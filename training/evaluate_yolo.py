@@ -24,7 +24,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from _dataset_utils import has_real_files, resolve_split_dirs
+from _dataset_utils import build_dataset_manifest, has_real_files, resolve_split_dirs
 
 # Same rationale as train_yolo.py: no silent auto-installs, no HUB sync.
 os.environ.setdefault("YOLO_AUTOINSTALL", "False")
@@ -60,8 +60,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Evaluation image size (default: 640, should normally match training)",
     )
     parser.add_argument(
-        "--report", default=None,
-        help="Optional path for a machine-readable evaluation report (never marks a checkpoint validated)",
+        "--report", default=str(TRAINING_DIR / "runs" / "legal_lense_pdp_validation.json"),
+        help="Path for a machine-readable evaluation report (defaults under training/runs; never promotes a checkpoint)",
     )
     return parser
 
@@ -99,6 +99,13 @@ def main(argv=None) -> int:
             ),
             file=sys.stderr,
         )
+        return 1
+
+    try:
+        manifest_splits = ("train", "val", "test") if args.split == "test" else ("train", "val")
+        dataset_manifest = build_dataset_manifest(Path(args.data).resolve(), manifest_splits)
+    except (OSError, ValueError) as exc:
+        print(f"Dataset manifest validation failed: {exc}", file=sys.stderr)
         return 1
 
     from ultralytics import YOLO
@@ -195,8 +202,13 @@ def main(argv=None) -> int:
                     "map50": float(map50_class),
                     "map50_95": float(map50_95_class),
                 })
-        report_path = Path(args.report).resolve()
+        report_path = Path(args.report).resolve() if args.report else TRAINING_DIR / "runs" / "legal_lense_pdp_validation.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            import ultralytics
+            ultralytics_version = str(ultralytics.__version__)
+        except Exception:
+            ultralytics_version = "unavailable"
         metrics = {
             "precision": float(mp),
             "recall": float(mr),
@@ -216,6 +228,9 @@ def main(argv=None) -> int:
             "model_hash": hashlib.sha256(weights_path.read_bytes()).hexdigest(),
             "dataset_identifier": str(Path(args.data).resolve()),
             "dataset_hash": hashlib.sha256(Path(args.data).read_bytes()).hexdigest(),
+            "dataset_manifest_hash": dataset_manifest["manifest_sha256"],
+            "dataset_manifest": dataset_manifest,
+            "class_schema_hash": hashlib.sha256(json.dumps(dataset_manifest["class_names"], sort_keys=True).encode("utf-8")).hexdigest(),
             "split": args.split,
             "class_names": [results.names[key] for key in sorted(results.names)],
             "evaluation_date": datetime.now(timezone.utc).isoformat(),
@@ -224,7 +239,8 @@ def main(argv=None) -> int:
                 "images": int(getattr(results, "seen", 0)),
                 "classes_with_instances": len(seen_classes),
             },
-            "environment": {"device": args.device, "image_size": args.imgsz},
+            "environment": {"device": args.device, "image_size": args.imgsz, "ultralytics_version": ultralytics_version},
+            "reproducibility": {"weights_sha256": hashlib.sha256(weights_path.read_bytes()).hexdigest(), "data_yaml_sha256": hashlib.sha256(Path(args.data).read_bytes()).hexdigest(), "split": args.split, "device": args.device, "image_size": args.imgsz},
             "note": "Measured evaluation output only. This report does not establish production validation or promotion.",
         }
         report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")

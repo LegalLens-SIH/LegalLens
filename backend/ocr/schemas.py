@@ -100,6 +100,10 @@ class OCRResult(BaseModel):
     image: str = Field(..., description="Filename (basename) of the processed image")
     image_path: Optional[str] = Field(None, description="Full input path as given to the service")
     full_text: str = Field("", description="All detected text lines joined with newlines")
+    image_dimensions: Optional[dict[str, int]] = Field(
+        default=None,
+        description="Width and height of the image coordinate frame used by OCR detections",
+    )
     detections: List[Detection] = Field(default_factory=list)
     detection_count: int = Field(0, description="Number of text detections returned")
     preprocessing_applied: bool = Field(False, description="Whether OpenCV preprocessing ran before OCR")
@@ -138,6 +142,11 @@ class OCRResult(BaseModel):
         default=None,
         exclude_if=lambda value: value is None,
         description="Opt-in experimental PDP detection evidence; never authoritative for OCR or compliance",
+    )
+    barcode_decoding: Optional[dict[str, Any]] = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Supporting barcode values and symbol geometry; never authoritative for OCR or compliance",
     )
     error: Optional[OCRError] = None
 

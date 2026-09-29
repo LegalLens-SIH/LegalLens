@@ -39,3 +39,19 @@ def test_capture_quality_rejects_below_minimum_resolution_and_marks_review_bound
     assert any("resolution" in reason.lower() for reason in result["reasons"])
     assert result["framing_status"] == "manual_visual_check_required"
     assert result["physical_calibration"] == {"status": "unavailable", "review_required": True}
+
+
+def test_capture_quality_flags_skewed_declaration_lines_with_guidance():
+    frame = np.full((900, 1200, 3), 255, dtype=np.uint8)
+    for y in range(150, 750, 100):
+        cv2.line(frame, (150, y), (1050, y), (0, 0, 0), 4)
+    rotation = cv2.getRotationMatrix2D((600, 450), 14, 1.0)
+    rotated = cv2.warpAffine(frame, rotation, (1200, 900), borderValue=(255, 255, 255))
+
+    result = evaluate_capture_quality(rotated)
+
+    assert result["skew_assessment"]["status"] == "review_required"
+    assert abs(result["skew_assessment"]["angle_degrees"]) > 8
+    assert "Rotate" in result["skew_assessment"]["guidance"]
+    assert "Package or camera alignment is skewed" in result["reasons"]
+    assert result["perspective_assessment"]["status"] == "not_assessed"

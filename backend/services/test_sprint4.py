@@ -12,7 +12,7 @@ from backend.services.evidence_package import EvidenceArtifact, EvidencePackage,
 from backend.services.model_validation_report import ModelValidationReport
 from backend.services.ruleset_validation_report import RulesetValidationReport
 from backend.services.signoff import SignoffError, validate_signoff
-from backend.services.timestamp_authority import RFC3161TimestampAuthority
+from backend.services.timestamp_authority import RFC3161TimestampAuthority, TimestampConfigError
 
 
 def test_evidence_package_tamper_detection_round_trip():
@@ -34,18 +34,77 @@ def test_evidence_package_tamper_detection_round_trip():
     assert "ocr" in verification["changed_artifacts"]
 
 
-def test_tsa_success_and_failure_paths():
+def test_evidence_package_detects_artifact_descriptor_tampering():
+    package = build_evidence_package(
+        evidence_id="source-image-case",
+        raw_artifacts={
+            "source_image": {
+                "artifact_type": "source_image",
+                "value": b"original image bytes",
+                "source": "original_upload",
+                "metadata": {"file_name": "label.png", "mime_type": "image/png"},
+            },
+        },
+    )
+    stored = package.to_dict()
+    stored["artifacts"][0]["metadata"]["file_name"] = "different-label.png"
+
+    tampered = EvidencePackage.model_validate(stored)
+
+    assert tampered.verify()["valid"] is False
+
+
+def test_evidence_package_detects_package_id_tampering():
+    package = build_evidence_package(
+        evidence_id="package-id-case",
+        raw_artifacts={"ocr": {"artifact_type": "ocr_output", "value": {"text": "label"}}},
+    )
+    tampered = package.model_copy(update={"package_id": "evidence-tampered"})
+
+    assert tampered.verify()["valid"] is False
+
+
+def test_legacy_evidence_package_is_not_claimed_as_manifest_verified():
+    package = build_evidence_package(
+        evidence_id="legacy-package-case",
+        raw_artifacts={"ocr": {"artifact_type": "ocr_output", "value": {"text": "label"}}},
+    )
+    legacy = package.model_copy(update={"package_version": "1.0.0"})
+
+    verification = legacy.verify()
+
+    assert verification["valid"] is False
+    assert verification["manifest_bound"] is False
+    assert verification["reason"] == "legacy_or_unsupported_package_manifest"
+
+
+def test_tsa_never_trusts_injected_success_or_accepts_invalid_digest():
     def provider(digest: str, nonce: str | None = None):
-        return {"status": "ok", "token": {"messageImprint": digest, "status": "ok", "token": "ts-1", "nonce": nonce}}
+        return {
+            "status": "TIMESTAMPED", "verified": True, "timestamped": True,
+            "message_imprint_sha256": digest, "nonce": nonce,
+            "token_der_base64": "ZmFrZQ==", "request_der_base64": "ZmFrZQ==", "token_sha256": "0" * 64,
+        }
 
     tsa = RFC3161TimestampAuthority(provider=provider)
-    result = tsa.request_timestamp("abc123", nonce="n-1")
-    assert result["timestamped"] is True
-    assert tsa.verify(result["token"], digest="abc123", expected_nonce="n-1")["valid"] is True
+    import pytest
+    with pytest.raises(TimestampConfigError):
+        tsa.request_timestamp("abc123", nonce="n-1")
+    result = tsa.request_timestamp("a" * 64, nonce="n-1")
+    assert result["timestamped"] is False
+    assert result["status"] == "INVALID_TOKEN"
 
     failed = RFC3161TimestampAuthority(provider=lambda digest, nonce=None: {"status": "failed", "token": None})
-    req = failed.request_timestamp("def456")
+    req = failed.request_timestamp("b" * 64)
     assert req["timestamped"] is False
+
+
+def test_tsa_without_provider_configuration_reports_unavailable_without_timestamping():
+    tsa = RFC3161TimestampAuthority(config={"endpoint": "", "openssl_path": None, "cert_path": ""})
+    assert tsa.availability()["status"] == "TSA_UNAVAILABLE"
+    result = tsa.request_timestamp("a" * 64)
+    assert result["status"] == "TSA_UNAVAILABLE"
+    assert result["timestamped"] is False
 
 
 def test_bsa_certificate_generation_and_hashing():
@@ -64,35 +123,59 @@ def test_bsa_certificate_generation_and_hashing():
     assert cert["merkle_root"] == package.merkle_root
 
 
-def test_em_maap_retries_then_acknowledges_and_marks_dead_letter():
-    calls = []
+def test_em_maap_provider_contract_never_treats_unverified_response_as_success():
+    submitted = []
 
-    def fake_post(url, json, headers, timeout):
-        calls.append((url, json, headers, timeout))
-        if len(calls) == 1:
-            return httpx.Response(429, json={"error": "retry"})
-        return httpx.Response(200, json={"status": "accepted"})
+    class MockProvider:
+        def availability(self):
+            return {"status": "SUCCESS", "configured": True, "available": True}
 
-    client = EMMAAPClient(endpoint="https://example.test/submit", api_key="secret", timeout=5.0, max_retries=3)
-    import backend.services.em_maap_client as em_module
-    monkeypatch = __import__("pytest").MonkeyPatch()
-    monkeypatch.setattr(em_module.httpx, "post", fake_post)
-    try:
-        result = client.submit({"evidence_package_id": "pkg-1", "merkle_root": "abc", "artifact_hashes": {"ocr": "hash1"}}, idempotency_key="key-1")
-        assert result["status"] == "ACKNOWLEDGED"
-        assert len(calls) == 2
-        assert result["idempotency_key"] == "key-1"
+        def submit(self, payload, *, idempotency_key):
+            submitted.append((payload, idempotency_key))
+            return {"status": "SUCCESS", "transmitted": True, "acknowledged": False, "response": {"status": "accepted"}}
 
-        client2 = EMMAAPClient(endpoint="https://example.test/submit", api_key="secret", timeout=5.0, max_retries=2)
-        failing = __import__("pytest").MonkeyPatch()
-        failing.setattr(em_module.httpx, "post", lambda *a, **k: httpx.Response(500, json={"error": "down"}))
-        try:
-            result2 = client2.submit({"evidence_package_id": "pkg-2", "merkle_root": "def", "artifact_hashes": {"ocr": "hash2"}}, idempotency_key="key-2")
-            assert result2["status"] in {"RETRYING", "FAILED"}
-        finally:
-            failing.undo()
-    finally:
-        monkeypatch.undo()
+    client = EMMAAPClient(provider=MockProvider())
+    result = client.submit(
+        {"evidence_package_id": "pkg-1", "merkle_root": "a" * 64, "artifact_hashes": {"ocr": "b" * 64}},
+        idempotency_key="key-1",
+    )
+
+    assert result["status"] == "PROVIDER_ERROR"
+    assert result["acknowledged"] is False
+    assert len(submitted) == 1
+    assert submitted[0][1] == "key-1"
+
+
+def test_em_maap_reports_unavailable_validation_auth_provider_and_bad_schema_states(monkeypatch):
+    undocumented = EMMAAPClient(endpoint="https://example.test/submit", api_key="secret")
+    assert undocumented.availability()["status"] == "API_NOT_DOCUMENTED"
+    assert undocumented.submit({"evidence_package_id": "pkg"})["status"] == "API_NOT_DOCUMENTED"
+
+    class NotConfiguredProvider:
+        def availability(self):
+            return {"status": "NOT_CONFIGURED", "configured": False, "available": False}
+
+        def submit(self, _payload, *, idempotency_key):
+            raise AssertionError("unavailable provider must not be called")
+
+    client = EMMAAPClient(provider=NotConfiguredProvider())
+    assert client.availability()["status"] == "NOT_CONFIGURED"
+    assert client.submit({"evidence_package_id": "pkg"})["status"] == "NOT_CONFIGURED"
+    assert EMMAAPClient().submit({})["status"] == "VALIDATION_FAILURE"
+
+
+def test_em_maap_oversized_payload_returns_validation_state_without_transport():
+    client = EMMAAPClient()
+
+    result = client.submit({
+        "evidence_package_id": "pkg-oversized",
+        "artifact_hashes": {f"artifact-{index}-{'x' * 100}": "a" * 64 for index in range(10000)},
+    })
+
+    assert result["status"] == "VALIDATION_FAILURE"
+    assert result["transmitted"] is False
+    assert result["acknowledged"] is False
+    assert result["message"] == "e-Maap request exceeds the 1 MiB limit."
 
 
 def test_security_and_adversarial_checks():
@@ -143,25 +226,16 @@ def test_signoff_rejects_tampered_merkle_root():
         pass
 
 
-def test_api_end_to_end_evidence_chain_route_round_trip(monkeypatch):
+def test_api_rejects_unstored_evidence_transmission_without_contacting_provider(monkeypatch):
     from fastapi.testclient import TestClient
-
-    def fake_post(url, json, headers, timeout):
-        return httpx.Response(200, json={"status": "accepted"})
-
-    import backend.services.em_maap_client as em_module
     from backend.api.auth import current_user
-    monkeypatch.setenv("EMAAP_ENDPOINT", "https://example.test/submit")
-    monkeypatch.setenv("EMAAP_API_KEY", "secret")
-    monkeypatch.setattr(em_module.httpx, "post", fake_post)
     app.dependency_overrides[current_user] = lambda: {"_id": "user-42", "role": "official", "email": "officer@example.com", "fullName": "Officer"}
     try:
         with TestClient(app) as client:
             response = client.post(
                 "/api/em-maap/transmit",
-                json={"evidence_package_id": "pkg-42", "evidence_id": "e-42", "merkle_root": "mr-42", "artifact_hashes": {"ocr": "hash-42"}, "payload": {"status": "PENDING"}},
+                json={"evidence_id": "e-42", "merkle_root": "mr-42", "artifact_hashes": {"ocr": "hash-42"}, "payload": {"status": "PENDING"}},
             )
-            assert response.status_code == 200, response.text
-            assert response.json()["success"] is True
+            assert response.status_code == 400, response.text
     finally:
         app.dependency_overrides.pop(current_user, None)

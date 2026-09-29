@@ -26,6 +26,11 @@ class LegalCorpusStatus(BaseModel):
     schema_version: int = Field(1, ge=1)
     unresolved_fields: list[str] = Field(default_factory=list)
     blocked_fields: list[str] = Field(default_factory=list)
+    validation_status: str = "unknown"
+    source_count: int = 0
+    provision_count: int = 0
+    source_verification_counts: dict[str, int] = Field(default_factory=dict)
+    corpus_sha256: str | None = None
 
 
 class LegalSourceDocument(BaseModel):
@@ -42,6 +47,10 @@ class LegalSourceDocument(BaseModel):
     verification_status: Optional[LegalSourceVerificationStatus] = None
     effective_from: Optional[date] = None
     effective_until: Optional[date] = None
+    source_url: Optional[str] = None
+    authority_classification: Optional[str] = None
+    verified_by: Optional[str] = None
+    verification_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class LegalProvision(BaseModel):
@@ -55,6 +64,8 @@ class LegalProvision(BaseModel):
     source: LegalSourceDocument
     effective_from: Optional[date] = None
     effective_until: Optional[date] = None
+    provision_version: Optional[str] = None
+    supersedes_provision_id: Optional[str] = None
 
 
 class LegalBasisResult(BaseModel):
@@ -77,3 +88,6 @@ class LegalBasisResult(BaseModel):
         exclude_if=lambda value: value is None,
         description="Explicit reason no provision was returned; never a legal conclusion",
     )
+    corpus_id: Optional[str] = None
+    corpus_schema_version: Optional[int] = None
+    corpus_sha256: Optional[str] = None

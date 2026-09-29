@@ -54,6 +54,42 @@ def merkle_root(values: list[str]) -> str:
     return level[0].hex()
 
 
+_MANIFEST_SEALED_PACKAGE_VERSION = "2.0.0"
+
+
+def _artifact_manifest_digest(artifact: "EvidenceArtifact") -> str:
+    return sha256_value(artifact.model_dump(mode="json"))
+
+
+def _package_manifest_digest(
+    *, package_version: str, evidence_id: str, ruleset_digest: str | None,
+    model_digests: dict[str, str],
+) -> str:
+    return sha256_value({
+        "package_version": package_version,
+        "evidence_id": evidence_id,
+        "ruleset_digest": ruleset_digest,
+        "model_digests": model_digests,
+    })
+
+
+def _manifest_merkle_root(
+    artifacts: list["EvidenceArtifact"], *, package_version: str,
+    evidence_id: str, ruleset_digest: str | None, model_digests: dict[str, str],
+) -> str:
+    package_digest = _package_manifest_digest(
+        package_version=package_version,
+        evidence_id=evidence_id,
+        ruleset_digest=ruleset_digest,
+        model_digests=model_digests,
+    )
+    artifact_digests = [
+        _artifact_manifest_digest(artifact)
+        for artifact in sorted(artifacts, key=lambda item: item.artifact_id)
+    ]
+    return merkle_root([package_digest, *artifact_digests])
+
+
 class EvidenceArtifact(BaseModel):
     artifact_id: str
     artifact_type: str
@@ -69,12 +105,14 @@ class EvidenceArtifact(BaseModel):
 class EvidencePackage(BaseModel):
     package_id: str
     evidence_id: str
-    package_version: str = "1.0.0"
+    package_version: str = _MANIFEST_SEALED_PACKAGE_VERSION
     created_at: str
     artifacts: list[EvidenceArtifact] = Field(default_factory=list)
     ruleset_digest: str | None = None
     model_digests: dict[str, str] = Field(default_factory=dict)
     audit_refs: list[str] = Field(default_factory=list)
+    timestamp_refs: list[str] = Field(default_factory=list)
+    transmission_refs: list[str] = Field(default_factory=list)
     merkle_root: str
 
     @classmethod
@@ -88,14 +126,23 @@ class EvidencePackage(BaseModel):
         audit_refs: list[str] | None = None,
     ) -> "EvidencePackage":
         ordered = sorted(artifacts, key=lambda item: item.artifact_id)
-        root = merkle_root([artifact.sha256 for artifact in ordered])
+        package_version = _MANIFEST_SEALED_PACKAGE_VERSION
+        normalized_model_digests = model_digests or {}
+        root = _manifest_merkle_root(
+            ordered,
+            package_version=package_version,
+            evidence_id=evidence_id,
+            ruleset_digest=ruleset_digest,
+            model_digests=normalized_model_digests,
+        )
         return cls(
             package_id=f"evidence-{sha256_bytes(root.encode('utf-8'))[:16]}",
             evidence_id=evidence_id,
+            package_version=package_version,
             created_at=datetime.now(timezone.utc).isoformat(),
             artifacts=ordered,
             ruleset_digest=ruleset_digest,
-            model_digests=model_digests or {},
+            model_digests=normalized_model_digests,
             audit_refs=audit_refs or [],
             merkle_root=root,
         )
@@ -121,8 +168,34 @@ class EvidencePackage(BaseModel):
                 actual = sha256_value(payload)
             if actual != expected:
                 changed.append(artifact.artifact_id)
-        recomputed_root = merkle_root([artifact.sha256 for artifact in sorted(self.artifacts, key=lambda item: item.artifact_id)])
-        return {"valid": not changed and recomputed_root == self.merkle_root, "changed_artifacts": changed, "recomputed_root": recomputed_root}
+        if self.package_version != _MANIFEST_SEALED_PACKAGE_VERSION:
+            return {
+                "valid": False,
+                "manifest_bound": False,
+                "reason": "legacy_or_unsupported_package_manifest",
+                "changed_artifacts": changed,
+                "recomputed_root": None,
+            }
+        recomputed_root = _manifest_merkle_root(
+            self.artifacts,
+            package_version=self.package_version,
+            evidence_id=self.evidence_id,
+            ruleset_digest=self.ruleset_digest,
+            model_digests=self.model_digests,
+        )
+        root_matches = recomputed_root == self.merkle_root
+        if not root_matches and not changed:
+            changed = ["package_manifest"]
+        expected_package_id = f"evidence-{sha256_bytes(recomputed_root.encode('utf-8'))[:16]}"
+        package_id_matches = expected_package_id == self.package_id
+        if not package_id_matches:
+            changed.append("package_id")
+        return {
+            "valid": not changed and root_matches and package_id_matches,
+            "manifest_bound": True,
+            "changed_artifacts": changed,
+            "recomputed_root": recomputed_root,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
@@ -266,7 +339,9 @@ def assemble_evidence_package_from_scan(
         ("sourceMimeType", "source_image_metadata", "upload"),
         ("authenticity", "image_integrity_evidence", "integrity_analysis"),
         ("fontHeightMeasurements", "physical_measurement_evidence", "measurement"),
+        ("physicalMeasurements", "physical_measurement_evidence", "measurement"),
         ("measurementReview", "measurement_review", "measurement"),
+        ("barcodeDecoding", "barcode_decoding_evidence", "opencv_barcode_decoder"),
         ("structuredExtraction", "structured_extraction", "extraction"),
         ("secondaryOcr", "secondary_ocr_evidence", "secondary_ocr"),
         ("captureAssessments", "capture_quality_evidence", "capture_quality"),

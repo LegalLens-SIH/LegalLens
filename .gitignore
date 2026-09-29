@@ -10,6 +10,8 @@ node_modules/
 
 # Runtime/dev-server logs.
 *.log
+server_run.pid
+frontend_run.pid
 
 # Ad-hoc scratch OCR dumps from manual testing at the repo root - not
 # referenced by any application code or test.
@@ -37,6 +39,34 @@ training/images/**/*.webp
 training/labels/**/*.txt
 !training/labels/**/classes.txt
 
+# PDP v1 training images/annotations are locally collected and remain
+# untracked unless their owner explicitly chooses to contribute them.
+training/pdp/v1/images/**/*.jpg
+training/pdp/v1/images/**/*.jpeg
+training/pdp/v1/images/**/*.png
+training/pdp/v1/images/**/*.webp
+training/pdp/v1/images/**/*.bmp
+training/pdp/v1/images/**/*.tif
+training/pdp/v1/images/**/*.tiff
+training/pdp/v1/labels/**/*.txt
+
+# Local physical-reference calibration fixtures are sensitive and remain
+# machine-local only; never commit or publish the actual photo.
+training/fixtures/local/**/*.jpg
+training/fixtures/local/**/*.jpeg
+training/fixtures/local/**/*.png
+training/fixtures/local/**/*.webp
+training/fixtures/local/**/*.bmp
+training/fixtures/local/**/*.tif
+training/fixtures/local/**/*.tiff
+training/fixtures/local/**/*.JPG
+training/fixtures/local/**/*.JPEG
+training/fixtures/local/**/*.PNG
+training/fixtures/local/**/*.WEBP
+training/fixtures/local/**/*.BMP
+training/fixtures/local/**/*.TIF
+training/fixtures/local/**/*.TIFF
+
 # Rejected/unusable photos (see training/LABELING_GUIDE.md section G.4) -
 # real images that shouldn't be committed, same reasoning as images/ above.
 training/rejected_images/*.jpg
@@ -56,3 +86,8 @@ training/raw_images/*.avif
 
 # Ultralytics training/eval run outputs (logs, curves, per-epoch weights).
 training/runs/
+
+# Local/generated artifacts
+backend/out.txt
+backend/yolo26n.pt
+training/benchmark_results/

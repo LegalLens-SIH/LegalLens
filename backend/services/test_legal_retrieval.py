@@ -314,7 +314,8 @@ def test_load_corpus_rejects_invalid_effective_date_range(tmp_path):
     source = {
         "source_id": "X", "title": "T", "citation": "C", "version": "V",
         "acquired_at": "2026-01-01", "is_amendment": False, "amends_source_id": None,
-        "verification_note": "checked", "effective_from": "2026-02-01", "effective_until": "2026-01-01",
+        "verification_note": "checked", "verification_status": "verified",
+        "effective_from": "2026-02-01", "effective_until": "2026-01-01",
     }
     with pytest.raises(LegalCorpusError, match="ending before"):
         load_corpus(_write_corpus(tmp_path, [source], []))
@@ -324,7 +325,7 @@ def test_load_corpus_rejects_unknown_amendment_source(tmp_path):
     source = {
         "source_id": "X", "title": "T", "citation": "C", "version": "V",
         "acquired_at": "2026-01-01", "is_amendment": True, "amends_source_id": "MISSING",
-        "verification_note": "checked",
+        "verification_note": "checked", "verification_status": "verified",
     }
     with pytest.raises(LegalCorpusError, match="unknown source_id"):
         load_corpus(_write_corpus(tmp_path, [source], []))

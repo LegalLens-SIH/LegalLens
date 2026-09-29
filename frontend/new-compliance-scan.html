@@ -794,6 +794,8 @@
             }
             var candidate = secondary.result || {};
             var detections = Array.isArray(candidate.detections) ? candidate.detections : [];
+            var comparison = secondary.comparison || {};
+            var disagreements = Array.isArray(comparison.disagreements) ? comparison.disagreements : [];
             var lines = detections.map(function (detection) {
                 var confidence = Math.round((Number(detection.confidence) || 0) * 100);
                 return '<li class="py-1">' + LL.escapeHtml(detection.text || '') + ' <span class="text-label-md text-on-surface-variant">' + confidence + '%</span></li>';
@@ -801,9 +803,17 @@
             var status = secondary.status === 'unavailable'
                 ? 'Tesseract secondary OCR unavailable.'
                 : 'Tesseract candidate for manual review only. It was not used for compliance.';
+            var disagreementRows = disagreements.map(function (item) {
+                var region = item.evidence_region || {};
+                var box = Array.isArray(region.bbox) ? region.bbox.join(', ') : 'unavailable';
+                return '<li class="py-2 border-t border-outline-variant"><span class="font-bold">PaddleOCR:</span> ' + LL.escapeHtml(item.paddleocr_text || 'no matching line') +
+                    ' <span class="font-bold">Tesseract:</span> ' + LL.escapeHtml(item.tesseract_text || '') +
+                    '<div class="text-label-md text-on-surface-variant">Review required · image region [' + LL.escapeHtml(box) + ']</div></li>';
+            }).join('');
             return '<section class="mt-5 rounded-lg border border-outline-variant bg-surface-container-low p-4">' +
                 '<h4 class="text-body-md font-body-md font-bold text-on-surface">' + (data.imageSide ? LL.escapeHtml(data.imageSide) + ' · ' : '') + status + '</h4>' +
                 (secondary.message ? '<p class="mt-1 text-label-md text-on-surface-variant">' + LL.escapeHtml(secondary.message) + '</p>' : '') +
+                (disagreements.length ? '<p class="mt-2 text-label-md font-bold text-error">' + disagreements.length + ' OCR comparison item(s) need review. PaddleOCR remains the authoritative OCR source.</p><ul class="mt-1 text-body-md text-on-surface">' + disagreementRows + '</ul>' : '') +
                 (lines ? '<ul class="mt-2 text-body-md text-on-surface">' + lines + '</ul>' : '') +
                 '</section>';
         }
@@ -1001,38 +1011,16 @@
                 return;
             }
 
-            if (chosenFiles.length > 1) {
-                analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
-                renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
-                LLOcr.startAnalysisJob(chosenFiles, { productName: chosenFiles[0].file.name, category: 'General' }).then(function (response) {
-                    if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
-                    renderProgress(response.data);
-                    pollAnalysis(response.data.id, originalBtnHtml);
-                }).catch(function (err) {
-                    showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
-                }).finally(function () {
-                    analyzeBtn.disabled = false;
-                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    analyzeBtn.innerHTML = originalBtnHtml;
-                });
-                return;
-            }
-
-            var chosenFile = chosenFiles[0].file;
-            analyzeBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Analyzing...';
-            LLOcr.createScan(chosenFile, { productName: chosenFile.name, category: 'General', ocrMode: ocrModeSelect ? ocrModeSelect.value : 'standard', imageSide: chosenFiles[0].side, captureQualityRequested: !!chosenFiles[0].captureQuality }).then(function (payload) {
-                renderResults(payload);
-                if (payload.httpOk && payload.data && payload.data.ocr) {
-                    resultsBody.innerHTML += '<div class="mt-6 pt-5 border-t border-outline-variant"><span class="material-symbols-outlined align-middle mr-2 text-secondary">fact_check</span><span>OCR complete. Running the versioned Legal Metrology ruleset...</span></div>';
-                    return LLOcr.evaluateCompliance(payload.data.ocr, 'e_commerce_product_listing').then(function (compliance) {
-                        if (!compliance.httpOk) throw new Error(compliance.data.detail || 'Compliance evaluation failed.');
-                        sessionStorage.setItem('legallense_compliance_result_v1', JSON.stringify(compliance.data));
-                        sessionStorage.setItem('legallense_compliance_scan_v1', JSON.stringify(payload.data));
-                        location.href = 'compliance-report.html?id=' + encodeURIComponent(payload.data.id);
-                    }).catch(function (err) {
-                        resultsBody.innerHTML += '<p class="mt-4 text-error">Compliance evaluation failed: ' + LL.escapeHtml(err.message) + '</p>';
-                    });
-                }
+            analyzeBtn.innerHTML = '<span class="material-symbols-outlined">pending</span> Analysis in progress';
+            renderProgress({ stage: 'INITIALIZING', progress: 10, label: 'Initializing analysis', status: 'running' });
+            LLOcr.startAnalysisJob(chosenFiles, {
+                productName: chosenFiles[0].file.name,
+                category: 'General',
+                ocrMode: ocrModeSelect ? ocrModeSelect.value : 'standard'
+            }).then(function (response) {
+                if (!response.httpOk) throw new Error(response.data.detail || 'Could not start analysis.');
+                renderProgress(response.data);
+                pollAnalysis(response.data.id, originalBtnHtml);
             }).catch(function (err) {
                 showAnalysisFailure({ label: 'Initializing analysis', error: err.message });
             }).finally(function () {

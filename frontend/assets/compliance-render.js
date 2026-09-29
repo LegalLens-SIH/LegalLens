@@ -180,7 +180,7 @@
       item.innerHTML =
         "<p class=\"ll-legal-basis-clause\">" + escapeHtml(provision.rule_sub_rule_clause) + statusNote + "</p>" +
         "<p class=\"ll-legal-basis-text\">&ldquo;" + escapeHtml(provision.text) + "&rdquo;</p>" +
-        "<p class=\"ll-legal-basis-source\">" + escapeHtml(source.title) + (source.citation ? ", " + escapeHtml(source.citation) : "") + (source.version ? " (" + escapeHtml(source.version) + ")" : "") + "</p>";
+        "<p class=\"ll-legal-basis-source\">" + escapeHtml(source.title) + (source.citation ? ", " + escapeHtml(source.citation) : "") + (source.version ? " (" + escapeHtml(source.version) + ")" : "") + (source.verification_status ? " · Source status: " + escapeHtml(source.verification_status) : " · Verification status unavailable") + (source.authority_classification ? " · " + escapeHtml(source.authority_classification) : "") + "</p>";
       list.appendChild(item);
     });
     container.appendChild(list);

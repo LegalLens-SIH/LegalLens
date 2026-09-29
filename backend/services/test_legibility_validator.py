@@ -6,20 +6,21 @@ from backend.services.legibility_validator import measure_ocr_detection, validat
 def test_legibility_validator_converts_px_to_mm_and_uses_calibration():
     outcome = validate_legibility(
         text_height_px=45,
-        calibration={"scale_px_per_mm": 15.0},
+        calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 15.0},
         geometry={"status": "eligible", "panel_coverage_ratio": 0.42},
         minimum_font_height_mm=2.0,
     )
 
     assert outcome["estimated_height_mm"] == 3.0
-    assert outcome["status"] == "eligible"
-    assert outcome["review_reason"] is None
+    assert outcome["status"] == "review_required"
+    assert outcome["threshold_status"] == "unverified"
+    assert outcome["used_for_compliance"] is False
 
 
 def test_legibility_validator_defaults_to_review_when_font_threshold_is_unverified():
     outcome = validate_legibility(
         text_height_px=45,
-        calibration={"scale_px_per_mm": 15.0},
+        calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 15.0},
         geometry={"status": "eligible", "panel_coverage_ratio": 0.42},
     )
 
@@ -30,7 +31,7 @@ def test_legibility_validator_defaults_to_review_when_font_threshold_is_unverifi
 def test_legibility_validator_routes_geometry_failures_to_review():
     outcome = validate_legibility(
         text_height_px=45,
-        calibration={"scale_px_per_mm": 15.0},
+        calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 15.0},
         geometry={"status": "review_required", "panel_coverage_ratio": 0.10},
         minimum_font_height_mm=2.0,
     )
@@ -64,14 +65,16 @@ def test_rotated_ocr_polygon_is_measured_from_shorter_edges_and_preserves_eviden
     }
     outcome = measure_ocr_detection(
         detection=detection,
-        calibration={"status": "calibrated", "scale_px_per_mm": 10, "confidence": 0.96, "source_evidence": {"region_id": "barcode-1"}},
+        calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 10, "confidence": 0.96, "source_evidence": {"region_id": "barcode-1"}},
         minimum_font_height_mm=4.0,
         evidence_region_ids=["ocr-region-2"],
         image_shape=(100, 100),
     )
     assert outcome["pixel_height_px"] == 41.23105625617661
     assert outcome["estimated_height_mm"] == 4.1231
-    assert outcome["status"] == "eligible"
+    assert outcome["status"] == "review_required"
+    assert outcome["threshold_status"] == "unverified"
+    assert outcome["used_for_compliance"] is False
     assert outcome["ocr_evidence"]["text"] == detection["text"]
     assert outcome["ocr_evidence"]["region_ids"] == ["ocr-region-2"]
 
@@ -88,9 +91,11 @@ def test_missing_calibration_and_out_of_image_box_never_produce_mm():
 def test_threshold_boundary_is_deterministic():
     outcome = validate_legibility(
         text_height_px=30,
-        calibration={"status": "calibrated", "scale_px_per_mm": 10},
+        calibration={"status": "calibrated", "acceptable": True, "scale_px_per_mm": 10},
         geometry={"status": "eligible"},
         minimum_font_height_mm=3.0,
     )
     assert outcome["estimated_height_mm"] == 3.0
-    assert outcome["status"] == "eligible"
+    assert outcome["status"] == "review_required"
+    assert outcome["threshold_status"] == "unverified"
+    assert outcome["used_for_compliance"] is False

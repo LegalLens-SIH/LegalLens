@@ -31,6 +31,7 @@ import json
 import re
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Optional
 
@@ -54,7 +55,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(PORTAL_DIR / ".env")
 
 from backend.ocr.paddle_ocr_service import PaddleOCRService  # noqa: E402
-from backend.ocr.preprocessing import PreprocessOptions, preprocess_image  # noqa: E402
+from backend.ocr.preprocessing import PreprocessOptions, preprocess_image, production_preprocess_options  # noqa: E402
 # Accuracy Fix #7 (Gemini experiment): reuses the EXISTING production Gemini
 # fallback path verbatim (find_ambiguous_fields -> GeminiService.suggest_fields
 # -> apply_suggestions_to_ocr_result), the exact same sequence
@@ -387,6 +388,8 @@ def run_fixture(fixture: dict, ocr_service: PaddleOCRService, engine: Compliance
     record["ocr"] = {
         "success": True,
         "detection_count": ocr_dict.get("detection_count", 0),
+        "full_text": full_text,
+        "detections": ocr_dict.get("detections") or [],
         "mean_confidence": round(sum(d["confidence"] for d in ocr_dict.get("detections") or []) / len(ocr_dict.get("detections") or [1]), 4) if ocr_dict.get("detections") else 0.0,
         "min_confidence": round(min((d["confidence"] for d in ocr_dict.get("detections") or [1.0]), default=0.0), 4),
         "distinct_price_like_numbers": len(set(price_like_matches)),
@@ -465,9 +468,8 @@ def main(argv=None) -> int:
     parser.add_argument("--fixtures", nargs="*", default=None, help="Subset of filenames to run (default: all defined fixtures)")
     parser.add_argument(
         "--preprocess", action="store_true",
-        help="Accuracy Fix #2 A/B test: run with denoise+contrast-enhancement preprocessing applied "
-             "(the same PreprocessOptions bundle backend/api/ocr.py's OCR_PREPROCESSING_ENABLED flag uses - "
-             "resize deliberately excluded, see the accompanying inspection report). Default: off, i.e. today's baseline.",
+           help="A/B test the production resize baseline with denoise and contrast enhancement forced on. "
+               "Default: use the exact preprocessing options configured by backend/api/ocr.py.",
     )
     parser.add_argument("--out-prefix", default="e2e_benchmark", help="Basename for output files (default: e2e_benchmark)")
     parser.add_argument(
@@ -486,7 +488,9 @@ def main(argv=None) -> int:
         wanted = set(args.fixtures)
         fixtures = [f for f in FIXTURES if f["file"] in wanted]
 
-    preprocess_options = PreprocessOptions(denoise=True, enhance_contrast=True) if args.preprocess else None
+    preprocess_options = production_preprocess_options()
+    if args.preprocess:
+        preprocess_options = replace(preprocess_options, denoise=True, enhance_contrast=True)
 
     if args.gemini and not GEMINI_API_KEY:
         print("ERROR: --gemini requires GEMINI_API_KEY to be set (see Portal/.env).", file=sys.stderr)

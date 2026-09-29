@@ -24,6 +24,7 @@ from backend.api import ocr as ocr_module
 from backend.api.auth import official_user
 from backend.database import connect_to_mongodb, get_database
 from backend.main import app
+from backend.ocr.gemini_service import GeminiFieldSuggestion
 from backend.ocr.schemas import Detection, OCRResult
 
 FAKE_OFFICIAL = {
@@ -34,6 +35,7 @@ FAKE_OFFICIAL = {
 }
 
 REAL_IMAGE_WITH_EXIF = Path(__file__).resolve().parents[2] / "training" / "raw_images" / "Handwash_back.jpg"
+REAL_IMAGE_WITH_EAN13 = Path(__file__).resolve().parents[2] / "training" / "raw_images" / "Ferrero_back.jpg"
 
 # Fixed, canned OCR result - deliberately NOT derived from the uploaded
 # bytes (unlike test_manufacturer.py's _echo_ocr_run, which decodes the
@@ -144,6 +146,228 @@ def test_scan_upload_without_exif_still_succeeds_with_unavailable_evidence(monke
                 mrp = scan["compliance"]["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
                 assert mrp["status"] == "PASS"
                 assert mrp["value"]["normalized_value"] == 99
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_gemini_suggestion_is_supporting_extraction_not_compliance_input(monkeypatch):
+    class FakeGemini:
+        async def suggest_fields(self, *_args, **_kwargs):
+            return [GeminiFieldSuggestion(
+                field="mrp", value="MRP Rs. 2.00", confidence=0.99,
+                reason="Test proposal without the tax qualifier",
+            )]
+
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    monkeypatch.setattr(ocr_module, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(ocr_module, "_gemini_service", FakeGemini())
+    monkeypatch.setattr(ocr_module, "find_ambiguous_fields", lambda *_args, **_kwargs: ["mrp"])
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                image_buffer = BytesIO()
+                Image.new("RGB", (10, 10), color="white").save(image_buffer, format="PNG")
+                response = client.post(
+                    "/api/scans",
+                    files={"file": ("gemini-support.png", image_buffer.getvalue(), "image/png")},
+                    data={"product_name": "Gemini Support Test", "category": "General"},
+                )
+                assert response.status_code == 200, response.text
+                scan = response.json()
+                mrp = scan["compliance"]["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
+                assert mrp["status"] == "PASS"
+                assert mrp["value"]["normalized_value"] == 99
+
+                structured = scan["structuredExtraction"]
+                suggested_mrp = structured["pricing"]["maximum_retail_price_mrp"]
+                assert suggested_mrp["source"] == "ai_fallback"
+                assert suggested_mrp["value"] == "MRP Rs. 2.00"
+                assert structured["extraction_metadata"]["ai_fields_used"] == ["mrp"]
+                assert scan["full_text"] == _FIXED_TEXT
+                assert all("Rs. 2.00" not in detection["text"] for detection in scan["detections"])
+
+                database = get_database()
+                package = database.evidence_packages.find_one({"package_id": scan["evidencePackageId"]})
+                assert package is not None
+                database.evidence_packages.delete_one({"package_id": scan["evidencePackageId"]})
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_real_barcode_decode_is_persisted_as_non_authoritative_scan_evidence(monkeypatch):
+    if not REAL_IMAGE_WITH_EAN13.exists():
+        import pytest
+        pytest.skip("real EAN-13 fixture image is unavailable")
+
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                image_bytes = REAL_IMAGE_WITH_EAN13.read_bytes()
+                response = client.post(
+                    "/api/scans",
+                    files={"file": ("Ferrero_back.jpg", image_bytes, "image/jpeg")},
+                    data={"product_name": "Barcode Evidence Test", "category": "Food & Beverage"},
+                )
+                assert response.status_code == 200, response.text
+                scan = response.json()
+                barcode_result = scan["barcodeDecoding"]
+                decoded = next(item for item in barcode_result["detections"] if item["code"] == "8000500003787")
+                assert decoded["checksum_valid"] is True
+                assert decoded["source_image_sha256"] == scan["sourceImageSha256"]
+                assert decoded["confidence"] is None
+                assert barcode_result["authoritative"] is False
+                assert barcode_result["used_for_compliance"] is False
+
+                expected_compliance = ocr_module._compliance_engine.evaluate(
+                    {"success": True, "full_text": _FIXED_TEXT, "detections": [d.model_dump() for d in _fixed_ocr_run("unused").detections]},
+                    "e_commerce_product_listing",
+                )
+                assert scan["compliance"]["overall_status"] == expected_compliance.overall_status
+                assert scan["compliance"]["compliance_score"] == expected_compliance.compliance_score
+                assert scan["compliance"]["rule_results"] == [rule.model_dump() for rule in expected_compliance.rule_results]
+
+                database = get_database()
+                package = database.evidence_packages.find_one({"package_id": scan["evidencePackageId"]})
+                assert package is not None
+                artifacts = {artifact["artifact_id"]: artifact for artifact in package["artifacts"]}
+                assert artifacts["barcodeDecoding"]["artifact_type"] == "barcode_decoding_evidence"
+                assert artifacts["barcodeDecoding"]["source"] == "opencv_barcode_decoder"
+                barcode_audit = database.audit_events.find_one({"entityId": scan["id"], "eventType": "barcode_decoding"})
+                assert barcode_audit is not None
+                assert barcode_audit["eventHash"] in package["audit_refs"]
+                database.evidence_packages.delete_one({"package_id": scan["evidencePackageId"]})
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_requested_but_unavailable_tesseract_is_persisted_as_review_evidence(monkeypatch):
+    class MissingTesseract:
+        enabled = False
+
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    monkeypatch.setattr(ocr_module, "TESSERACT_ENABLED", True)
+    monkeypatch.setattr(ocr_module, "TESSERACT_MODE", "secondary")
+    monkeypatch.setattr(ocr_module, "_tesseract_service", MissingTesseract())
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                image_bytes = REAL_IMAGE_WITH_EXIF.read_bytes()
+                response = client.post(
+                    "/api/scans",
+                    files={"file": ("tesseract-unavailable.jpg", image_bytes, "image/jpeg")},
+                    data={"product_name": "Tesseract Unavailable Test", "category": "General"},
+                )
+                assert response.status_code == 200, response.text
+                scan = response.json()
+                assert scan["secondaryOcr"]["status"] == "unavailable"
+                assert scan["secondaryOcr"]["used_for_compliance"] is False
+                assert scan["secondaryOcr"]["provenance"] == "secondary_review_only"
+                expected = ocr_module._compliance_engine.evaluate(
+                    {"success": True, "full_text": _FIXED_TEXT, "detections": [item.model_dump() for item in _fixed_ocr_run("unused").detections]},
+                    "e_commerce_product_listing",
+                )
+                assert scan["compliance"]["overall_status"] == expected.overall_status
+                assert scan["compliance"]["compliance_score"] == expected.compliance_score
+
+                database = get_database()
+                package = database.evidence_packages.find_one({"package_id": scan["evidencePackageId"]})
+                artifacts = {artifact["artifact_id"]: artifact for artifact in package["artifacts"]}
+                assert artifacts["secondaryOcr"]["artifact_type"] == "secondary_ocr_evidence"
+                audit = database.audit_events.find_one({"entityId": scan["id"], "eventType": "secondary_ocr_run"})
+                assert audit is not None and audit["eventHash"] in package["audit_refs"]
+                database.evidence_packages.delete_one({"package_id": scan["evidencePackageId"]})
+            finally:
+                _cleanup(get_database())
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_unverified_reference_calibration_stays_review_required(monkeypatch):
+    if not REAL_IMAGE_WITH_EAN13.exists():
+        import pytest
+        pytest.skip("real EAN-13 fixture image is unavailable")
+
+    def fixed_ocr_with_dimensions(image_path: str, yolo_service=None, preprocess_options=None) -> OCRResult:
+        from backend.ocr.paddle_ocr_service import PaddleOCRService
+        from backend.ocr.preprocessing import preprocess_image
+        image = PaddleOCRService.load_image(Path(image_path))
+        if preprocess_options is not None:
+            image = preprocess_image(image, preprocess_options)
+        dimensions = {"width": image.shape[1], "height": image.shape[0]}
+        result = _fixed_ocr_run(image_path, yolo_service, preprocess_options)
+        result.image_dimensions = dimensions
+        return result
+
+    monkeypatch.setattr(ocr_module._service, "run", fixed_ocr_with_dimensions)
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                image_bytes = REAL_IMAGE_WITH_EAN13.read_bytes()
+                response = client.post(
+                    "/api/scans",
+                    files={"file": ("Ferrero_back.jpg", image_bytes, "image/jpeg")},
+                    data={"product_name": "Unverified Calibration Test", "category": "Food & Beverage"},
+                )
+                assert response.status_code == 200, response.text
+                scan = response.json()
+                assert scan["barcodeDecoding"]["source_image_dimensions"] != scan["ocrImageDimensions"]
+                calibration_request = {
+                    "code": "8000500003787",
+                    "polygon": [[0, 0], [1, 0], [1, 1], [0, 1]],
+                    "barcode_confidence": None,
+                    "reference_width": 1.0,
+                    "reference_unit": "mm",
+                    "reference_source": "unverified test metadata",
+                    "reference_id": "REF-UNVERIFIED-1",
+                    "reference_sha256": "0" * 64,
+                    "reference_verification_status": "unverified",
+                }
+                calibration_response = client.post(
+                    f"/api/scans/{scan['id']}/calibration",
+                    json=calibration_request,
+                )
+                assert calibration_response.status_code == 200, calibration_response.text
+                calibration = calibration_response.json()["calibration"]
+                assert calibration["status"] == "review_required"
+                assert calibration["used_for_compliance"] is False
+                assert calibration["source_evidence"]["code"] == "8000500003787"
+                assert calibration["scale_px_per_mm"] is None
+                assert calibration["uncertainty"]["status"] == "not_quantified"
+                assert calibration["coordinate_transform"]["method"] == "independent_axis_scale_to_ocr_pixel_frame"
+                assert calibration["coordinate_transform"]["source_to_ocr_scale"]["x"] < 1.0
+                assert calibration["coordinate_transform"]["source_to_ocr_scale"]["y"] < 1.0
+                claimed_verified = {**calibration_request, "reference_verification_status": "verified"}
+                missing_reference = client.post(f"/api/scans/{scan['id']}/calibration", json=claimed_verified)
+                assert missing_reference.status_code == 422
+                assert "requires its source document" in missing_reference.json()["detail"]
+                import base64
+                mismatched_reference = client.post(
+                    f"/api/scans/{scan['id']}/calibration",
+                    json={**claimed_verified, "reference_file_name": "untrusted.txt", "reference_file_mime_type": "text/plain", "reference_file_base64": base64.b64encode(b"untrusted test bytes").decode("ascii")},
+                )
+                assert mismatched_reference.status_code == 409
+                assert "does not match its uploaded bytes" in mismatched_reference.json()["detail"]
+
+                database = get_database()
+                package = database.evidence_packages.find_one({"package_id": calibration_response.json()["evidencePackageId"]})
+                artifacts = {artifact["artifact_id"]: artifact for artifact in package["artifacts"]}
+                assert "physical_reference_document" not in artifacts
+                reference_response = client.get(f"/api/scans/{scan['id']}/calibration/reference")
+                assert reference_response.status_code == 404
+                stored_scan = client.get(f"/api/scans/{scan['id']}").json()
+                assert stored_scan["compliance"] == scan["compliance"]
+                database.evidence_packages.delete_one({"package_id": calibration_response.json()["evidencePackageId"]})
             finally:
                 _cleanup(get_database())
     finally:
@@ -420,7 +644,7 @@ def test_opt_in_tesseract_result_is_packaged_but_not_used_for_compliance(monkeyp
                 scan = response.json()
                 assert scan["secondaryOcr"]["status"] == "secondary_completed"
                 assert scan["secondaryOcr"]["used_for_compliance"] is False
-                assert scan["secondaryOcr"]["comparison"]["mode"] == "weighted_soft_vote"
+                assert scan["secondaryOcr"]["comparison"]["mode"] == "comparison_review_only"
                 mrp = scan["compliance"]["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
                 assert mrp["value"]["normalized_value"] == 99
 
@@ -504,7 +728,7 @@ def test_tesseract_fallback_runs_only_when_paddle_has_no_detections(monkeypatch)
         enabled = True
 
         def run(self, image):
-            calls.append(image.size)
+            calls.append(tuple(image.shape[:2]))
             return {
                 "success": True,
                 "engine": "tesseract",

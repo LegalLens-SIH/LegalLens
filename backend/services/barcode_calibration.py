@@ -22,6 +22,86 @@ def validate_ean13(code: str) -> bool:
     return check == int(digits[-1])
 
 
+def decode_ean13_barcodes(image: Any, *, source_image_sha256: str) -> dict[str, Any]:
+    """Decode real barcode symbols and retain their source-image geometry."""
+    unavailable = {
+        "status": "unavailable", "available": False,
+        "decoder": "opencv_barcode_BarcodeDetector", "detections": [],
+        "source_image_sha256": source_image_sha256,
+        "authoritative": False, "used_for_compliance": False,
+    }
+    if image is None or getattr(image, "size", 0) == 0:
+        return {**unavailable, "status": "invalid_image", "reason": "Barcode decoder received an empty image."}
+    if (not isinstance(source_image_sha256, str) or len(source_image_sha256) != 64
+            or any(char not in "0123456789abcdefABCDEF" for char in source_image_sha256)):
+        return {**unavailable, "status": "source_evidence_missing", "reason": "A source-image SHA-256 is required."}
+    try:
+        import cv2
+    except ImportError:
+        return {**unavailable, "reason": "OpenCV barcode decoding is unavailable in this runtime."}
+    try:
+        detector_type = getattr(cv2, "barcode_BarcodeDetector", None)
+        if detector_type is None:
+            return {**unavailable, "reason": "OpenCV barcode decoding is unavailable in this runtime."}
+        decoded, decoded_values, decoded_types, raw_points = detector_type().detectAndDecodeWithType(image)
+    except Exception as exc:
+        return {
+            **unavailable, "status": "decoder_error",
+            "reason": f"OpenCV barcode decoding failed ({type(exc).__name__}).",
+        }
+
+    try:
+        points = raw_points.tolist() if raw_points is not None else []
+    except (AttributeError, TypeError, ValueError):
+        points = []
+    if points and len(points) == 4 and isinstance(points[0], (int, float)):
+        points = [points]
+    decoded_values = list(decoded_values or [])
+    decoded_types = list(decoded_types or [])
+    count = max(len(decoded_values), len(decoded_types), len(points))
+    height, width = image.shape[:2]
+    detections: list[dict[str, Any]] = []
+    for index in range(count):
+        raw_value = str(decoded_values[index] or "").strip() if index < len(decoded_values) else ""
+        symbology = str(decoded_types[index] or "unknown") if index < len(decoded_types) else "unknown"
+        try:
+            polygon = [[float(x), float(y)] for x, y in points[index]]
+        except (IndexError, TypeError, ValueError):
+            polygon = []
+        if len(polygon) != 4 or any(not math.isfinite(value) for point in polygon for value in point):
+            polygon = []
+        checksum_valid = symbology == "EAN_13" and validate_ean13(raw_value)
+        detection_status = "decoded" if checksum_valid else "unreadable" if not raw_value else "unsupported_or_invalid"
+        detections.append({
+            "detection_id": f"barcode_{index}",
+            "code": raw_value if checksum_valid else None,
+            "symbology": symbology,
+            "checksum_valid": checksum_valid,
+            "status": detection_status,
+            "polygon": polygon,
+            "bbox": [
+                min(point[0] for point in polygon), min(point[1] for point in polygon),
+                max(point[0] for point in polygon), max(point[1] for point in polygon),
+            ] if polygon else None,
+            "confidence": None,
+            "source": "opencv_barcode_detector",
+            "source_image_sha256": source_image_sha256.lower(),
+        })
+
+    valid_codes = any(item["status"] == "decoded" for item in detections)
+    detected_geometry = any(item["polygon"] for item in detections)
+    return {
+        "status": "decoded" if valid_codes else "barcode_unreadable" if detected_geometry or decoded else "no_barcode_detected",
+        "available": True,
+        "decoder": "opencv_barcode_BarcodeDetector",
+        "detections": detections,
+        "source_image_sha256": source_image_sha256.lower(),
+        "source_image_dimensions": {"width": int(width), "height": int(height)},
+        "authoritative": False,
+        "used_for_compliance": False,
+    }
+
+
 def calibrate_barcode_scale(barcode_width_px: float, reference_width_mm: float, observed_width_px: float) -> dict[str, Any]:
     if barcode_width_px <= 0 or reference_width_mm <= 0 or observed_width_px <= 0:
         raise ValueError("barcode calibration inputs must be positive")
@@ -33,6 +113,9 @@ def calibrate_barcode_scale(barcode_width_px: float, reference_width_mm: float, 
         "scale_px_per_mm": round(float(scale_px_per_mm), 4),
         "distortion_score": round(float(distortion), 4),
         "acceptable": acceptable,
+        "uncertainty": {"status": "not_quantified", "reason": "This legacy helper has no verified reference tolerance or source evidence."},
+        "authoritative": False,
+        "used_for_compliance": False,
     }
     try:
         db = get_database()
@@ -75,6 +158,9 @@ def calibrate_ean13_scale(
         return {
             "status": "review_required",
             "acceptable": False,
+            "authoritative": False,
+            "used_for_compliance": False,
+            "uncertainty": {"status": "not_quantified", "reason": "A validated reference tolerance and camera geometry error model are unavailable."},
             "scale_px_per_mm": None,
             "confidence": None,
             "distortion_score": None,
@@ -95,14 +181,26 @@ def calibrate_ean13_scale(
     observed_code = evidence.get("value", evidence.get("text", evidence.get("code")))
     if not isinstance(observed_code, str) or observed_code.strip() != normalized_code:
         return review("Barcode code does not match its source evidence")
-    try:
-        confidence = float(evidence["confidence"])
-    except (KeyError, TypeError, ValueError):
-        return review("Barcode source confidence is missing or invalid")
-    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
-        return review("Barcode source confidence is outside [0, 1]")
-    if confidence < MIN_BARCODE_EVIDENCE_CONFIDENCE:
-        return review("Barcode source confidence is below the 0.90 calibration threshold")
+    confidence = None
+    raw_confidence = evidence.get("confidence")
+    if raw_confidence is None:
+        verified_decoder_result = (
+            evidence.get("source") == "opencv_barcode_detector"
+            and evidence.get("symbology") == "EAN_13"
+            and evidence.get("checksum_valid") is True
+            and evidence.get("source_image_sha256")
+        )
+        if not verified_decoder_result:
+            return review("Barcode source confidence is missing and no checksum-validated EAN-13 decoder evidence is available")
+    else:
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            return review("Barcode source confidence is invalid")
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            return review("Barcode source confidence is outside [0, 1]")
+        if confidence < MIN_BARCODE_EVIDENCE_CONFIDENCE:
+            return review("Barcode source confidence is below the 0.90 calibration threshold")
 
     if reference_width_mm is None or isinstance(reference_width_mm, bool):
         return review("Verified physical reference width is missing")
@@ -166,7 +264,16 @@ def calibrate_ean13_scale(
     return {
         "status": "calibrated",
         "acceptable": True,
+        "authoritative": False,
+        "used_for_compliance": False,
+        "method": "ean13_symbol_geometry_with_explicit_reference",
+        "provenance": {
+            "source": "barcode_geometry_and_operator_reference",
+            "reference_source": reference_source.strip(),
+            "evidence_region_ids": [evidence.get("region_id")] if evidence.get("region_id") else [],
+        },
         "scale_px_per_mm": round(symbol_width_px / reference_width, 6),
+        "uncertainty": {"status": "not_quantified", "reason": "A validated reference tolerance and camera geometry error model are unavailable."},
         "confidence": confidence,
         "distortion_score": round(distortion, 4),
         "reasons": [],
@@ -180,4 +287,8 @@ def calibrate_ean13_scale(
             "source": reference_source.strip(),
         },
         "source_evidence": source_evidence,
+        "evidence_region": {
+            "bbox": [min(point[0] for point in points), min(point[1] for point in points), max(point[0] for point in points), max(point[1] for point in points)],
+            "polygon": points,
+        },
     }

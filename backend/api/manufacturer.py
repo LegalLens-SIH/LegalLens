@@ -14,7 +14,7 @@ from gridfs.errors import NoFile
 from pydantic import BaseModel, Field
 
 from backend.api.auth import manufacturer_user
-from backend.api.ocr import run_ocr
+from backend.api.ocr import MAX_UPLOAD_BYTES, read_upload_limited, run_ocr
 from backend.database import get_database
 from backend.services.audit import append_audit_event
 from backend.ocr.schemas import OCRResult
@@ -107,7 +107,10 @@ async def create_self_check(
     # consumes the stream, so THIS revision's own image can be persisted -
     # mirrors the same read-then-seek(0)-then-run_ocr() pattern the official
     # /api/scans flow already uses in backend/api/ocr.py's create_scan.
-    original_contents = await file.read()
+    original_contents = await read_upload_limited(file)
+    if len(original_contents) > MAX_UPLOAD_BYTES:
+        await file.seek(0)
+        return await run_ocr(file)
     await file.seek(0)
     # Phase 1, Requirement 6: hashed from the exact raw upload bytes,
     # before run_ocr()/preprocessing touches them - see

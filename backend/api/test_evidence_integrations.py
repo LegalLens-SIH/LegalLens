@@ -36,6 +36,19 @@ def _cleanup(db, package: EvidencePackage) -> None:
     db.em_maap_transmissions.delete_many({"evidence_package_id": package.package_id})
 
 
+def test_em_maap_provider_status_reports_undocumented_api_without_network():
+    app.dependency_overrides[current_user] = lambda: OFFICIAL
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/em-maap/provider-status")
+        assert response.status_code == 200
+        assert response.json()["provider"]["status"] == "API_NOT_DOCUMENTED"
+        assert response.json()["provider"]["portal_url"] == "https://emaap.gov.in/about_us"
+        assert response.json()["provider"]["available"] is False
+    finally:
+        app.dependency_overrides.pop(current_user, None)
+
+
 def test_package_timestamp_records_safe_unavailable_state_and_audit(monkeypatch):
     class UnavailableTSA:
         def request_timestamp(self, digest):
@@ -67,7 +80,7 @@ def test_package_em_aap_transmission_derives_hashes_from_owned_package(monkeypat
     class FakeClient:
         def submit(self, payload, *, idempotency_key):
             submitted.append((payload, idempotency_key))
-            return {"status": "ACKNOWLEDGED", "attempt": 1, **payload}
+            return {"status": "RESPONSE_RECEIVED_UNVERIFIED", "acknowledged": False, "attempt": 1, **payload}
 
     monkeypatch.setattr(em_maap_module.EMMAAPClient, "from_env", classmethod(lambda cls: FakeClient()))
     app.dependency_overrides[current_user] = lambda: OFFICIAL
@@ -82,8 +95,34 @@ def test_package_em_aap_transmission_derives_hashes_from_owned_package(monkeypat
             assert sent["evidence_package_id"] == package.package_id
             assert sent["merkle_root"] == package.merkle_root
             assert sent["artifact_hashes"] == expected_hashes
-            assert idempotency_key == f"{package.package_id}:{OFFICIAL['_id']}"
-            assert response.json()["transmission"]["status"] == "ACKNOWLEDGED"
+            assert idempotency_key == f"{package.package_id}:{package.merkle_root}"
+            assert response.json()["transmission"]["status"] == "RESPONSE_RECEIVED_UNVERIFIED"
+            assert response.json()["transmission"]["acknowledged"] is False
+        finally:
+            _cleanup(database, package)
+            app.dependency_overrides.pop(current_user, None)
+
+
+def test_unconfigured_em_maap_records_explicit_unavailable_state_and_audit(monkeypatch):
+    monkeypatch.setenv("EMAAP_ENDPOINT", "")
+    monkeypatch.setenv("EMAAP_API_KEY", "")
+    app.dependency_overrides[current_user] = lambda: OFFICIAL
+    with TestClient(app) as client:
+        database = get_database()
+        package = _store_owned_package(database)
+        try:
+            response = client.post(f"/api/em-maap/transmit-package/{package.package_id}")
+            assert response.status_code == 200, response.text
+            result = response.json()
+            assert result["success"] is False
+            assert result["request_recorded"] is True
+            assert result["transmission"]["status"] == "API_NOT_DOCUMENTED"
+            assert result["transmission"]["acknowledged"] is False
+
+            audit = database.audit_events.find_one({"entityId": package.package_id, "eventType": "em_maap_transmission"})
+            assert audit is not None
+            assert audit["details"]["status"] == "API_NOT_DOCUMENTED"
+            assert audit["details"]["acknowledged"] is False
         finally:
             _cleanup(database, package)
             app.dependency_overrides.pop(current_user, None)

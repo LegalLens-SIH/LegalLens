@@ -1,0 +1,10 @@
+# LegalLense principal-display-panel dataset, version 1.0.0.
+# Images and labels are imported locally with manage_pdp_dataset.py only
+# after source/license and operator provenance are recorded.
+dataset_id: legal-lense-pdp
+dataset_version: 1.0.0
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: principal_display_panel

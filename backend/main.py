@@ -52,6 +52,7 @@ from backend.api.listing import router as listing_router
 from backend.api.audit import router as audit_router
 from backend.api.em_maap import router as em_maap_router
 from backend.api.evidence import router as evidence_router
+from backend.api.physical_references import router as physical_references_router
 from backend.database import close_mongodb, connect_to_mongodb
 
 logging.basicConfig(
@@ -99,6 +100,7 @@ app.include_router(listing_router)
 app.include_router(audit_router)
 app.include_router(em_maap_router)
 app.include_router(evidence_router)
+app.include_router(physical_references_router)
 
 
 @app.get("/api/health")

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
-from backend.services.barcode_calibration import calibrate_barcode_scale, calibrate_ean13_scale, validate_ean13
+from backend.ocr.paddle_ocr_service import PaddleOCRService
+from backend.services.barcode_calibration import calibrate_barcode_scale, calibrate_ean13_scale, decode_ean13_barcodes, validate_ean13
+from backend.services.image_integrity import compute_image_sha256
 
 
 def test_ean13_validation_accepts_known_code():
@@ -80,3 +86,53 @@ def test_mismatched_code_or_invalid_confidence_is_rejected():
 def test_barcode_confidence_threshold_boundary():
     assert _calibrate(evidence={"value": "4006381333931", "confidence": 0.8999})["scale_px_per_mm"] is None
     assert _calibrate(evidence={"value": "4006381333931", "confidence": 0.90})["status"] == "calibrated"
+
+
+def test_opencv_decodes_real_fixture_ean13_with_original_image_geometry():
+    image_path = Path(__file__).resolve().parents[2] / "training" / "raw_images" / "Ferrero_back.jpg"
+    if not image_path.is_file():
+        pytest.skip("real Ferrero barcode fixture is unavailable")
+    image_bytes = image_path.read_bytes()
+    image = PaddleOCRService.load_image(image_path)
+
+    result = decode_ean13_barcodes(image, source_image_sha256=compute_image_sha256(image_bytes))
+
+    assert result["status"] == "decoded"
+    detection = next(item for item in result["detections"] if item["code"] == "8000500003787")
+    assert detection["symbology"] == "EAN_13"
+    assert detection["checksum_valid"] is True
+    assert detection["confidence"] is None
+    assert detection["source_image_sha256"] == compute_image_sha256(image_bytes)
+    assert len(detection["polygon"]) == 4
+    assert detection["bbox"][2] <= image.shape[1]
+    assert detection["bbox"][3] <= image.shape[0]
+
+
+def test_opencv_barcode_dependency_absence_is_explicit(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cv2", None)
+
+    result = decode_ean13_barcodes(SimpleNamespace(size=1), source_image_sha256="a" * 64)
+
+    assert result["status"] == "unavailable"
+    assert result["available"] is False
+    assert result["detections"] == []
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected_status"),
+    [("Chips_back.jpg", "no_barcode_detected"), ("DarkFantasy_back.jpg", "barcode_unreadable")],
+)
+def test_real_images_without_decoded_ean_do_not_fabricate_codes(fixture, expected_status):
+    image_path = Path(__file__).resolve().parents[2] / "training" / "raw_images" / fixture
+    if not image_path.is_file():
+        pytest.skip(f"real barcode fixture {fixture} is unavailable")
+    image_bytes = image_path.read_bytes()
+    image = PaddleOCRService.load_image(image_path)
+
+    result = decode_ean13_barcodes(image, source_image_sha256=compute_image_sha256(image_bytes))
+
+    assert result["status"] == expected_status
+    assert all(item["code"] is None and item["checksum_valid"] is False for item in result["detections"])
+    if expected_status == "barcode_unreadable":
+        assert result["detections"]
+        assert result["detections"][0]["polygon"]

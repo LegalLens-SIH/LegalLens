@@ -25,10 +25,14 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
+import warnings
 from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
+from PIL import Image
 
 from .preprocessing import PreprocessOptions, preprocess_image
 from .schemas import Detection, OCRError, OCRResult, RegionOCRResult
@@ -37,6 +41,7 @@ from .yolo_service import YOLODetectionError, YOLOInitializationError, YOLOServi
 logger = logging.getLogger("legallense.ocr.service")
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_OCR_IMAGE_PIXELS = 50_000_000
 
 # Phase 2B production tuning (benchmarked 2026-09-16/17 against this
 # project's real 10-fixture image set - see training/benchmark_results/
@@ -79,6 +84,8 @@ class PaddleOCRService:
     """Thin, reusable wrapper around paddleocr.PaddleOCR."""
 
     _engine_cache: dict = {}
+    _engine_lock = threading.Lock()
+    _inference_lock = threading.Lock()
 
     def __init__(
         self,
@@ -112,36 +119,42 @@ class PaddleOCRService:
         if self._engine is not None:
             return self._engine
 
-        key = self._cache_key()
-        cached = PaddleOCRService._engine_cache.get(key)
-        if cached is not None:
-            self._engine = cached
-            return self._engine
+        with PaddleOCRService._engine_lock:
+            if self._engine is not None:
+                return self._engine
 
-        try:
-            from paddleocr import PaddleOCR  # imported lazily: heavy import
-        except Exception as exc:  # pragma: no cover - environment issue
-            raise OCRInitializationError(f"Failed to import paddleocr: {exc}") from exc
+            key = self._cache_key()
+            cached = PaddleOCRService._engine_cache.get(key)
+            if cached is not None:
+                self._engine = cached
+                return cached
 
-        logger.info(
-            "Initializing PaddleOCR engine (lang=%s, mkldnn=%s, textline_orientation=%s)",
-            self.lang, self.enable_mkldnn, self.use_textline_orientation,
-        )
-        try:
-            engine = PaddleOCR(
-                lang=self.lang,
-                use_doc_orientation_classify=self.use_doc_orientation_classify,
-                use_doc_unwarping=self.use_doc_unwarping,
-                use_textline_orientation=self.use_textline_orientation,
-                enable_mkldnn=self.enable_mkldnn,
+            try:
+                from paddleocr import PaddleOCR  # imported lazily: heavy import
+            except Exception as exc:  # pragma: no cover - environment issue
+                raise OCRInitializationError(f"Failed to import paddleocr: {exc}") from exc
+
+            logger.info(
+                "Initializing PaddleOCR engine (lang=%s, mkldnn=%s, textline_orientation=%s)",
+                self.lang, self.enable_mkldnn, self.use_textline_orientation,
             )
-        except Exception as exc:
-            logger.exception("PaddleOCR engine initialization failed")
-            raise OCRInitializationError(f"PaddleOCR failed to initialize: {exc}") from exc
+            initialization_started = time.perf_counter()
+            try:
+                engine = PaddleOCR(
+                    lang=self.lang,
+                    use_doc_orientation_classify=self.use_doc_orientation_classify,
+                    use_doc_unwarping=self.use_doc_unwarping,
+                    use_textline_orientation=self.use_textline_orientation,
+                    enable_mkldnn=self.enable_mkldnn,
+                )
+            except Exception as exc:
+                logger.exception("PaddleOCR engine initialization failed")
+                raise OCRInitializationError(f"PaddleOCR failed to initialize: {exc}") from exc
 
-        PaddleOCRService._engine_cache[key] = engine
-        self._engine = engine
-        return engine
+            PaddleOCRService._engine_cache[key] = engine
+            self._engine = engine
+            logger.info("PaddleOCR engine initialized in %.3f seconds", time.perf_counter() - initialization_started)
+            return engine
 
     # -- validation ---------------------------------------------------------
 
@@ -163,6 +176,18 @@ class PaddleOCRService:
         """Decode the image, raising a clear error on corrupt/unreadable files."""
         import cv2
 
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                with Image.open(path) as source_image:
+                    width, height = source_image.size
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise ValueError(f"Image exceeds the safe pixel limit of {MAX_OCR_IMAGE_PIXELS}: {path}") from exc
+        except Exception as exc:
+            raise ValueError(f"Could not inspect image dimensions: {path}") from exc
+        if width <= 0 or height <= 0 or width * height > MAX_OCR_IMAGE_PIXELS:
+            raise ValueError(f"Image exceeds the safe pixel limit of {MAX_OCR_IMAGE_PIXELS}: {path}")
+
         # cv2.imread never raises on a bad file - it silently returns None -
         # so an explicit check is required to avoid a confusing downstream crash.
         data = np.fromfile(str(path), dtype=np.uint8)
@@ -183,8 +208,12 @@ class PaddleOCRService:
         predict_kwargs = {}
         if self.text_rec_score_thresh is not None:
             predict_kwargs["text_rec_score_thresh"] = self.text_rec_score_thresh
-        raw_results = engine.predict(image, **predict_kwargs)
-        return self._parse_result(raw_results)
+        with PaddleOCRService._inference_lock:
+            inference_started = time.perf_counter()
+            raw_results = engine.predict(image, **predict_kwargs)
+            detections = self._parse_result(raw_results)
+            logger.info("PaddleOCR inference completed in %.3f seconds", time.perf_counter() - inference_started)
+            return detections
 
     def run(
         self,
@@ -243,7 +272,6 @@ class PaddleOCRService:
                 success=False, image=image_name, image_path=str(path),
                 error=OCRError(code="unreadable_image", message=str(exc)),
             )
-
         object_detections: list = []
         detection_mode = "single_region"
         if yolo_service is not None:
@@ -317,7 +345,8 @@ class PaddleOCRService:
         if not detections:
             return OCRResult(
                 success=True, image=image_name, image_path=str(path),
-                full_text="", detections=[], detection_count=0,
+                full_text="", image_dimensions={"width": int(image.shape[1]), "height": int(image.shape[0])},
+                detections=[], detection_count=0,
                 preprocessing_applied=preprocessing_applied,
                 object_detections=object_detections, region_cropped=region_cropped,
                 error=OCRError(code="empty_result", message="No text detected in image"),
@@ -326,7 +355,8 @@ class PaddleOCRService:
         full_text = "\n".join(d.text for d in detections)
         return OCRResult(
             success=True, image=image_name, image_path=str(path),
-            full_text=full_text, detections=detections, detection_count=len(detections),
+            full_text=full_text, image_dimensions={"width": int(image.shape[1]), "height": int(image.shape[0])},
+            detections=detections, detection_count=len(detections),
             preprocessing_applied=preprocessing_applied,
             object_detections=object_detections, region_cropped=region_cropped,
         )
@@ -396,6 +426,7 @@ class PaddleOCRService:
 
         full_text = "\n".join(d.text for d in detections)
         logger.info("Authoritative full-image OCR produced %d detection(s) for %s", len(detections), path)
+        image_dimensions = {"width": int(full_image.shape[1]), "height": int(full_image.shape[0])}
 
         # Auxiliary/experimental: per-declaration-region OCR, tagged by
         # class. Uses the ORIGINAL (not preprocessed) image per-region crop,
@@ -446,7 +477,7 @@ class PaddleOCRService:
         if not detections:
             return OCRResult(
                 success=True, image=image_name, image_path=str(path),
-                full_text="", detections=[], detection_count=0,
+                full_text="", image_dimensions=image_dimensions, detections=[], detection_count=0,
                 preprocessing_applied=preprocessing_applied,
                 object_detections=object_detections, region_cropped=False, regions=regions,
                 error=OCRError(code="empty_result", message="No text detected in image"),
@@ -454,7 +485,8 @@ class PaddleOCRService:
 
         return OCRResult(
             success=True, image=image_name, image_path=str(path),
-            full_text=full_text, detections=detections, detection_count=len(detections),
+            full_text=full_text, image_dimensions=image_dimensions,
+            detections=detections, detection_count=len(detections),
             preprocessing_applied=preprocessing_applied,
             object_detections=object_detections, region_cropped=False, regions=regions,
         )

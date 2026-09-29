@@ -20,7 +20,7 @@ def test_ensemble_weighted_vote_with_both_tracks_and_disagreement():
     }
 
     result = run_ensemble(paddle, tesseract, entity_id="demo-ensemble")
-    assert result["status"] == "ok"
+    assert result["status"] == "review_required"
     assert any(item["text"] == "MRP 199" for item in result["regions"])
     assert result["provenance"][0]["sources"] == ["paddleocr", "tesseract"]
     assert result["regions"][0]["provenance"] == ["paddleocr", "tesseract"]
@@ -46,7 +46,7 @@ def test_ensemble_iou_threshold_blocks_bad_links():
     tesseract = {"success": True, "detections": [{"text": "B", "confidence": 0.75, "bbox": [50, 50, 60, 60], "polygon": [[50, 50], [60, 50], [60, 60], [50, 60]]}]}
 
     result = run_ensemble(paddle, tesseract, entity_id="demo-iou")
-    assert result["status"] == "ok"
+    assert result["status"] == "review_required"
     assert len(result["regions"]) == 2
     assert {item["text"] for item in result["regions"]} == {"A", "B"}
 

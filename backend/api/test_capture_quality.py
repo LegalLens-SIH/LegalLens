@@ -11,6 +11,7 @@ from PIL import Image
 from backend.api import ocr as ocr_module
 from backend.api.auth import official_user
 from backend.main import app
+from backend.ocr.schemas import Detection, OCRResult
 from backend.services import capture_quality as capture_quality_module
 
 
@@ -83,3 +84,31 @@ def test_capture_quality_endpoint_rejects_malformed_image_bytes(monkeypatch):
         assert not database.audit_events.events
     finally:
         app.dependency_overrides.pop(official_user, None)
+
+
+def test_capture_text_visibility_retains_bounded_paddle_evidence_as_review_only():
+    result = OCRResult(
+        success=True,
+        image="label.png",
+        image_dimensions={"width": 100, "height": 80},
+        detections=[Detection(text="NET WT 250g", confidence=0.91, bbox=[4, 8, 70, 20], polygon=[[4, 8], [70, 8], [70, 20], [4, 20]])],
+        detection_count=1,
+    )
+
+    visibility = ocr_module._capture_text_visibility(result)
+
+    assert visibility["status"] == "regions_detected"
+    assert visibility["detected_region_count"] == 1
+    assert visibility["evidence_regions"][0]["bbox"] == [4, 8, 70, 20]
+    assert visibility["coordinate_space"] == "paddleocr_input_pixels"
+    assert visibility["used_for_compliance"] is False
+
+
+def test_capture_text_visibility_does_not_treat_no_detections_as_absence():
+    result = OCRResult(success=True, image="label.png", detections=[], detection_count=0)
+
+    visibility = ocr_module._capture_text_visibility(result)
+
+    assert visibility["status"] == "not_detected_review_required"
+    assert "does not establish" in visibility["guidance"]
+    assert visibility["used_for_compliance"] is False

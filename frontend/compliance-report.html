@@ -357,6 +357,12 @@
 </div>
 </div>
 </div>
+<section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="experimental-evidence-card">
+<div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-3"><span class="material-symbols-outlined text-tertiary-container">science</span><h3 class="text-body-lg font-body-lg font-bold text-primary">Supporting and Experimental Evidence</h3></div>
+<p class="text-label-md text-on-surface-variant mb-4">These results support review only. Compliance findings above remain based on authoritative PaddleOCR and the configured ruleset.</p>
+<div class="flex flex-col gap-3" id="experimental-evidence-content"></div>
+<div class="mt-4" id="barcode-calibration-content"></div>
+</section>
 <!-- Phase 2A: E-commerce Listing Verification - a structurally SEPARATE,
      supplementary evidence section. Never merged with the physical-package
      compliance checklist above: the deterministic ComplianceEngine result
@@ -434,6 +440,204 @@
             document.getElementById('report-breadcrumb').textContent = 'Report #' + scan.id;
             document.getElementById('report-product-name').textContent = scan.productName;
             document.getElementById('report-subtitle').textContent = scan.manufacturer + ' \u2022 ' + scan.category + ' \u2022 Automated packaging scan against Legal Metrology Rules, 2011.';
+            var experimentalItems = [];
+            (Array.isArray(scan.secondaryOcr) ? scan.secondaryOcr : (scan.secondaryOcr ? [scan.secondaryOcr] : [])).forEach(function (item) {
+                var comparison = item && item.comparison || {};
+                var disagreements = Array.isArray(comparison.disagreements) ? comparison.disagreements : [];
+                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Secondary Tesseract OCR · review only</strong><p class="text-label-md text-on-surface-variant">Status: ' + LL.escapeHtml(item.status || 'unavailable') + ' · ' + disagreements.length + ' disagreement(s). PaddleOCR remains authoritative.</p>' + disagreements.map(function (d) { return '<p class="mt-2 text-body-md">PaddleOCR: ' + LL.escapeHtml(d.paddleocr_text || 'no line') + ' · Tesseract: ' + LL.escapeHtml(d.tesseract_text || '') + ' <span class="text-label-md">' + LL.escapeHtml(JSON.stringify(d.evidence_region && d.evidence_region.bbox || [])) + '</span></p>'; }).join('') + '</div>');
+            });
+                        var authenticityPanels = Array.isArray(scan.panelAuthenticity) ? scan.panelAuthenticity : (scan.authenticity ? [{ fileName: scan.image, evidence: scan.authenticity }] : []);
+                        if (authenticityPanels.length) {
+                                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Image integrity signals · supporting evidence</strong><p class="text-label-md text-on-surface-variant">ELA and EXIF are evidence only; neither establishes authenticity or changes compliance.</p>' + authenticityPanels.map(function (panel) {
+                                        var evidence = panel.evidence || panel;
+                                        var exif = evidence.exif || {};
+                                        var ela = evidence.ela || {};
+                                        var hashes = Array.isArray(scan.panelHashes) ? scan.panelHashes : [];
+                                        var sourceHash = scan.sourceImageSha256 || (hashes.find(function (item) { return item.fileName === panel.fileName && item.side === panel.side; }) || {}).sha256;
+                                        var exifSummary = exif.available ? ['Make: ' + (exif.make || 'not recorded'), 'Model: ' + (exif.model || 'not recorded'), 'Software: ' + (exif.software || 'not recorded'), 'Capture time: ' + (exif.datetime_original || 'not recorded'), 'GPS metadata: ' + (exif.gps_present ? 'present' : 'not present')].join(' · ') : 'EXIF unavailable' + (exif.error ? ': ' + exif.error : '');
+                                        var elaSummary = ela.available ? 'ELA score: ' + ela.normalized_score + ' · method: ' + (ela.method || 'not recorded') + ' · difference SHA-256: ' + (ela.difference_sha256 || 'not recorded') : 'ELA unavailable' + (ela.error ? ': ' + ela.error : '');
+                                        return '<p class="mt-2 text-body-md">' + LL.escapeHtml(panel.side || panel.fileName || 'Image') + ' · ' + LL.escapeHtml(exifSummary) + '</p><p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(elaSummary) + '</p>' + (sourceHash ? '<p class="text-label-md text-on-surface-variant">Source image SHA-256: ' + LL.escapeHtml(sourceHash) + '</p>' : '');
+                                }).join('') + '</div>');
+                        }
+                        var capturePanels = Array.isArray(scan.captureAssessments) ? scan.captureAssessments : [];
+                        if (capturePanels.length) {
+                                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Capture quality · review guidance</strong><p class="text-label-md text-on-surface-variant">Capture metrics guide image review only; they do not determine compliance.</p>' + capturePanels.map(function (panel) {
+                                        var quality = panel.quality || {};
+                                        var skew = quality.skew_assessment || {};
+                                            var textVisibility = quality.text_visibility || {};
+                                        var guidance = skew.guidance || 'Keep the package face centered, flat, and parallel to the camera.';
+                                        var reasons = Array.isArray(quality.reasons) ? quality.reasons : [];
+                                        var dimensions = quality.image_width && quality.image_height ? quality.image_width + ' × ' + quality.image_height + ' px' : 'resolution unavailable';
+                                        var skewValue = skew.angle_degrees == null ? (skew.status || 'not assessed') : skew.angle_degrees + '° (' + (skew.status || 'assessed') + ')';
+                                        var textRegionDetails = (Array.isArray(textVisibility.evidence_regions) ? textVisibility.evidence_regions : []).slice(0, 20).map(function (region) {
+                                                return '<p class="ml-3 text-label-md">' + LL.escapeHtml(region.text || 'Detected text') + ' · ' + LL.escapeHtml(region.confidence == null ? 'confidence unavailable' : Math.round(region.confidence * 100) + '%') + ' · OCR-frame region ' + LL.escapeHtml(JSON.stringify(region.bbox || [])) + '</p>';
+                                        }).join('');
+                                        return '<p class="mt-2 text-body-md">' + LL.escapeHtml(panel.side || panel.filename || 'Image') + ' · ' + LL.escapeHtml(panel.status || 'not assessed') + ' · ' + LL.escapeHtml(dimensions) + ' · blur ' + LL.escapeHtml(quality.blur_score == null ? 'unavailable' : quality.blur_score) + ' · glare ' + LL.escapeHtml(quality.glare_score == null ? 'unavailable' : quality.glare_score) + ' · skew ' + LL.escapeHtml(skewValue) + ' · text visibility ' + LL.escapeHtml(textVisibility.status || 'not assessed') + ' (' + LL.escapeHtml(textVisibility.detected_region_count == null ? 'region count unavailable' : textVisibility.detected_region_count + ' region(s)') + ')</p><p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(textVisibility.guidance || 'Review declaration visibility manually.') + ' ' + LL.escapeHtml(guidance) + (reasons.length ? ' · ' + LL.escapeHtml(reasons.join('; ')) : '') + '</p>' + textRegionDetails;
+                                }).join('') + '</div>');
+                        }
+            var measurementItems = Array.isArray(scan.fontHeightMeasurements) ? scan.fontHeightMeasurements : [];
+            var physicalItems = scan.physicalMeasurements && Array.isArray(scan.physicalMeasurements.items) ? scan.physicalMeasurements.items : [];
+                        var referenceCalibrations = Array.isArray(scan.physicalReferenceCalibrations) ? scan.physicalReferenceCalibrations : [];
+                        if (referenceCalibrations.length) {
+                                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Registered physical-reference calibration · review only</strong><p class="text-label-md text-on-surface-variant">A reference scale is supporting evidence and never determines compliance.</p>' + referenceCalibrations.map(function (calibration) {
+                                        var uncertainty = calibration.scale_uncertainty_px_per_mm == null ? 'uncertainty unavailable' : '± ' + calibration.scale_uncertainty_px_per_mm + ' px/mm';
+                                        return '<p class="mt-2 text-body-md">' + LL.escapeHtml(calibration.reference_id || 'Reference unavailable') + ' · ' + LL.escapeHtml(calibration.reference_type || 'type unavailable') + ' · ' + LL.escapeHtml(calibration.reference_status || 'status unavailable') + ' · ' + LL.escapeHtml(calibration.status || 'REVIEW_REQUIRED') + '</p><p class="text-label-md text-on-surface-variant">Scale: ' + LL.escapeHtml(calibration.scale_px_per_mm == null ? 'unavailable' : calibration.scale_px_per_mm + ' px/mm') + ' · ' + LL.escapeHtml(uncertainty) + ' · source image SHA-256: ' + LL.escapeHtml(calibration.source_image_sha256 || 'unavailable') + '</p><p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(calibration.reason || (calibration.reasons || []).join('; ') || 'Measurement remains non-authoritative.') + '</p>';
+                                }).join('') + '</div>');
+                        }
+            if (measurementItems.length || physicalItems.length || scan.measurementReview || scan.barcodeCalibration) {
+                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Font and physical measurements · experimental</strong><p class="text-label-md text-on-surface-variant">Calibration status: ' + LL.escapeHtml(scan.barcodeCalibration && scan.barcodeCalibration.status || scan.measurementReview && scan.measurementReview.status || 'unavailable') + '. Legal threshold status: ' + LL.escapeHtml(scan.measurementReview && scan.measurementReview.threshold_status || 'unavailable') + '. No compliance decision is made from these measurements.</p>' + measurementItems.slice(0, 100).map(function (m) { return '<p class="mt-2 text-body-md">Font height: ' + LL.escapeHtml(m.pixel_height_px == null ? 'pixel height unavailable' : m.pixel_height_px + ' px') + ' · ' + LL.escapeHtml(m.estimated_height_mm == null ? 'physical scale unavailable' : m.estimated_height_mm + ' mm estimate') + ' · ' + LL.escapeHtml(m.status || 'REVIEW_REQUIRED') + '</p>'; }).join('') + physicalItems.slice(0, 100).map(function (m) { var px = m.pixel_dimensions || {}; return '<p class="mt-2 text-body-md">OCR region dimensions: ' + LL.escapeHtml(px.width == null ? 'width unavailable' : px.width + ' × ' + px.height + ' px') + ' · ' + LL.escapeHtml(m.status || 'UNAVAILABLE') + ' · ' + LL.escapeHtml(m.reason || 'experimental pixel measurement') + '</p>'; }).join('') + '</div>');
+            }
+            var pdpItems = Array.isArray(scan.pdpDetections) ? scan.pdpDetections : (scan.pdpDetection ? [scan.pdpDetection] : []);
+            if (pdpItems.length) experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>PDP region candidates · experimental</strong><p class="text-label-md text-on-surface-variant">Not used for OCR authority or compliance.</p>' + pdpItems.map(function (item) { var result = item.result || item; var cropOcr = result.ocr_crop_evidence || {}; var cropRegions = cropOcr.regions || []; return '<p class="mt-2 text-body-md">' + LL.escapeHtml(item.side || result.status || 'status unavailable') + ' · ' + ((result.detections || []).length) + ' region(s) · ' + LL.escapeHtml(result.geometry && result.geometry.status || 'review_required') + ' · crop OCR: ' + LL.escapeHtml(cropOcr.status || 'not recorded') + '</p><p class="text-label-md text-on-surface-variant">Model: ' + LL.escapeHtml(result.model_version || result.model_path || 'unavailable') + ' · Model SHA-256: ' + LL.escapeHtml(result.model_hash || 'unavailable') + ' · Dataset version: ' + LL.escapeHtml(result.dataset_version || 'unavailable') + ' · Dataset hash: ' + LL.escapeHtml(result.dataset_hash || 'unavailable') + ' · Validation: ' + LL.escapeHtml(result.validation_state || result.capability_state || 'unavailable') + ' · Promotion: ' + LL.escapeHtml(result.promotion_status || 'PROMOTION_BLOCKED') + '</p>' + cropRegions.map(function (region) { return '<p class="ml-3 text-label-md">Region ' + LL.escapeHtml(region.class_name || region.region_id || '') + ': ' + LL.escapeHtml(region.full_text || region.reason || region.ocr_status || 'review required') + '</p>'; }).join(''); }).join('') + '</div>');
+                        var barcodePanels = Array.isArray(scan.barcodeDecoding) ? scan.barcodeDecoding : [{ result: scan.barcodeDecoding }];
+                        var barcodeCandidates = [];
+                        barcodePanels.forEach(function (panel) {
+                                var result = panel && panel.result ? panel.result : panel || {};
+                                (result.detections || []).forEach(function (detection) {
+                                        if (detection.status === 'decoded' && detection.checksum_valid === true) {
+                                                barcodeCandidates.push({ side: panel.side || '', fileName: panel.fileName || '', result: result, detection: detection });
+                                        }
+                                });
+                        });
+                        if (barcodePanels.some(function (panel) { return (panel && panel.result ? panel.result : panel || {}).status; })) {
+                                experimentalItems.push('<div class="rounded border border-outline-variant bg-surface-container-low p-4"><strong>Barcode decoding · review evidence</strong><p class="text-label-md text-on-surface-variant">Decoded symbols and checksums are supporting evidence only. No barcode data determines compliance or physical scale.</p>' + barcodePanels.map(function (panel) { var result = panel && panel.result ? panel.result : panel || {}; return (result.detections || []).map(function (detection) { return '<p class="mt-2 text-body-md">' + LL.escapeHtml(panel.side || result.status || 'Image') + ' · ' + LL.escapeHtml(detection.symbology || 'unknown') + ' · ' + LL.escapeHtml(detection.code || detection.status || 'unreadable') + ' · checksum: ' + (detection.checksum_valid === true ? 'valid' : 'not validated') + ' · source region: ' + LL.escapeHtml(JSON.stringify(detection.bbox || [])) + '</p>'; }).join('') || '<p class="mt-2 text-body-md">' + LL.escapeHtml(panel.side || result.status || 'Barcode decoder') + ': ' + LL.escapeHtml(result.reason || 'no barcode detected') + '</p>'; }).join('') + '</div>');
+                        }
+            document.getElementById('experimental-evidence-content').innerHTML = experimentalItems.length ? experimentalItems.join('') : '<p class="text-body-md text-on-surface-variant">No supporting OCR, image integrity, capture, calibration, measurement, or PDP evidence was recorded for this scan. Missing evidence does not imply compliance.</p>';
+                        var calibrationContainer = document.getElementById('barcode-calibration-content');
+                        if (barcodeCandidates.length && Array.isArray(scan.sourceImages) && scan.sourceImages.length > 1) {
+                                calibrationContainer.innerHTML = '<p class="text-label-md text-on-surface-variant">Calibration is unavailable for multi-image scans because decoded symbols are not yet source-linked to the combined OCR geometry.</p>';
+                        } else if (barcodeCandidates.length) {
+                                calibrationContainer.innerHTML = '<form id="barcode-calibration-form" class="border border-outline-variant rounded p-4"><h4 class="font-semibold text-primary">Physical reference calibration</h4><p class="text-label-md text-on-surface-variant mt-1">Use an actual reference document and measured physical width. Without verified source evidence, the result remains review-required. Measurements never change compliance.</p><div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3"><label class="text-label-md">Decoded EAN-13<select id="calibration-barcode" required class="mt-1 w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2">' + barcodeCandidates.map(function (item, index) { return '<option value="' + index + '">' + LL.escapeHtml(item.detection.code) + (item.side ? ' · ' + LL.escapeHtml(item.side) : '') + '</option>'; }).join('') + '</select></label><label class="text-label-md">Measured symbol width<input id="calibration-width" type="number" min="0.001" step="any" required class="mt-1 w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2"></label><label class="text-label-md">Unit<select id="calibration-unit" class="mt-1 w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2"><option value="mm">mm</option><option value="cm">cm</option><option value="in">in</option></select></label><label class="text-label-md">Reference source<input id="calibration-source" required maxlength="500" class="mt-1 w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2"></label><label class="text-label-md">Reference ID<input id="calibration-reference-id" required maxlength="200" class="mt-1 w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2"></label><label class="text-label-md">Reference document<input id="calibration-reference-file" type="file" accept=".pdf,.txt,image/jpeg,image/png,image/webp,application/pdf,text/plain" required class="mt-1 block w-full text-body-md"></label></div><label class="mt-3 flex items-start gap-2 text-label-md"><input id="calibration-reference-verified" type="checkbox" required class="mt-0.5"><span>I verified this uploaded source and its stated physical dimension.</span></label><button type="submit" class="mt-3 px-4 py-2 bg-primary text-on-primary rounded font-semibold">Submit calibration evidence</button><p id="calibration-status" class="hidden mt-3 text-label-md" role="status"></p></form>';
+                                var calibrationForm = document.getElementById('barcode-calibration-form');
+                                calibrationForm.addEventListener('submit', function (event) {
+                                        event.preventDefault();
+                                        var statusEl = document.getElementById('calibration-status');
+                                        var referenceFile = document.getElementById('calibration-reference-file').files[0];
+                                        if (!referenceFile || referenceFile.size > 5 * 1024 * 1024) {
+                                                statusEl.textContent = 'Choose a real reference file no larger than 5 MB.';
+                                                statusEl.classList.remove('hidden');
+                                                return;
+                                        }
+                                        if (!document.getElementById('calibration-reference-verified').checked) {
+                                                statusEl.textContent = 'Confirm that the uploaded reference and physical dimension were verified.';
+                                                statusEl.classList.remove('hidden');
+                                                return;
+                                        }
+                                        var selected = barcodeCandidates[Number(document.getElementById('calibration-barcode').value)];
+                                        statusEl.textContent = 'Verifying and recording calibration evidence…';
+                                        statusEl.classList.remove('hidden');
+                                        referenceFile.arrayBuffer().then(function (buffer) {
+                                                return crypto.subtle.digest('SHA-256', buffer).then(function (digest) {
+                                                        var hash = Array.from(new Uint8Array(digest)).map(function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+                                                        var bytes = new Uint8Array(buffer), binary = '';
+                                                        for (var offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+                                                        return LLOcr.submitScanCalibration(scan.id, {
+                                                                code: selected.detection.code,
+                                                                polygon: selected.detection.polygon,
+                                                                barcode_confidence: null,
+                                                                reference_width: Number(document.getElementById('calibration-width').value),
+                                                                reference_unit: document.getElementById('calibration-unit').value,
+                                                                reference_source: document.getElementById('calibration-source').value.trim(),
+                                                                reference_id: document.getElementById('calibration-reference-id').value.trim(),
+                                                                reference_sha256: hash,
+                                                                reference_verification_status: 'verified',
+                                                                reference_file_name: referenceFile.name,
+                                                                reference_file_mime_type: referenceFile.type,
+                                                                reference_file_base64: btoa(binary)
+                                                        });
+                                                });
+                                        }).then(function (response) {
+                                                var calibrationResult = response.data && response.data.calibration || {};
+                                                var message = response.data && response.data.detail || (calibrationResult.reasons || []).join(' ') || response.data && response.data.status || 'Calibration result unavailable.';
+                                                statusEl.textContent = response.httpOk ? 'Recorded as ' + (response.data.status || 'REVIEW_REQUIRED') + (calibrationResult.scale_px_per_mm == null ? '' : ' · ' + calibrationResult.scale_px_per_mm + ' px/mm') + ' · uncertainty: ' + (calibrationResult.uncertainty && calibrationResult.uncertainty.status || 'not quantified') + ' · legal threshold: unavailable. ' + message : message;
+                                                if (response.httpOk && calibrationResult.reference && calibrationResult.reference.file_id) {
+                                                        var referenceLink = document.createElement('a');
+                                                        referenceLink.className = 'ml-2 underline text-primary';
+                                                        referenceLink.href = LLOcr.DEFAULT_BASE_URL + '/api/scans/' + encodeURIComponent(scan.id) + '/calibration/reference';
+                                                        referenceLink.textContent = 'Download submitted reference';
+                                                        referenceLink.rel = 'noopener';
+                                                        statusEl.appendChild(referenceLink);
+                                                }
+                                                statusEl.classList.toggle('text-error', !response.httpOk);
+                                        }).catch(function (error) {
+                                                statusEl.textContent = 'Calibration request failed: ' + error.message;
+                                                statusEl.classList.add('text-error');
+                                        });
+                                });
+                        }
+            var linkedPackageIds = [scan.evidencePackageId].concat(Array.isArray(scan.supplementalEvidencePackageIds) ? scan.supplementalEvidencePackageIds : []).filter(Boolean);
+            if (linkedPackageIds.length) {
+                var externalStatusContainer = document.getElementById('experimental-evidence-content');
+                var externalApiOrigin = LLOcr.DEFAULT_BASE_URL;
+                Promise.all(linkedPackageIds.map(function (packageId) {
+                    var packageUrl = externalApiOrigin + '/api/evidence-packages/' + encodeURIComponent(packageId);
+                    return Promise.all([
+                        fetch(packageUrl + '/timestamps', { credentials: 'include', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+                        fetch(packageUrl + '/timestamp-status', { credentials: 'include', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+                        fetch(externalApiOrigin + '/api/em-maap/package/' + encodeURIComponent(packageId), { credentials: 'include', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+                    ]).then(function (external) { return { id: packageId, data: external }; });
+                })).then(function (packages) {
+                    packages.forEach(function (entry) {
+                        var external = entry.data, stamps = external[0] && external[0].timestamps || [], transmissions = external[2] && external[2].transmissions || [];
+                        var tsaRecord = stamps.length ? stamps[0] : null;
+                        var tsaResult = tsaRecord && tsaRecord.timestamp_result || {};
+                        var tsaStatus = tsaRecord ? tsaResult.status || 'UNAVAILABLE' : external[1] && external[1].timestamp_authority && external[1].timestamp_authority.status || 'UNAVAILABLE';
+                        var emaapStatus = transmissions.length ? transmissions[0].status || 'UNAVAILABLE' : external[2] && external[2].configuration && external[2].configuration.status || 'NOT_CONFIGURED';
+                                                var actionCard = document.createElement('div');
+                                                actionCard.className = 'rounded border border-outline-variant bg-surface-container-low p-4';
+                                                actionCard.innerHTML = '<strong>External services · ' + LL.escapeHtml(entry.id) + '</strong>' +
+                                                        '<p class="mt-2 text-label-md"><a href="https://emaap.gov.in/about_us" target="_blank" rel="noopener noreferrer" class="underline text-primary">Open official e-Maap portal</a></p>' +
+                                                        '<p class="mt-2 text-body-md" data-tsa-state>TSA: ' + LL.escapeHtml(tsaStatus) + (tsaStatus === 'TIMESTAMPED' ? ' · cryptographically verified token' : ' · no verified timestamp recorded') + '</p>' +
+                                                        '<p class="text-label-md text-on-surface-variant" data-tsa-details>' + (tsaRecord ? 'Provider: ' + LL.escapeHtml(tsaResult.tsa_url || 'not recorded') + ' · Time: ' + LL.escapeHtml(tsaResult.timestamp || 'not recorded') + ' · Digest: ' + LL.escapeHtml(tsaRecord.merkle_root || tsaRecord.request && tsaRecord.request.digest || 'not recorded') + ' · Token SHA-256: ' + LL.escapeHtml(tsaResult.token_sha256 || 'not recorded') : 'Provider: ' + LL.escapeHtml(external[1] && external[1].timestamp_authority && external[1].timestamp_authority.provider || 'not configured') + ' · No timestamp evidence recorded.') + '</p>' +
+                                                        '<button type="button" data-tsa-action class="mr-2 mt-2 px-3 py-1.5 border border-primary rounded text-primary">Request timestamp</button>' +
+                                                        '<p class="mt-3 text-body-md" data-emaap-state>e-Maap: ' + LL.escapeHtml(emaapStatus) + (emaapStatus === 'ACKNOWLEDGED' ? ' · provider acknowledgement verified' : emaapStatus === 'RESPONSE_RECEIVED_UNVERIFIED' ? ' · response received; acknowledgement unverified' : ' · no verified acknowledgement recorded') + '</p>' +
+                                                        '<button type="button" data-emaap-action class="mt-2 px-3 py-1.5 border border-primary rounded text-primary">Submit evidence package</button>' +
+                                                        '<p class="hidden mt-2 text-label-md text-on-surface-variant" data-action-message role="status"></p>';
+                                                externalStatusContainer.appendChild(actionCard);
+                                                var actionMessage = actionCard.querySelector('[data-action-message]');
+                                                actionCard.querySelector('[data-tsa-action]').addEventListener('click', function (event) {
+                                                        var button = event.currentTarget;
+                                                        button.disabled = true;
+                                                        button.textContent = 'Requesting timestamp…';
+                                                        actionMessage.classList.remove('hidden', 'text-error');
+                                                        actionMessage.textContent = 'Waiting for a verified RFC 3161 response.';
+                                                        LLOcr.timestampEvidencePackage(entry.id).then(function (response) {
+                                                                var record = response.data && response.data.timestamp;
+                                                                var result = record && record.timestamp_result || {};
+                                                                actionCard.querySelector('[data-tsa-state]').textContent = 'TSA: ' + (result.status || response.data && response.data.detail || 'UNAVAILABLE') + (result.timestamped === true ? ' · cryptographically verified token' : ' · no verified timestamp');
+                                                                actionCard.querySelector('[data-tsa-details]').textContent = 'Provider: ' + (result.tsa_url || 'not recorded') + ' · Time: ' + (result.timestamp || 'not recorded') + ' · Digest: ' + (record && record.merkle_root || result.message_imprint_sha256 || 'not recorded') + ' · Token SHA-256: ' + (result.token_sha256 || 'not recorded');
+                                                                actionMessage.textContent = result.message || response.data && response.data.detail || 'Timestamp attempt recorded.';
+                                                                if (!response.httpOk) actionMessage.classList.add('text-error');
+                                                        }).catch(function (error) {
+                                                                actionMessage.textContent = 'Timestamp request failed: ' + error.message;
+                                                                actionMessage.classList.add('text-error');
+                                                        }).finally(function () {
+                                                                button.disabled = false;
+                                                                button.textContent = 'Request timestamp';
+                                                        });
+                                                });
+                                                actionCard.querySelector('[data-emaap-action]').addEventListener('click', function (event) {
+                                                        var button = event.currentTarget;
+                                                        button.disabled = true;
+                                                        button.textContent = 'Submitting evidence…';
+                                                        actionMessage.classList.remove('hidden', 'text-error');
+                                                        actionMessage.textContent = 'Submitting the stored evidence package; a 2xx response alone is not an acknowledgement.';
+                                                        LLOcr.transmitEvidencePackage(entry.id).then(function (response) {
+                                                                var transmission = response.data && response.data.transmission || {};
+                                                                actionCard.querySelector('[data-emaap-state]').textContent = 'e-Maap: ' + (transmission.status || response.data && response.data.detail || 'UNAVAILABLE') + (transmission.acknowledged === true ? ' · provider acknowledgement verified' : ' · acknowledgement not verified');
+                                                                actionMessage.textContent = transmission.response && transmission.response.message || transmission.message || response.data && response.data.detail || (response.data && response.data.request_recorded ? 'Transmission result recorded.' : 'Transmission did not complete.');
+                                                                if (!response.httpOk) actionMessage.classList.add('text-error');
+                                                        }).catch(function (error) {
+                                                                actionMessage.textContent = 'e-Maap submission failed: ' + error.message;
+                                                                actionMessage.classList.add('text-error');
+                                                        }).finally(function () {
+                                                                button.disabled = false;
+                                                                button.textContent = 'Submit evidence package';
+                                                        });
+                                                });
+                    });
+                });
+            }
             // Phase 1, Requirement 10: unconditional, backend-supplied
             // disclaimer - rendered verbatim via textContent, never
             // reworded/weakened here.
