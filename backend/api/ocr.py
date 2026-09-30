@@ -364,8 +364,39 @@ def _scan_document(result: OCRResult, product_name: str, category: str, manufact
         "score": None,
         "caseId": None,
         "fileName": file_name,
+        "reportId": f"RPT-{uuid.uuid4().hex[:12].upper()}",
         "findings": [],
         "ocr": result.model_dump(),
+    }
+
+
+def _image_report(
+    *,
+    scan_id: str,
+    report_id: str,
+    image_id: str,
+    image: dict[str, Any],
+    result: OCRResult,
+    structured_extraction: Any,
+    compliance: Any,
+    source_index: int,
+) -> dict[str, Any]:
+    """Build an independently addressable, image-scoped official report."""
+    return {
+        "reportId": report_id,
+        "scanId": scan_id,
+        "imageId": image_id,
+        "sourceIndex": source_index,
+        "fileName": image["filename"],
+        "side": image["side"],
+        "date": datetime.now(timezone.utc).isoformat(),
+        "status": _status_for_compliance(compliance.overall_status),
+        "score": compliance.compliance_score,
+        "ocr": result.model_dump(),
+        "structuredExtraction": structured_extraction.model_dump(),
+        "compliance": compliance.model_dump(),
+        "sourceImageSha256": image.get("sha256"),
+        "evidenceScope": "image_only",
     }
 
 
@@ -982,6 +1013,16 @@ async def create_scan(
         )
     scan["sourceImageId"] = str(image_id)
     scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
+    single_image = {
+        "filename": result.image,
+        "side": image_side,
+        "sha256": source_image_sha256,
+    }
+    scan["reports"] = [_image_report(
+        scan_id=scan["id"], report_id=scan["reportId"], image_id=str(image_id),
+        image=single_image, result=result, structured_extraction=structured_extraction,
+        compliance=compliance, source_index=0,
+    )]
     package = assemble_evidence_package_from_scan(
         evidence_id=scan["id"],
         ocr_result=ocr_dict,
@@ -1199,6 +1240,36 @@ async def _run_multi_analysis_job(
             _report_progress("OCR_PROCESSING", error="No uploaded image could be processed")
             return
 
+        validation_profile, is_wholesale = _select_validation_profile(category)
+        per_image_payloads: list[dict[str, Any]] = []
+        for source_index, item in enumerate(image_results):
+            image = item["image"]
+            result = item["result"]
+            report_id = f"RPT-{uuid.uuid4().hex[:12].upper()}"
+            image_id = f"IMG-{uuid.uuid4().hex[:12].upper()}"
+            if not result.success:
+                per_image_payloads.append({
+                    "reportId": report_id, "imageId": image_id, "sourceIndex": source_index,
+                    "fileName": image["filename"], "side": image["side"],
+                    "date": datetime.now(timezone.utc).isoformat(), "status": "REVIEW_REQUIRED",
+                    "score": None, "ocr": result.model_dump(), "structuredExtraction": None,
+                    "compliance": None, "sourceImageSha256": image.get("sha256"),
+                    "error": result.error.model_dump() if result.error else {"code": "ocr_failed"},
+                    "evidenceScope": "image_only",
+                })
+                continue
+            image_ocr_dict = result.model_dump()
+            image_normalized = normalize_ocr_result(image_ocr_dict)
+            image_extraction = build_structured_extraction(image_ocr_dict, normalized=image_normalized)
+            if is_wholesale:
+                image_ocr_dict["package_type"] = "wholesale"
+            image_compliance = _compliance_engine.evaluate(image_ocr_dict, validation_profile)
+            per_image_payloads.append(_image_report(
+                scan_id="pending", report_id=report_id, image_id=image_id,
+                image=image, result=result, structured_extraction=image_extraction,
+                compliance=image_compliance, source_index=source_index,
+            ))
+
         _report_analysis_update(78, "TEXT_COMBINING", "Combining OCR results from all product sides", processedImages=len(successful), failedImages=total - len(successful))
         results = [item["result"] for item in successful]
         detections = _deduplicate_detections(results)
@@ -1216,7 +1287,6 @@ async def _run_multi_analysis_job(
         normalized = normalize_ocr_result(ocr_dict)
         structured_extraction = build_structured_extraction(ocr_dict, normalized=normalized)
         _report_analysis_update(91, "DECLARATION_IDENTIFICATION", "Identifying product declarations across all sides", processedImages=len(successful), failedImages=total - len(successful))
-        validation_profile, is_wholesale = _select_validation_profile(category)
         if is_wholesale:
             ocr_dict["package_type"] = "wholesale"
         compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
@@ -1263,11 +1333,14 @@ async def _run_multi_analysis_job(
         })
         database = get_database()
         source_images = []
-        for item in image_results:
+        for source_index, item in enumerate(image_results):
             image = item["image"]
             image_id = GridFS(database, collection="scan_images").put(image["contents"], filename=image["filename"], content_type=image["content_type"], scan_id=scan["id"], user_id=user["_id"])
+            report = per_image_payloads[source_index]
             source_images.append({
                 "id": str(image_id),
+                "imageId": report["imageId"],
+                "reportId": report["reportId"],
                 "fileName": image["filename"],
                 "side": image["side"],
                 "detectionCount": item["result"].detection_count,
@@ -1275,11 +1348,18 @@ async def _run_multi_analysis_job(
                 "sha256": image["sha256"],
             })
         scan["sourceImages"] = source_images
+        for source_index, report in enumerate(per_image_payloads):
+            source_image = source_images[source_index]
+            report["scanId"] = scan["id"]
+            report["sourceImageId"] = source_image["imageId"]
+            report["sourceImageUrl"] = f"/api/scans/{scan['id']}/images/{source_index}"
+        scan["reports"] = per_image_payloads
+        scan["reportIds"] = [report["reportId"] for report in per_image_payloads]
         if source_images:
             scan["sourceImageId"] = source_images[0]["id"]
             scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
-            for source_image in source_images:
-                source_image["url"] = f"/api/scans/{scan['id']}/images/{source_images.index(source_image)}"
+            for source_index, source_image in enumerate(source_images):
+                source_image["url"] = f"/api/scans/{scan['id']}/images/{source_index}"
 
         upload_audit = append_audit_event(
             database,
@@ -1524,6 +1604,16 @@ def get_scan(scan_id: str, user: dict[str, Any] = Depends(official_user)):
         content=jsonable_encoder(_public_scan(scan)),
         headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
     )
+
+
+@router.get("/api/scans/{scan_id}/reports/{report_id}")
+def get_scan_report(scan_id: str, report_id: str, user: dict[str, Any] = Depends(official_user)):
+    """Return exactly one image-scoped report; never fall back to scan summary."""
+    scan = get_database().scans.find_one({"id": scan_id, "userId": user["_id"]}, {"reports": 1})
+    report = next((item for item in (scan or {}).get("reports", []) if item.get("reportId") == report_id), None)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return JSONResponse(content=jsonable_encoder(report), headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
 
 @router.post("/api/scans/{scan_id}/calibration")

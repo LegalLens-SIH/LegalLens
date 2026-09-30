@@ -1774,6 +1774,32 @@ def _field_result(field: NormalizedField, label: str) -> FieldResult:
     return FieldResult(status="PASS", value=field.value, confidence=field.confidence, explanation=f"{label} was detected by OCR.", region_ids=field.region_ids, regions=field.regions)
 
 
+def _net_quantity_result(field: NormalizedField, label: str) -> FieldResult:
+    """Require a parseable amount/unit before treating net quantity as found."""
+    if not field.detected:
+        return _field_result(field, label)
+    if field.confidence < CONFIDENCE_THRESHOLD:
+        return _field_result(field, label)
+    parsed = _parse_net_quantity(str(field.value or ""))
+    if parsed is None:
+        return FieldResult(
+            status="NEEDS_MANUAL_VERIFICATION",
+            value=field.value,
+            confidence=field.confidence,
+            explanation=f"{label} wording was detected, but no parseable amount and unit were recovered from OCR.",
+            region_ids=field.region_ids,
+            regions=field.regions,
+        )
+    return FieldResult(
+        status="PASS",
+        value=field.value,
+        confidence=field.confidence,
+        explanation=f"{label} was detected with a parseable amount and unit.",
+        region_ids=field.region_ids,
+        regions=field.regions,
+    )
+
+
 # Phase 1, Requirement 7 (future-date / date-validity check): reuses
 # _DATE_PATTERN's own already-established alternatives (never a new/
 # separate date grammar) so "what counts as a date" stays identical to
@@ -2119,6 +2145,8 @@ def _rule_result(rule: dict[str, Any], normalized: NormalizedOCRResult, referenc
                 fields[name] = FieldResult(status=status, value=current.value, confidence=current.confidence, missing=missing, explanation=explanation, region_ids=current.region_ids, regions=current.regions)
             elif name == "month_and_year_of_manufacture_or_packing":
                 fields[name] = _manufacture_date_result(current, "Month and Year of Manufacture or Packing", reference_date)
+            elif name == "net_quantity":
+                fields[name] = _net_quantity_result(current, "Net Quantity")
             else:
                 fields[name] = _field_result(current, name.replace("_", " ").title())
             evidence.append(f"{name}: {fields[name].status}")

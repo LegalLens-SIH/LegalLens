@@ -9,7 +9,8 @@ from backend.api import manufacturer as manufacturer_module
 from backend.api import ocr as ocr_module
 from backend.api.auth import manufacturer_user, official_user
 from backend.main import app
-from backend.api.ocr import _select_validation_profile
+from backend.api.ocr import _image_report, _select_validation_profile
+from backend.ocr.schemas import OCRResult
 from backend.ocr import paddle_ocr_service as paddle_module
 from backend.ocr.paddle_ocr_service import PaddleOCRService
 
@@ -51,6 +52,31 @@ def test_upload_read_is_bounded_to_one_byte_over_the_configured_limit(monkeypatc
 
     assert upload.requested_sizes == [9]
     assert len(contents) == 9
+
+
+def test_image_report_keeps_stable_image_and_report_identity():
+    detection = {
+        "text": "Net Quantity: 500 g",
+        "confidence": 0.99,
+        "bbox": [0, 0, 100, 20],
+        "polygon": [[0, 0], [100, 0], [100, 20], [0, 20]],
+    }
+    result = OCRResult(success=True, image="back.png", detections=[detection], detection_count=1)
+    compliance = type("Compliance", (), {"overall_status": "REVIEW_REQUIRED", "compliance_score": None, "model_dump": lambda self: {"overall_status": "REVIEW_REQUIRED"}})()
+    extraction = type("Extraction", (), {"model_dump": lambda self: {"quantity": "500 g"}})()
+
+    report = _image_report(
+        scan_id="SCN-1", report_id="RPT-1", image_id="IMG-1",
+        image={"filename": "back.png", "side": "Back", "sha256": "a" * 64},
+        result=result, structured_extraction=extraction, compliance=compliance,
+        source_index=1,
+    )
+
+    assert report["scanId"] == "SCN-1"
+    assert report["reportId"] == "RPT-1"
+    assert report["imageId"] == "IMG-1"
+    assert report["side"] == "Back"
+    assert report["evidenceScope"] == "image_only"
 
 
 def test_all_upload_workflows_reject_oversize_files_after_bounded_reads(monkeypatch):

@@ -245,22 +245,9 @@
 <p class="hidden mt-3 text-body-md font-body-md text-error" id="file-validation-error"></p>
 <div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="camera-status-banner">Camera is ready when needed.</div>
 <div class="hidden mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3 text-body-md font-body-md text-on-surface-variant" id="capture-manifest-status"></div>
-<!-- Phase 2B: OCR mode selection - two fixed, server-validated modes only
-     (see backend/services/ocr_modes.py). "Standard" is the production
-     baseline as of the 2026-09-17 tuning pass (includes an automatic
-     image resize for speed); "fast" was retired the same day once resize
-     was promoted into "Standard" and stopped being a distinct tradeoff. -->
-<div class="mt-6 bg-surface border border-outline-variant rounded-xl p-5">
-<label class="text-body-md font-body-md font-bold text-on-surface mb-1 block" for="ocr-mode-select">OCR mode</label>
-<p class="text-label-md font-label-md text-on-surface-variant mb-3">Choose how the label image is processed before text recognition. Standard matches today's default behavior.</p>
-<select class="w-full sm:w-72 bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-body-md font-body-md" id="ocr-mode-select">
-<option value="standard" selected="">Standard (default)</option>
-<option value="high_accuracy">High Accuracy (denoise + contrast enhancement, slower)</option>
-</select>
-</div>
 <!-- Image preview + bounding-box overlay (populated after a file is chosen / OCR completes) -->
-<div class="hidden mt-6 bg-surface border border-outline-variant rounded-xl p-4" id="preview-card">
-<div class="flex items-center justify-between gap-3 mb-4"><h4 class="text-body-lg font-body-lg font-bold text-on-surface">Selected Product Views</h4><span class="text-label-md font-label-md text-on-surface-variant" id="image-count-label">0 / 8 images</span></div>
+<div class="hidden mt-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-4" id="preview-card">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4"><div><h4 class="text-body-lg font-body-lg font-bold text-on-surface">Product Images</h4><span class="text-label-md font-label-md text-on-surface-variant" id="image-count-label">0 / 8 images</span></div><label class="flex items-center gap-2 text-label-md font-label-md text-on-surface-variant" for="ocr-mode-select"><span class="material-symbols-outlined text-[18px]">settings</span>OCR<select class="bg-surface-container-low border border-outline-variant rounded px-2 py-1 text-label-md" id="ocr-mode-select" aria-label="OCR mode"><option value="standard" selected="">Standard</option><option value="high_accuracy">High Accuracy</option></select></label></div>
 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3" id="image-gallery"></div>
 <div class="mt-4 flex flex-wrap gap-3"><button class="px-4 py-2 border border-primary text-primary rounded-lg font-bold flex items-center gap-2" id="add-images-btn" type="button"><span class="material-symbols-outlined text-[18px]">add_photo_alternate</span>Add More Images</button><button class="px-4 py-2 border border-secondary text-secondary rounded-lg font-bold flex items-center gap-2" id="camera-btn" type="button"><span class="material-symbols-outlined text-[18px]">photo_camera</span>Live Scan</button><input accept="image/jpeg,image/jpg,image/png,image/webp" capture="environment" class="hidden" id="camera-upload" type="file"/></div>
 </div>
@@ -850,6 +837,9 @@
         function renderGallery() {
             imageCountLabel.textContent = chosenFiles.length + ' / ' + MAX_IMAGES + ' images';
             previewCard.classList.toggle('hidden', chosenFiles.length === 0);
+            document.getElementById('scan-drop-zone').classList.toggle('hidden', chosenFiles.length > 0);
+            if (uploadPrimaryBtn) uploadPrimaryBtn.classList.toggle('hidden', chosenFiles.length > 0);
+            if (liveCameraTrigger) liveCameraTrigger.classList.toggle('hidden', chosenFiles.length > 0);
             analyzeBtn.disabled = chosenFiles.length === 0;
             analyzeBtn.classList.toggle('opacity-50', chosenFiles.length === 0);
             analyzeBtn.classList.toggle('cursor-not-allowed', chosenFiles.length === 0);

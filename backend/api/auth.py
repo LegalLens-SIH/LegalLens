@@ -20,6 +20,10 @@ OTP_MINUTES = 10
 SESSION_DAYS = 7
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -137,7 +141,15 @@ class ProfileRequest(BaseModel):
 def set_session(response: Response, user: dict[str, Any]) -> None:
     token = secrets.token_urlsafe(48)
     get_database().sessions.insert_one({"tokenHash": hashlib.sha256(token.encode()).hexdigest(), "userId": user["_id"], "createdAt": utcnow(), "expiresAt": utcnow() + timedelta(days=SESSION_DAYS)})
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=False, max_age=SESSION_DAYS * 86400, path="/")
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite=os.getenv("SESSION_COOKIE_SAMESITE", "lax").strip().lower(),
+        secure=_env_bool("SESSION_COOKIE_SECURE"),
+        max_age=SESSION_DAYS * 86400,
+        path="/",
+    )
 
 
 @router.post("/signup")
@@ -252,7 +264,10 @@ def forgot_password(payload: EmailRequest):
 @router.post("/reset-password")
 def reset_password(payload: ResetPasswordRequest):
     user = get_database().users.find_one({"email": normalize_email(str(payload.email))})
-    if not user or user.get("passwordResetOtpAttempts", 0) >= 5 or not user.get("passwordResetOtpExpiresAt") or user["passwordResetOtpExpiresAt"] < utcnow() or not secrets.compare_digest(user.get("passwordResetOtpHash", ""), otp_hash(payload.otp)):
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+    if user.get("passwordResetOtpAttempts", 0) >= 5 or not user.get("passwordResetOtpExpiresAt") or user["passwordResetOtpExpiresAt"] < utcnow() or not secrets.compare_digest(user.get("passwordResetOtpHash", ""), otp_hash(payload.otp)):
+        get_database().users.update_one({"_id": user["_id"]}, {"$inc": {"passwordResetOtpAttempts": 1}})
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
     hashed = bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt()).decode()
     get_database().users.update_one({"_id": user["_id"]}, {"$set": {"passwordHash": hashed, "updatedAt": utcnow()}, "$unset": {"passwordResetOtpHash": "", "passwordResetOtpExpiresAt": "", "passwordResetOtpAttempts": ""}})

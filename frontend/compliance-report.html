@@ -299,6 +299,10 @@
 <h4 class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider mb-2">Analyzed Product Views</h4>
 <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="source-image-gallery"></div>
 </div>
+<div class="hidden mt-4" id="report-selector-wrap">
+<h4 class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider mb-2">Image-specific reports</h4>
+<div class="flex flex-wrap gap-2" id="report-selector"></div>
+</div>
 </div>
 </div>
 <div class="hidden bg-surface-container-lowest border border-outline-variant rounded-xl p-12 text-center" id="report-not-found">
@@ -357,8 +361,8 @@
 </div>
 </div>
 </div>
-<section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="experimental-evidence-card">
-<div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-3"><span class="material-symbols-outlined text-tertiary-container">science</span><h3 class="text-body-lg font-body-lg font-bold text-primary">Supporting and Experimental Evidence</h3></div>
+<details class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="experimental-evidence-card">
+<summary class="flex cursor-pointer items-center gap-2"><span class="material-symbols-outlined text-tertiary-container">science</span><h3 class="text-body-lg font-body-lg font-bold text-primary">Supporting and Experimental Evidence · Review Only</h3></summary>
 <p class="text-label-md text-on-surface-variant mb-4">These results support review only. Compliance findings above remain based on authoritative PaddleOCR and the configured ruleset.</p>
 <div class="flex flex-col gap-3" id="experimental-evidence-content"></div>
 <div class="mt-4" id="barcode-calibration-content"></div>
@@ -415,7 +419,7 @@
                 <div class="export-image-section"><h2>Original Uploaded Product Image</h2><img class="export-image" id="export-image" alt="Original uploaded product image" /></div>
         </div>
         <div class="export-details-page">
-                <div class="export-section"><h2>OCR Detected Text</h2><table class="export-table"><thead><tr><th>Detected text</th><th>Confidence</th><th>Coordinates</th></tr></thead><tbody id="export-ocr-rows"></tbody></table></div>
+                <div class="export-section"><h2>Detected Declarations</h2><table class="export-table"><thead><tr><th>Detected text</th></tr></thead><tbody id="export-ocr-rows"></tbody></table></div>
                 <div class="export-section"><h2>Rules and Compliance Results</h2><div id="export-rules"></div></div>
         </div>
 </section>
@@ -437,9 +441,45 @@
             document.getElementById('report-subtitle').textContent = 'No scan record matches this ID.';
             document.querySelector('#report-score-badge').closest('.flex.items-center.gap-3').classList.add('hidden');
         } else {
+                        var reportRecords = Array.isArray(scan.reports) ? scan.reports : [];
+                        var requestedReportId = LL.qs('report');
+                        var activeReport = reportRecords.find(function (report) { return report.reportId === requestedReportId; }) || reportRecords[0];
+                        if (activeReport) {
+                                var activeSource = Array.isArray(scan.sourceImages) ? scan.sourceImages[activeReport.sourceIndex] : null;
+                                scan = Object.assign({}, scan, activeReport, {
+                                        id: scan.id,
+                                        scanId: scan.id,
+                                        reportId: activeReport.reportId,
+                                        productName: scan.productName,
+                                        category: scan.category,
+                                        manufacturer: scan.manufacturer,
+                                        sourceImages: scan.sourceImages,
+                                        sourceImageUrl: activeSource && activeSource.url,
+                                        fileName: activeReport.fileName,
+                                        ocr: activeReport.ocr,
+                                        detections: activeReport.ocr && activeReport.ocr.detections || [],
+                                        full_text: activeReport.ocr && activeReport.ocr.full_text || '',
+                                        compliance: activeReport.compliance,
+                                        structuredExtraction: activeReport.structuredExtraction,
+                                        status: activeReport.status,
+                                        score: activeReport.score,
+                                        sourceImageSha256: activeReport.sourceImageSha256,
+                                        secondaryOcr: activeReport.ocr && (activeReport.ocr.secondaryOcr || activeReport.ocr.secondary_ocr),
+                                });
+                                var selectorWrap = document.getElementById('report-selector-wrap');
+                                var selector = document.getElementById('report-selector');
+                                if (selectorWrap && selector && reportRecords.length > 1) {
+                                        selectorWrap.classList.remove('hidden');
+                                        selector.innerHTML = reportRecords.map(function (report) {
+                                                var active = report.reportId === activeReport.reportId;
+                                                return '<a class="px-3 py-2 rounded border ' + (active ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant text-primary bg-surface') + ' text-label-md font-label-md" href="compliance-report.html?id=' + encodeURIComponent(scanId) + '&report=' + encodeURIComponent(report.reportId) + '">' + LL.escapeHtml(report.side || report.fileName || 'View') + ' · ' + LL.escapeHtml(report.reportId) + '</a>';
+                                        }).join('');
+                                }
+                        }
             document.getElementById('report-breadcrumb').textContent = 'Report #' + scan.id;
-            document.getElementById('report-product-name').textContent = scan.productName;
-            document.getElementById('report-subtitle').textContent = scan.manufacturer + ' \u2022 ' + scan.category + ' \u2022 Automated packaging scan against Legal Metrology Rules, 2011.';
+                        document.getElementById('report-breadcrumb').textContent = 'Report #' + (scan.reportId || scan.id);
+                        document.getElementById('report-product-name').textContent = scan.productName + (scan.side ? ' · ' + scan.side : '');
+                        document.getElementById('report-subtitle').textContent = scan.manufacturer + ' \u2022 ' + scan.category + ' \u2022 Scan ' + scan.id + ' · Image-specific report.';
             var experimentalItems = [];
             (Array.isArray(scan.secondaryOcr) ? scan.secondaryOcr : (scan.secondaryOcr ? [scan.secondaryOcr] : [])).forEach(function (item) {
                 var comparison = item && item.comparison || {};
@@ -654,8 +694,13 @@
                                         return '<button type="button" class="text-left border border-outline-variant rounded-lg overflow-hidden bg-surface hover:border-primary transition-colors" data-source-index="' + index + '"><img class="w-full aspect-square object-cover" src="' + apiOrigin + image.url + '" alt="' + LL.escapeHtml(image.side || 'Product view') + '"><span class="block p-2 text-label-md font-label-md text-primary">' + LL.escapeHtml(image.side || 'Other') + '<br><span class="text-on-surface-variant">' + image.detectionCount + ' text regions</span></span></button>';
                                 }).join('');
                                 sourceImageGallery.querySelectorAll('[data-source-index]').forEach(function (button) {
-                                        button.onclick = function () {
+                                                button.onclick = function () {
                                                 var selected = scan.sourceImages[Number(button.dataset.sourceIndex)];
+                                                var targetReport = selected.reportId;
+                                                if (targetReport) {
+                                                        window.location.href = 'compliance-report.html?id=' + encodeURIComponent(scan.id) + '&report=' + encodeURIComponent(targetReport);
+                                                        return;
+                                                }
                                                 sourceImage.src = apiOrigin + selected.url;
                                                 sourceImage.alt = selected.side || selected.fileName || 'Product view';
                                         };
@@ -869,7 +914,8 @@
                                 document.getElementById('export-summary').innerHTML =
                                         '<table class="export-table"><tbody>' +
                                         '<tr><th>Official</th><td>' + exportEscape(official) + '</td></tr>' +
-                                        '<tr><th>Report ID</th><td>' + exportEscape(scan.id) + '</td></tr>' +
+                                        '<tr><th>Report ID</th><td>' + exportEscape(scan.reportId || scan.id) + '</td></tr>' +
+                                        '<tr><th>Scan ID</th><td>' + exportEscape(scan.id) + '</td></tr>' +
                                         '<tr><th>Product</th><td>' + exportEscape(scan.productName) + '</td></tr>' +
                                         '<tr><th>Manufacturer</th><td>' + exportEscape(scan.manufacturer) + '</td></tr>' +
                                         '<tr><th>Category</th><td>' + exportEscape(scan.category) + '</td></tr>' +
@@ -880,14 +926,14 @@
                                 var reportScore = scan.score == null ? 'Pending' : scan.score + '%';
                                 var reportResult = String(scan.status || 'pending').replace(/_/g, ' ').toUpperCase();
                                 document.getElementById('export-result').textContent = 'RESULT: ' + reportResult + ' | SCORE: ' + reportScore;
-                                document.getElementById('export-barcode-caption').textContent = scan.id + ' | ' + reportScore + ' | ' + reportResult;
+                                document.getElementById('export-barcode-caption').textContent = (scan.reportId || scan.id) + ' | ' + reportScore + ' | ' + reportResult;
                                 if (window.JsBarcode) {
-                                        JsBarcode('#export-barcode', scan.id + '|' + reportScore + '|' + reportResult, { format: 'CODE128', width: 1.4, height: 42, displayValue: false, margin: 0, lineColor: '#00274a' });
+                                        JsBarcode('#export-barcode', (scan.reportId || scan.id) + '|' + reportScore + '|' + reportResult, { format: 'CODE128', width: 1.4, height: 42, displayValue: false, margin: 0, lineColor: '#00274a' });
                                 }
                                 document.getElementById('export-image').src = sourceImage.src;
                                 document.getElementById('export-ocr-rows').innerHTML = exportDetections().map(function (detection) {
-                                        return '<tr><td>' + exportEscape(detection.text) + '</td><td>' + Math.round(Number(detection.confidence || 0) * 100) + '%</td><td>' + exportEscape((detection.bbox || []).join(', ')) + '</td></tr>';
-                                }).join('') || '<tr><td colspan="3">No OCR detections returned.</td></tr>';
+                                        return '<tr><td>' + exportEscape(detection.text) + '</td></tr>';
+                                }).join('') || '<tr><td>No detected declarations returned.</td></tr>';
                                 var rules = scan.compliance && scan.compliance.rule_results || [];
                                 document.getElementById('export-rules').innerHTML = rules.map(function (rule) {
                                         var fields = Object.keys(rule.required_fields || {}).map(function (field) {
@@ -920,7 +966,7 @@
                                                 var blob = new Blob([reportHtml], { type: 'application/msword' });
                                                 var link = document.createElement('a');
                                                 link.href = URL.createObjectURL(blob);
-                                                link.download = 'LegalLens-' + (scan.id || 'compliance-report') + '.doc';
+                                                link.download = 'LegalLens-' + (scan.reportId || scan.id || 'compliance-report') + '.doc';
                                                 link.click();
                                                 URL.revokeObjectURL(link.href);
                                         });
@@ -929,7 +975,7 @@
                         document.getElementById('export-pdf-btn').addEventListener('click', function () {
                                 getOfficialName().then(function (officialName) {
                                         populateExportDetails(officialName);
-                                        document.title = 'LegalLens Compliance Report - ' + scan.id;
+                                        document.title = 'LegalLens Compliance Report - ' + (scan.reportId || scan.id);
                                         window.print();
                                 });
                         });

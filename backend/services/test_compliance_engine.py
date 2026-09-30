@@ -53,6 +53,17 @@ def test_missing_mrp_is_review_required_not_confirmed_non_compliant():
     assert result.rule_results[0].required_fields["maximum_retail_price_mrp"].status == "NEEDS_MANUAL_VERIFICATION"
 
 
+def test_keyword_only_net_quantity_requires_manual_verification():
+    data = ocr()
+    data["fields"]["net_quantity"] = {"value": "Net Vol.", "detected": True, "confidence": 0.98}
+
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+
+    quantity = result.rule_results[0].required_fields["net_quantity"]
+    assert quantity.status == "NEEDS_MANUAL_VERIFICATION"
+    assert result.overall_status == "REVIEW_REQUIRED"
+
+
 def test_ocr_mrp_without_currency_is_detected():
     data = ocr(full_text="MRP: 149 (Incl. of all taxes)\nConsumer Care: 1800-123-4567\nEmail: care@example.com")
     data["fields"] = {}

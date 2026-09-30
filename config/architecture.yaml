@@ -1,0 +1,47 @@
+version: 1
+status_definitions:
+  - COMPLIANT
+  - NON_COMPLIANT
+  - REVIEW_REQUIRED
+  - NOT_FOUND
+  - NOT_APPLICABLE
+  - NEEDS_MANUAL_VERIFICATION
+authoritative_components:
+  - paddleocr
+  - compliance_engine
+  - verified_legal_corpus
+experimental_components:
+  - tesseract
+  - ocr_ensemble
+  - pdp_detector
+  - physical_calibration
+  - physical_measurement
+  - font_height
+  - ela
+  - ecommerce_verification
+feature_flags:
+  gemini_enabled: false
+  tesseract_enabled: false
+  pdp_enabled: false
+  tsa_enabled: false
+  emaap_simulator_enabled: false
+production_defaults:
+  experimental_authority: false
+  missing_evidence_status: REVIEW_REQUIRED
+  unavailable_integration_status: REVIEW_REQUIRED
+evidence_requirements:
+  authoritative_compliance:
+    - source_image_sha256
+    - ocr_provenance
+    - evidence_regions
+    - verified_legal_provision
+promotion_criteria:
+  pdp:
+    - real_labeled_dataset
+    - held_out_evaluation
+    - checkpoint_sha256
+    - dataset_manifest_sha256
+    - human_approval
+external_integration_states:
+  tsa_unconfigured: TSA_UNAVAILABLE
+  emaap_unconfigured: UNAVAILABLE

@@ -164,6 +164,19 @@ def test_em_maap_reports_unavailable_validation_auth_provider_and_bad_schema_sta
     assert EMMAAPClient().submit({})["status"] == "VALIDATION_FAILURE"
 
 
+def test_em_maap_simulator_is_explicit_and_never_acknowledges():
+    client = EMMAAPClient(simulator_enabled=True)
+
+    assert client.availability()["status"] == "SIMULATED"
+    result = client.submit({"evidence_package_id": "pkg-sim", "merkle_root": "a" * 64})
+
+    assert result["status"] == "SIMULATED"
+    assert result["simulated"] is True
+    assert result["transmitted"] is False
+    assert result["acknowledged"] is False
+    assert "SIMULATED" in result["message"]
+
+
 def test_em_maap_oversized_payload_returns_validation_state_without_transport():
     client = EMMAAPClient()
 

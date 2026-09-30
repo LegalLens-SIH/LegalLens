@@ -412,8 +412,18 @@
             var statusFilter = statusSelect.value;
             var categoryFilter = categorySelect.value;
 
-            var filtered = scans.filter(function (s) {
-                var compliance = LL.complianceStatus(s);
+            var entries = [];
+            scans.forEach(function (scan) {
+                if (Array.isArray(scan.reports) && scan.reports.length) {
+                    scan.reports.forEach(function (report) { entries.push({ scan: scan, report: report }); });
+                } else {
+                    entries.push({ scan: scan, report: null });
+                }
+            });
+            var filtered = entries.filter(function (entry) {
+                var s = entry.scan;
+                var view = entry.report ? Object.assign({}, s, entry.report) : s;
+                var compliance = LL.complianceStatus(view);
                 if (statusFilter && compliance.type !== statusFilter) return false;
                 if (categoryFilter && s.category !== categoryFilter) return false;
                 if (q && (s.id + s.productName + s.manufacturer).toLowerCase().indexOf(q) === -1) return false;
@@ -421,12 +431,16 @@
             });
 
             body.innerHTML = '';
-            filtered.forEach(function (scan) {
-                var meta = LL.complianceStatus(scan);
+            filtered.forEach(function (entry) {
+                var scan = entry.scan;
+                var report = entry.report;
+                var view = report ? Object.assign({}, scan, report) : scan;
+                var meta = LL.complianceStatus(view);
                 var tr = document.createElement('tr');
                 tr.className = 'hover:bg-surface/50 transition-colors group' + (meta.type === 'action' || meta.type === 'failed' ? ' bg-error-container/5' : '');
                 tr.innerHTML =
-                    '<td class="py-4 px-6"><div class="font-bold text-primary font-headline-md text-[14px]">#' + LL.escapeHtml(scan.id) + '</div>' +
+                    '<td class="py-4 px-6"><div class="font-bold text-primary font-headline-md text-[14px]">#' + LL.escapeHtml(report ? report.reportId : scan.id) + '</div>' +
+                    (report ? '<div class="text-label-md text-secondary mt-1">Scan ' + LL.escapeHtml(scan.id) + ' · ' + LL.escapeHtml(report.side || report.fileName || 'Product view') + '</div>' : '') +
                     '<div class="text-on-surface-variant text-label-md font-label-md mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">schedule</span> ' + LL.fmtDateTime(scan.date) + '</div></td>' +
                     '<td class="py-4 px-6"><div class="font-semibold text-on-background">' + LL.escapeHtml(scan.productName) + '</div>' +
                     '<div class="text-on-surface-variant text-label-md font-label-md mt-1">' + LL.escapeHtml(scan.category) + '</div></td>' +
@@ -434,7 +448,7 @@
                     '<td class="py-4 px-6"><div class="inline-flex items-center gap-1.5 ' + meta.cls + ' px-3 py-1 rounded-full text-label-md font-label-md"><span class="material-symbols-outlined text-[16px] fill">' + meta.icon + '</span> ' + meta.label + '</div><div class="text-label-md font-label-md text-on-surface-variant mt-1">Compliance Score: ' + (meta.score === null ? 'N/A' : LL.escapeHtml(String(meta.score)) + '%') + '</div></td>' +
                     '<td class="py-4 px-6 text-right"><div class="flex justify-end items-center gap-3"><button class="text-primary hover:text-secondary font-medium text-label-md font-label-md" type="button">View</button><button class="text-secondary hover:text-primary font-medium text-label-md font-label-md" type="button">Rescan</button><button class="text-error hover:text-on-error-container font-medium text-label-md font-label-md" type="button">Delete</button></div></td>';
                 tr.querySelectorAll('button')[0].addEventListener('click', function () {
-                    location.href = 'compliance-report.html?id=' + encodeURIComponent(scan.id);
+                    location.href = 'compliance-report.html?id=' + encodeURIComponent(scan.id) + (report ? '&report=' + encodeURIComponent(report.reportId) : '');
                 });
                 tr.querySelectorAll('button')[1].addEventListener('click', function () { showModal(scan, 'rescan'); });
                 tr.querySelectorAll('button')[2].addEventListener('click', function () { showModal(scan, 'delete'); });

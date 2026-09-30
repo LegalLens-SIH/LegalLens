@@ -16,6 +16,7 @@ auditable ruleset and engine version.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -54,6 +55,7 @@ from backend.api.em_maap import router as em_maap_router
 from backend.api.evidence import router as evidence_router
 from backend.api.physical_references import router as physical_references_router
 from backend.database import close_mongodb, connect_to_mongodb
+from backend.services.architecture_contract import ARCHITECTURE_CONTRACT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,9 +83,11 @@ app = FastAPI(
 # etc.), so any localhost/127.0.0.1 origin is allowed for local development.
 # This is intentionally permissive for local dev only - it must be locked
 # down to a specific origin before any real deployment.
+_configured_origins = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"(null|http://(localhost|127\.0\.0\.1)(:\d+)?)",
+    allow_origins=_configured_origins or ["null"],
+    allow_origin_regex=None if _configured_origins else r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -106,3 +110,18 @@ app.include_router(physical_references_router)
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "service": "legallense-backend"}
+
+
+@app.get("/api/readiness")
+def readiness_check():
+    """Expose deterministic startup readiness without claiming provider readiness."""
+    return {
+        "status": "ok",
+        "service": "legallense-backend",
+        "architecture_contract_version": ARCHITECTURE_CONTRACT.version,
+        "authoritative_components": ARCHITECTURE_CONTRACT.authoritative_components,
+        "external_integrations": {
+            "tsa": "configured" if ARCHITECTURE_CONTRACT.feature_flags.get("tsa_enabled") else "unavailable",
+            "emaap": "configured" if ARCHITECTURE_CONTRACT.feature_flags.get("emaap_simulator_enabled") else "unavailable",
+        },
+    }

@@ -27,10 +27,14 @@ class EMMAAPClient:
 
     def __init__(self, *, endpoint: str | None = None, api_key: str | None = None,
                  timeout: float | None = None, max_retries: int | None = None,
-                 provider: EMaapProvider | None = None):
+                 provider: EMaapProvider | None = None, simulator_enabled: bool | None = None):
         self.endpoint = (endpoint if endpoint is not None else os.getenv("EMAAP_ENDPOINT", "")).strip()
         self.api_key = (api_key if api_key is not None else os.getenv("EMAAP_API_KEY", "")).strip()
         self.provider = provider
+        self.simulator_enabled = (
+            os.getenv("EMAAP_SIMULATOR_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+            if simulator_enabled is None else simulator_enabled
+        )
         try:
             self.timeout = float(timeout if timeout is not None else os.getenv("EMAAP_TIMEOUT_SECONDS", "10"))
             self.max_retries = int(max_retries if max_retries is not None else os.getenv("EMAAP_MAX_RETRIES", "2"))
@@ -45,6 +49,14 @@ class EMMAAPClient:
 
     def availability(self) -> dict[str, Any]:
         if self.provider is None:
+            if self.simulator_enabled:
+                return {
+                    "status": "SIMULATED",
+                    "configured": True,
+                    "available": False,
+                    "simulated": True,
+                    "portal_url": "https://emaap.gov.in/about_us",
+                }
             return {
                 "status": "API_NOT_DOCUMENTED",
                 "configured": False,
@@ -110,6 +122,15 @@ class EMMAAPClient:
                 "message": "e-Maap request exceeds the 1 MiB limit.",
             }
         if self.provider is None:
+            if self.simulator_enabled:
+                return {
+                    **normalized,
+                    "status": "SIMULATED",
+                    "simulated": True,
+                    "transmitted": False,
+                    "acknowledged": False,
+                    "message": "SIMULATED: no e-Maap request was sent and no acknowledgement was received.",
+                }
             return {**normalized, "status": "API_NOT_DOCUMENTED", "transmitted": False, "acknowledged": False, "message": "No documented public e-Maap API adapter is available; no request was sent."}
         provider_status = self.availability()["status"]
         if provider_status != "SUCCESS":

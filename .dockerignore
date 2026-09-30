@@ -1,0 +1,16 @@
+.git
+.env
+.venv
+backend/.venv311
+.pytest_cache
+__pycache__
+frontend/node_modules
+training/raw_images
+training/images
+training/labels
+training/pdp/v1/images
+training/pdp/v1/labels
+training/runs
+training/benchmark_results
+*.log
+*.pt
