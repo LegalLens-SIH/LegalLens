@@ -145,8 +145,9 @@ def test_self_check_uses_real_compliance_engine_not_four_field_placeholder(monke
 
                 assert report["validation_profile"] == "e_commerce_product_listing"
                 assert report["overall_status"] == "REVIEW_REQUIRED"
-                assert report["compliance_score"] == 100
-                assert revision["complianceScore"] == 100
+                assert report["compliance_score"] is None
+                assert report["legacy_comparison"]["overall_status"] == "NON_COMPLIANT"
+                assert revision["complianceScore"] is None
 
                 required_fields = report["rule_results"][0]["required_fields"]
                 # Every applicable Legal Metrology declaration check is
@@ -171,22 +172,24 @@ def test_self_check_uses_real_compliance_engine_not_four_field_placeholder(monke
                 # undetected field stays NEEDS_MANUAL_VERIFICATION, visible
                 # in the report - not hidden, not faked as a pass.
                 assert required_fields["common_generic_name_of_commodity"]["status"] == "NEEDS_MANUAL_VERIFICATION"
+                assert required_fields["consumer_care_details"]["status"] == "PARTIAL"
 
                 # Summary counts reflect the actual engine result, never hardcoded.
                 summary = report["summary"]
-                assert summary["compliant"] == 7
+                assert summary["compliant"] == 6
                 assert summary["low_confidence"] == 1
-                assert summary["non_compliant"] == 0
+                assert summary["non_compliant"] == 1
+                legacy_score = report["legacy_comparison"]["compliance_score"]
+                assert legacy_score == round(summary["compliant"] / (summary["compliant"] + summary["non_compliant"]) * 100, 2)
             finally:
                 _cleanup(get_database())
     finally:
         app.dependency_overrides.pop(manufacturer_user, None)
 
 
-def test_self_check_surfaces_non_compliant_checks_not_just_passes(monkeypatch):
-    """Requirement: the report must show FAILED/non-compliant checks, not
-    hide them - and the overall status hierarchy (NON_COMPLIANT >
-    REVIEW_REQUIRED > COMPLIANT) must hold. Also exercises the P0 MRP fix:
+def test_self_check_surfaces_legacy_partial_without_promoting_json_review(monkeypatch):
+    """The compatibility report keeps the legacy PARTIAL visible, while
+    canonical JSON uncertainty remains REVIEW_REQUIRED. Also exercises the P0 MRP fix:
     IMAGE_B_BYTES' MRP heading has no readable amount, which must now
     register as NEEDS_MANUAL_VERIFICATION (not a confirmed violation),
     while its consumer-care block (phone present, email confirmably
@@ -207,7 +210,8 @@ def test_self_check_surfaces_non_compliant_checks_not_just_passes(monkeypatch):
                 revision = response.json()["revision"]
                 report = revision["complianceResult"]
 
-                assert report["overall_status"] == "NON_COMPLIANT"
+                assert report["overall_status"] == "REVIEW_REQUIRED"
+                assert report["legacy_comparison"]["overall_status"] == "NON_COMPLIANT"
                 mrp = report["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
                 assert mrp["status"] == "NEEDS_MANUAL_VERIFICATION"
                 assert mrp["explanation"]
@@ -251,7 +255,8 @@ def test_self_check_result_contains_and_serves_the_exact_uploaded_image(monkeypa
                 revision_b = response_b.json()["revision"]
                 assert "IMAGE-B-MARKER" in revision_b["ocrResult"]["full_text"]
                 assert "IMAGE-A-MARKER" not in revision_b["ocrResult"]["full_text"]
-                assert revision_b["complianceResult"]["overall_status"] == "NON_COMPLIANT"
+                assert revision_b["complianceResult"]["overall_status"] == "REVIEW_REQUIRED"
+                assert revision_b["complianceResult"]["legacy_comparison"]["overall_status"] == "NON_COMPLIANT"
                 assert revision_b.get("sourceImageUrl")
 
                 assert revision_a["revisionId"] != revision_b["revisionId"]

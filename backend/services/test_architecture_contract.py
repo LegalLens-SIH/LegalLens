@@ -14,6 +14,9 @@ def test_architecture_contract_has_shared_statuses_and_safe_defaults():
     assert ARCHITECTURE_CONTRACT.production_defaults["experimental_authority"] is False
     assert ARCHITECTURE_CONTRACT.production_defaults["missing_evidence_status"] == "REVIEW_REQUIRED"
     assert ARCHITECTURE_CONTRACT.feature_flags["pdp_enabled"] is False
+    assert ARCHITECTURE_CONTRACT.feature_flags["gs1_resolver_enabled"] is False
+    assert "gs1_barcode_identity_verification" in ARCHITECTURE_CONTRACT.supporting_components
+    assert "gs1_barcode_identity_verification" not in ARCHITECTURE_CONTRACT.authoritative_components
 
 
 def test_invalid_architecture_contract_fails_closed(tmp_path: Path):

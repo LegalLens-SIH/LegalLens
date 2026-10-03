@@ -27,6 +27,7 @@ class ArchitectureContract(BaseModel):
     version: int = Field(ge=1)
     status_definitions: list[str]
     authoritative_components: list[str] = Field(min_length=1)
+    supporting_components: list[str] = Field(default_factory=list)
     experimental_components: list[str] = Field(default_factory=list)
     feature_flags: dict[str, bool]
     production_defaults: dict[str, Any]

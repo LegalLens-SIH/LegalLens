@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from backend.ocr.paddle_ocr_service import PaddleOCRService
@@ -116,6 +117,28 @@ def test_opencv_barcode_dependency_absence_is_explicit(monkeypatch):
     assert result["status"] == "unavailable"
     assert result["available"] is False
     assert result["detections"] == []
+
+
+def test_opencv_decoder_preserves_and_sorts_multiple_gtin_candidates(monkeypatch):
+    class Detector:
+        def detectAndDecodeWithType(self, _image):
+            return True, ["opaque-value", "036000291452", "4006381333931"], ["CODE_128", "UPC_A", "EAN_13"], np.array([
+                [[ [5, 5], [30, 5], [30, 20], [5, 20] ]],
+                [[ [40, 5], [100, 5], [100, 25], [40, 25] ]],
+                [[ [120, 5], [220, 5], [220, 30], [120, 30] ]],
+            ], dtype=np.float32)
+
+    monkeypatch.setitem(sys.modules, "cv2", SimpleNamespace(barcode_BarcodeDetector=Detector))
+    result = decode_ean13_barcodes(SimpleNamespace(size=1, shape=(100, 250, 3)), source_image_sha256="a" * 64)
+
+    assert result["status"] == "decoded"
+    assert [item["raw_value"] for item in result["detections"]] == ["4006381333931", "036000291452", "opaque-value"]
+    assert result["detections"][0]["code"] == "4006381333931"
+    assert result["detections"][1]["code"] is None
+    assert result["detections"][1]["gtin"] == "036000291452"
+    assert result["detections"][2]["gtin_status"] == "MALFORMED_IDENTIFIER"
+    assert result["detections"][0]["bbox"] == [120.0, 5.0, 220.0, 30.0]
+    assert len({item["barcode_id"] for item in result["detections"]}) == 3
 
 
 @pytest.mark.parametrize(

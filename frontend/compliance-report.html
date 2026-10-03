@@ -289,7 +289,7 @@
 <p class="text-body-sm font-body-sm text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mt-2" id="disclaimer"></p>
 </div>
 <div class="flex items-center gap-3">
-<span class="text-body-md font-body-md text-on-surface-variant">Overall Score:</span>
+<span class="text-body-md font-body-md text-on-surface-variant">Canonical Result:</span>
 <div class="flex items-center gap-2 bg-tertiary-fixed-dim/20 text-tertiary-container px-4 py-2 rounded font-bold border border-tertiary-fixed-dim/50 shadow-sm" id="report-score-badge">
 <span class="material-symbols-outlined" id="report-score-icon">warning</span>
 <span class="text-headline-md font-headline-md" id="report-score-value">60%</span>
@@ -346,10 +346,10 @@
 <div class="bg-surface border border-outline-variant rounded-xl p-6 shadow-sm flex-1">
 <h3 class="text-body-lg font-body-lg font-bold text-primary mb-6 flex items-center gap-2 border-b border-outline-variant pb-3">
 <span class="material-symbols-outlined">checklist</span>
-                            Rule 6 Declaration Checklist
+                            Legacy Rule 6 Findings (Reference Only)
                         </h3>
 <div class="hidden mb-5 p-4 bg-surface-container-lowest border border-outline-variant rounded-lg" id="report-score-summary">
-<p class="text-body-md font-body-md text-on-surface-variant mb-2">The numerical score reflects only <strong>confirmed</strong> checks. Checks needing manual review are excluded from the score, not treated as passed or failed.</p>
+<p class="text-body-md font-body-md text-on-surface-variant mb-2">Legacy profile findings and counts are retained for comparison only. They do not determine the canonical 75-rule JSON result or its status.</p>
 <div class="flex flex-wrap gap-4 text-body-md font-body-md">
 <span class="flex items-center gap-1 text-secondary font-semibold"><span class="material-symbols-outlined text-[18px]">check_circle</span><span id="report-summary-compliant">0</span> Passed</span>
 <span class="flex items-center gap-1 text-error font-semibold"><span class="material-symbols-outlined text-[18px]">cancel</span><span id="report-summary-non-compliant">0</span> Failed</span>
@@ -361,16 +361,53 @@
 </div>
 </div>
 </div>
+<details class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="json-rules-evaluation-card">
+<summary class="flex cursor-pointer flex-wrap items-center gap-2 border-b border-outline-variant pb-3">
+<span class="material-symbols-outlined text-primary">rule</span>
+<h3 class="text-body-lg font-body-lg font-bold text-primary">Consolidated 75-Rule Evaluation</h3>
+<span class="ml-auto text-label-md font-semibold" id="json-rules-overall-status">Loading</span>
+</summary>
+<p class="text-label-md text-on-surface-variant mt-3">Every source rule is evaluated against known package and label facts. Unknown facts require review; rules without machine-checkable checks are marked NOT ASSESSED.</p>
+<p class="text-label-md text-on-surface-variant mt-2" id="json-rules-provenance"></p>
+<div class="my-4 flex flex-wrap gap-x-5 gap-y-2 text-label-md" id="json-rules-summary"></div>
+<div class="mb-4 overflow-x-auto" id="json-rules-gates"></div>
+<details class="mb-4">
+<summary class="cursor-pointer text-label-md font-semibold text-primary">Calculation outcomes</summary>
+<div class="mt-2 overflow-x-auto" id="json-rules-calculations"></div>
+</details>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse text-label-md">
+<thead><tr class="border-b border-outline-variant text-left"><th class="p-2">Rule</th><th class="p-2">Reference</th><th class="p-2">Status</th><th class="p-2">Trace / Evidence</th></tr></thead>
+<tbody id="json-rules-results"></tbody>
+</table>
+</div>
+</details>
 <details class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="experimental-evidence-card">
 <summary class="flex cursor-pointer items-center gap-2"><span class="material-symbols-outlined text-tertiary-container">science</span><h3 class="text-body-lg font-body-lg font-bold text-primary">Supporting and Experimental Evidence · Review Only</h3></summary>
 <p class="text-label-md text-on-surface-variant mb-4">These results support review only. Compliance findings above remain based on authoritative PaddleOCR and the configured ruleset.</p>
 <div class="flex flex-col gap-3" id="experimental-evidence-content"></div>
 <div class="mt-4" id="barcode-calibration-content"></div>
-</section>
+</details>
 <!-- Phase 2A: E-commerce Listing Verification - a structurally SEPARATE,
      supplementary evidence section. Never merged with the physical-package
      compliance checklist above: the deterministic ComplianceEngine result
      above remains the sole legal authority, and nothing here can change it. -->
+<section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="external-services-card" aria-labelledby="external-services-heading">
+<div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-4">
+<span class="material-symbols-outlined text-primary">cloud_sync</span>
+<h3 class="text-body-lg font-body-lg font-bold text-primary" id="external-services-heading">External Services</h3>
+</div>
+<p class="text-label-md text-on-surface-variant mb-4">External integrations provide evidence and acknowledgements only. They do not change the physical-package compliance result.</p>
+<div class="flex flex-col gap-3" id="external-services-content"></div>
+</section>
+<section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="gs1-verification-card" aria-labelledby="gs1-verification-heading">
+<div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-4">
+<span class="material-symbols-outlined text-primary">qr_code_2</span>
+<h3 class="text-body-lg font-body-lg font-bold text-primary" id="gs1-verification-heading">GS1 / Barcode Verification</h3>
+</div>
+<p class="text-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mb-4">Supporting identity evidence only. Local GTIN check-digit validation is not a registry lookup. Resolver CE performs local Digital Link resolution only; it does not verify ownership, authenticity, or legal compliance. Verified by GS1 and GS1 India DataKart are not connected.</p>
+<div class="flex flex-col gap-3" id="gs1-verification-content"></div>
+</section>
 <section class="mt-8 bg-surface border border-outline-variant rounded-xl p-6 shadow-sm" id="listing-verification-card">
 <div class="flex items-center gap-2 border-b border-outline-variant pb-3 mb-4">
 <span class="material-symbols-outlined text-primary">storefront</span>
@@ -378,20 +415,23 @@
 </div>
 <p class="text-label-md font-label-md text-on-surface-variant bg-surface-container-low border border-outline-variant rounded px-3 py-2 mb-4" id="listing-verification-disclaimer">This comparison is supplementary evidence only and does not determine legal compliance. The physical package compliance result above remains authoritative.</p>
 <div class="flex flex-col sm:flex-row gap-3 mb-4">
-<input class="flex-1 bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-body-md font-body-md" id="listing-url-input" placeholder="https://www.example-marketplace.com/product/..." type="url"/>
+<input aria-describedby="listing-url-help" class="flex-1 bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-body-md font-body-md" id="listing-url-input" type="url"/>
 <button class="px-5 py-2.5 rounded bg-secondary text-on-secondary font-bold text-body-md font-body-md hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2" id="listing-verify-btn" type="button">
 <span class="material-symbols-outlined text-[20px]">travel_explore</span>
                     Verify Listing
                 </button>
 </div>
+<p class="text-label-md text-on-surface-variant mb-3" id="listing-url-help">Enter a public HTTP or HTTPS product listing URL. Only the supplied page is retrieved; marketplace APIs and JavaScript-rendered content are not supported.</p>
 <p class="hidden text-label-md font-label-md text-error mb-3" id="listing-url-error"></p>
 <div class="hidden" id="listing-verification-loading">
 <div class="flex items-center gap-3 text-on-surface-variant"><span class="material-symbols-outlined animate-spin">progress_activity</span><span>Retrieving and comparing the listing&hellip;</span></div>
 </div>
 <div class="hidden" id="listing-verification-result"></div>
 </section>
-<!-- Footer Actions -->
-<div class="mt-8 pt-6 border-t border-outline-variant flex flex-col sm:flex-row justify-end items-center gap-4">
+<!-- Main report actions remain outside Review, Evidence, External Services, and Listing Verification. -->
+<section class="no-print mt-8 pt-6 border-t border-outline-variant" id="report-actions" aria-labelledby="report-actions-heading">
+<h3 class="text-body-lg font-body-lg font-bold text-primary mb-4" id="report-actions-heading">Report Actions</h3>
+<div class="flex flex-col sm:flex-row justify-end items-center gap-4">
 <button class="no-print w-full sm:w-auto px-6 py-2.5 rounded border border-primary text-primary hover:bg-surface-container-low transition-colors font-semibold text-body-md font-body-md flex items-center justify-center gap-2" id="export-pdf-btn" title="Print or save this report as PDF">
 <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
                                         Export PDF
@@ -409,6 +449,7 @@
                     Log Case Action
                 </button>
 </div>
+</section>
 </div>
 <section id="export-details" aria-label="Complete compliance report export">
         <div class="export-cover">
@@ -420,6 +461,7 @@
         </div>
         <div class="export-details-page">
                 <div class="export-section"><h2>Detected Declarations</h2><table class="export-table"><thead><tr><th>Detected text</th></tr></thead><tbody id="export-ocr-rows"></tbody></table></div>
+                <div class="export-section"><h2>Supporting Evidence: GS1 / Barcode Verification</h2><div id="export-gs1-evidence"></div></div>
                 <div class="export-section"><h2>Rules and Compliance Results</h2><div id="export-rules"></div></div>
         </div>
 </section>
@@ -443,7 +485,21 @@
         } else {
                         var reportRecords = Array.isArray(scan.reports) ? scan.reports : [];
                         var requestedReportId = LL.qs('report');
-                        var activeReport = reportRecords.find(function (report) { return report.reportId === requestedReportId; }) || reportRecords[0];
+                        var activeReport = requestedReportId
+                                ? reportRecords.find(function (report) { return report.reportId === requestedReportId; })
+                                : reportRecords[0];
+                        if (requestedReportId && !activeReport) {
+                                ['report-content', 'experimental-evidence-card', 'external-services-card', 'listing-verification-card', 'report-actions'].forEach(function (id) {
+                                        var section = document.getElementById(id);
+                                        if (section) section.classList.add('hidden');
+                                });
+                                document.getElementById('report-not-found').classList.remove('hidden');
+                                document.getElementById('report-breadcrumb').textContent = 'Report not found';
+                                document.getElementById('report-product-name').textContent = 'Compliance Report';
+                                document.getElementById('report-subtitle').textContent = 'No image-specific report matches the selected report ID.';
+                                document.getElementById('report-score-badge').closest('.flex.items-center.gap-3').classList.add('hidden');
+                                return;
+                        }
                         if (activeReport) {
                                 var activeSource = Array.isArray(scan.sourceImages) ? scan.sourceImages[activeReport.sourceIndex] : null;
                                 scan = Object.assign({}, scan, activeReport, {
@@ -461,6 +517,8 @@
                                         full_text: activeReport.ocr && activeReport.ocr.full_text || '',
                                         compliance: activeReport.compliance,
                                         structuredExtraction: activeReport.structuredExtraction,
+                                        gs1Verification: activeReport.gs1Verification || null,
+                                        listingVerification: activeReport.listingVerification || null,
                                         status: activeReport.status,
                                         score: activeReport.score,
                                         sourceImageSha256: activeReport.sourceImageSha256,
@@ -534,7 +592,7 @@
                         barcodePanels.forEach(function (panel) {
                                 var result = panel && panel.result ? panel.result : panel || {};
                                 (result.detections || []).forEach(function (detection) {
-                                        if (detection.status === 'decoded' && detection.checksum_valid === true) {
+                                        if (detection.status === 'decoded' && detection.checksum_valid === true && detection.symbology === 'EAN_13' && detection.code) {
                                                 barcodeCandidates.push({ side: panel.side || '', fileName: panel.fileName || '', result: result, detection: detection });
                                         }
                                 });
@@ -607,7 +665,7 @@
                         }
             var linkedPackageIds = [scan.evidencePackageId].concat(Array.isArray(scan.supplementalEvidencePackageIds) ? scan.supplementalEvidencePackageIds : []).filter(Boolean);
             if (linkedPackageIds.length) {
-                var externalStatusContainer = document.getElementById('experimental-evidence-content');
+                var externalStatusContainer = document.getElementById('external-services-content');
                 var externalApiOrigin = LLOcr.DEFAULT_BASE_URL;
                 Promise.all(linkedPackageIds.map(function (packageId) {
                     var packageUrl = externalApiOrigin + '/api/evidence-packages/' + encodeURIComponent(packageId);
@@ -623,6 +681,8 @@
                         var tsaResult = tsaRecord && tsaRecord.timestamp_result || {};
                         var tsaStatus = tsaRecord ? tsaResult.status || 'UNAVAILABLE' : external[1] && external[1].timestamp_authority && external[1].timestamp_authority.status || 'UNAVAILABLE';
                         var emaapStatus = transmissions.length ? transmissions[0].status || 'UNAVAILABLE' : external[2] && external[2].configuration && external[2].configuration.status || 'NOT_CONFIGURED';
+                        var emaapNeedsAvailabilityCheck = ['API_NOT_DOCUMENTED', 'NOT_CONFIGURED', 'PROVIDER_UNAVAILABLE', 'AUTHENTICATION_REQUIRED'].indexOf(emaapStatus) !== -1;
+                        var emaapButtonText = emaapStatus === 'SIMULATED' ? 'Run e-Maap simulator' : emaapNeedsAvailabilityCheck ? 'Check e-Maap availability' : 'Submit evidence package';
                                                 var actionCard = document.createElement('div');
                                                 actionCard.className = 'rounded border border-outline-variant bg-surface-container-low p-4';
                                                 actionCard.innerHTML = '<strong>External services · ' + LL.escapeHtml(entry.id) + '</strong>' +
@@ -631,7 +691,7 @@
                                                         '<p class="text-label-md text-on-surface-variant" data-tsa-details>' + (tsaRecord ? 'Provider: ' + LL.escapeHtml(tsaResult.tsa_url || 'not recorded') + ' · Time: ' + LL.escapeHtml(tsaResult.timestamp || 'not recorded') + ' · Digest: ' + LL.escapeHtml(tsaRecord.merkle_root || tsaRecord.request && tsaRecord.request.digest || 'not recorded') + ' · Token SHA-256: ' + LL.escapeHtml(tsaResult.token_sha256 || 'not recorded') : 'Provider: ' + LL.escapeHtml(external[1] && external[1].timestamp_authority && external[1].timestamp_authority.provider || 'not configured') + ' · No timestamp evidence recorded.') + '</p>' +
                                                         '<button type="button" data-tsa-action class="mr-2 mt-2 px-3 py-1.5 border border-primary rounded text-primary">Request timestamp</button>' +
                                                         '<p class="mt-3 text-body-md" data-emaap-state>e-Maap: ' + LL.escapeHtml(emaapStatus) + (emaapStatus === 'ACKNOWLEDGED' ? ' · provider acknowledgement verified' : emaapStatus === 'RESPONSE_RECEIVED_UNVERIFIED' ? ' · response received; acknowledgement unverified' : ' · no verified acknowledgement recorded') + '</p>' +
-                                                        '<button type="button" data-emaap-action class="mt-2 px-3 py-1.5 border border-primary rounded text-primary">Submit evidence package</button>' +
+                                                        '<button type="button" data-emaap-action class="mt-2 px-3 py-1.5 border border-primary rounded text-primary">' + emaapButtonText + '</button>' +
                                                         '<p class="hidden mt-2 text-label-md text-on-surface-variant" data-action-message role="status"></p>';
                                                 externalStatusContainer.appendChild(actionCard);
                                                 var actionMessage = actionCard.querySelector('[data-action-message]');
@@ -659,9 +719,13 @@
                                                 actionCard.querySelector('[data-emaap-action]').addEventListener('click', function (event) {
                                                         var button = event.currentTarget;
                                                         button.disabled = true;
-                                                        button.textContent = 'Submitting evidence…';
+                                                        button.textContent = emaapStatus === 'SIMULATED' ? 'Running simulator…' : emaapNeedsAvailabilityCheck ? 'Checking availability…' : 'Submitting evidence…';
                                                         actionMessage.classList.remove('hidden', 'text-error');
-                                                        actionMessage.textContent = 'Submitting the stored evidence package; a 2xx response alone is not an acknowledgement.';
+                                                        actionMessage.textContent = emaapStatus === 'SIMULATED'
+                                                                ? 'Simulator mode is explicitly enabled; no external request will be sent and no acknowledgement will be received.'
+                                                                : emaapNeedsAvailabilityCheck
+                                                                        ? 'Checking the configured service. When no documented provider is available, no e-Maap request is sent.'
+                                                                        : 'Submitting the stored evidence package; a 2xx response alone is not an acknowledgement.';
                                                         LLOcr.transmitEvidencePackage(entry.id).then(function (response) {
                                                                 var transmission = response.data && response.data.transmission || {};
                                                                 actionCard.querySelector('[data-emaap-state]').textContent = 'e-Maap: ' + (transmission.status || response.data && response.data.detail || 'UNAVAILABLE') + (transmission.acknowledged === true ? ' · provider acknowledgement verified' : ' · acknowledgement not verified');
@@ -672,13 +736,56 @@
                                                                 actionMessage.classList.add('text-error');
                                                         }).finally(function () {
                                                                 button.disabled = false;
-                                                                button.textContent = 'Submit evidence package';
+                                                                button.textContent = emaapButtonText;
                                                         });
                                                 });
                     });
                 });
-            }
-            // Phase 1, Requirement 10: unconditional, backend-supplied
+                        } else {
+                                document.getElementById('external-services-content').innerHTML =
+                                                '<div class="rounded border border-outline-variant bg-surface-container-low p-4">' +
+                                                '<p class="font-semibold">Evidence package: not recorded for this scan.</p>' +
+                                                '<p class="mt-2 text-body-md">TSA: TSA_UNAVAILABLE · No verified timestamp recorded.</p>' +
+                                                '<p class="text-body-md">e-Maap: unavailable · No package is linked, no submission was attempted, and no acknowledgement was recorded.</p></div>';
+                        }
+                        var gs1Content = document.getElementById('gs1-verification-content');
+                        var gs1Result = scan.gs1Verification || null;
+                        if (!gs1Result) {
+                                gs1Content.innerHTML = '<p class="text-body-md text-on-surface-variant">No report-scoped barcode verification result was recorded for this image. Local GTIN checks do not query a GS1 registry.</p>';
+                        } else if (!Array.isArray(gs1Result.barcodes) || !gs1Result.barcodes.length) {
+                                gs1Content.innerHTML = '<p class="text-body-md text-on-surface-variant">' + LL.escapeHtml(gs1Result.status || 'NO_BARCODE_DETECTED') + ' · No decodable barcode was recorded for this report.</p><p class="text-label-md text-on-surface-variant">External GS1 verification: ' + LL.escapeHtml((gs1Result.provider_state || {}).status || 'NOT_CONFIGURED') + ' · No product record was queried.</p>';
+                        } else {
+                                var gs1SourceHref = apiOrigin + (scan.sourceImageUrl || ('/api/scans/' + encodeURIComponent(scan.id) + '/image'));
+                                gs1Content.innerHTML = '<p class="text-body-md font-semibold">Supporting identity state: ' + LL.escapeHtml(gs1Result.status || 'LOCAL_VALIDATION_ONLY') + '</p>' +
+                                        '<p class="text-label-md text-on-surface-variant">Local GTIN check: performed ' + LL.escapeHtml(gs1Result.checked_at || 'time unavailable') + '. Resolver CE Digital Link resolution: ' + LL.escapeHtml((gs1Result.provider_state || {}).status || 'NOT_CONFIGURED') + ' · ' + LL.escapeHtml((gs1Result.provider_state || {}).provider || 'no local resolver configured') + '. Verified by GS1 / DataKart: not connected.</p>' +
+                                        gs1Result.barcodes.map(function (barcode) {
+                                                var external = barcode.external_verification || {};
+                                                var identity = barcode.product_identity || {};
+                                                var evidence = barcode.evidence || {};
+                                                var cropHref = evidence.crop_url ? apiOrigin + evidence.crop_url + '?report_id=' + encodeURIComponent(gs1Result.report_id || scan.reportId || '') : '';
+                                                var comparisons = (barcode.ocr_comparison || []).map(function (comparison) {
+                                                        return '<li><strong>' + LL.escapeHtml(comparison.field || 'Identity field') + ' · ' + LL.escapeHtml(comparison.state || 'NOT_AVAILABLE') + ':</strong> OCR ' + LL.escapeHtml(comparison.ocr_value || 'not available') + ' · GS1 ' + LL.escapeHtml(comparison.gs1_value || 'not externally verified') + ' · ' + LL.escapeHtml(comparison.explanation || '') + '</li>';
+                                                }).join('');
+                                                var resolverResources = (external.resources || []).map(function (resource) {
+                                                        return '<li><a class="text-primary underline" href="' + LL.escapeHtml(resource.href || '') + '" target="_blank" rel="noopener noreferrer">' + LL.escapeHtml(resource.href || 'Resolver resource') + '</a></li>';
+                                                }).join('');
+                                                var identityRows = ['brand', 'description', 'net_content'].map(function (field) {
+                                                        return '<p class="text-label-md">' + LL.escapeHtml(field.replace(/_/g, ' ')) + ': ' + LL.escapeHtml(identity[field] || 'Not externally verified') + '</p>';
+                                                }).join('');
+                                                return '<article class="border border-outline-variant rounded p-4"><h4 class="font-semibold">Barcode ' + LL.escapeHtml(barcode.barcode_type || 'format unavailable') + ' · ' + LL.escapeHtml(barcode.barcode_id || 'ID unavailable') + '</h4>' +
+                                                        '<p class="mt-2 text-body-md">Raw value: ' + LL.escapeHtml(barcode.raw_value || 'Unreadable') + '</p>' +
+                                                        '<p class="text-body-md">GTIN: ' + LL.escapeHtml(barcode.gtin || 'Not a supported GTIN') + ' · Check digit: ' + LL.escapeHtml(barcode.check_digit_valid ? 'VALID' : barcode.validation_state || 'UNAVAILABLE') + '</p>' +
+                                                        '<p class="text-label-md text-on-surface-variant">Resolver CE Digital Link status: ' + LL.escapeHtml(external.status || 'NOT_CONFIGURED') + (external.provider ? ' · Provider: ' + LL.escapeHtml(external.provider) : '') + ' · Source: ' + LL.escapeHtml(external.source || 'local validation only') + ' · Environment: ' + LL.escapeHtml(external.environment || 'development') + ' · Fixture: ' + LL.escapeHtml(external.fixture_status || 'not applicable') + (external.queried_at ? ' · Query time: ' + LL.escapeHtml(external.queried_at) : '') + ' · This is not official registry verification.' + '</p>' +
+                                                        (resolverResources ? '<ul class="mt-2 list-disc list-inside text-label-md"><li>Resolved resources</li>' + resolverResources + '</ul>' : '') +
+                                                        '<div class="mt-2">' + identityRows + '</div>' +
+                                                        (comparisons ? '<ul class="mt-2 list-disc list-inside text-label-md">' + comparisons + '</ul>' : '') +
+                                                        '<p class="mt-2 text-label-md text-on-surface-variant">Evidence ID: ' + LL.escapeHtml(evidence.evidence_id || 'unavailable') + ' · Image ID: ' + LL.escapeHtml(evidence.source_image_id || 'unavailable') + ' · Report ID: ' + LL.escapeHtml(evidence.report_id || 'unavailable') + ' · Barcode region: ' + LL.escapeHtml(JSON.stringify(evidence.bbox || barcode.bbox || [])) + '</p>' +
+                                                        '<div class="flex flex-wrap gap-3 mt-3">' + (cropHref ? '<a class="text-primary underline" href="' + LL.escapeHtml(cropHref) + '" target="_blank" rel="noopener">View barcode crop</a>' : '') + '<a class="text-primary underline" href="' + LL.escapeHtml(gs1SourceHref) + '" target="_blank" rel="noopener">Open source image</a></div>' +
+                                                        (cropHref ? '<img class="mt-3 max-w-xs max-h-40 object-contain border border-outline-variant rounded" src="' + LL.escapeHtml(cropHref) + '" alt="Barcode evidence crop" loading="lazy">' : '<p class="mt-3 text-label-md text-on-surface-variant">Barcode crop unavailable; bounding box: ' + LL.escapeHtml(JSON.stringify(barcode.bbox || [])) + '</p>') +
+                                                        '</article>';
+                                        }).join('') + '<p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(gs1Result.disclaimer || 'Supporting evidence only; authoritative compliance is unchanged.') + '</p>';
+                        }
+                        // Phase 1, Requirement 10: unconditional, backend-supplied
             // disclaimer - rendered verbatim via textContent, never
             // reworded/weakened here.
             document.getElementById('disclaimer').textContent = (scan.compliance && scan.compliance.disclaimer) || '';
@@ -868,6 +975,105 @@
                         var showAllEvidenceBtn = document.getElementById('source-evidence-show-all');
                         if (showAllEvidenceBtn) showAllEvidenceBtn.addEventListener('click', clearEvidenceHighlight);
 
+                        function renderJsonRulesEvaluation() {
+                                var evaluation = scan.compliance && scan.compliance.data_driven_evaluation;
+                                var overallEl = document.getElementById('json-rules-overall-status');
+                                var provenanceEl = document.getElementById('json-rules-provenance');
+                                var summaryEl = document.getElementById('json-rules-summary');
+                                var gatesEl = document.getElementById('json-rules-gates');
+                                var calculationsEl = document.getElementById('json-rules-calculations');
+                                var resultsEl = document.getElementById('json-rules-results');
+                                if (!evaluation || !Array.isArray(evaluation.rules)) {
+                                        overallEl.textContent = 'Not available';
+                                        provenanceEl.textContent = 'This report predates the JSON-driven ruleset evaluation.';
+                                        resultsEl.innerHTML = '<tr><td class="p-3" colspan="4">No source-driven rule results were recorded.</td></tr>';
+                                        return;
+                                }
+                                var sourceSummary = evaluation.summary || {};
+                                var counts = sourceSummary.status_counts || {};
+                                overallEl.textContent = String(evaluation.overall_status || 'REVIEW_REQUIRED').replace(/_/g, ' ');
+                                provenanceEl.textContent = 'Source: ' + (evaluation.provenance && evaluation.provenance.source_file || 'unknown') +
+                                        ' · Consolidated: ' + (evaluation.provenance && evaluation.provenance.consolidated_as_on || 'not recorded') +
+                                        ' · SHA-256: ' + (evaluation.provenance && evaluation.provenance.source_sha256 || 'not recorded');
+                                if (evaluation.provenance && Array.isArray(evaluation.provenance.validation_warnings) && evaluation.provenance.validation_warnings.length) {
+                                        provenanceEl.textContent += ' · Validation warnings: ' + evaluation.provenance.validation_warnings.join('; ');
+                                }
+                                summaryEl.innerHTML = [
+                                        ['Loaded', sourceSummary.total_rules_loaded],
+                                        ['Evaluated', sourceSummary.total_rules_evaluated],
+                                        ['Executable checks', sourceSummary.total_rules_with_executable_checks],
+                                        ['PASS', counts.PASS], ['FAIL', counts.FAIL],
+                                        ['Review', counts.REVIEW_REQUIRED], ['Not applicable', counts.NOT_APPLICABLE],
+                                        ['Not assessed', counts.NOT_ASSESSED]
+                                ].map(function (entry) {
+                                        return '<span class="border border-outline-variant rounded px-2 py-1">' + LL.escapeHtml(entry[0]) + ': <strong>' + LL.escapeHtml(entry[1] == null ? 0 : entry[1]) + '</strong></span>';
+                                }).join('');
+
+                                var gates = evaluation.applicability_gates || {};
+                                gatesEl.innerHTML = '<table class="w-full border-collapse text-label-md"><thead><tr class="border-b border-outline-variant text-left"><th class="p-2">Applicability Gate</th><th class="p-2">State</th><th class="p-2">Trace</th></tr></thead><tbody>' + [
+                                        { name: 'Rule 3 · Chapter II scope', state: gates.rule_3_chapter_ii_scope, trace: gates.rule_3_trace },
+                                        { name: 'Rule 26 · Package exemptions', state: gates.rule_26_package_exemption, trace: gates.rule_26_trace }
+                                ].map(function (gate) {
+                                        var trace = Array.isArray(gate.trace) ? gate.trace : [];
+                                        var steps = trace.map(function (step) {
+                                                var expression = step.combinator ? step.combinator.toUpperCase() : [step.field, step.operator].filter(Boolean).join(' ');
+                                                return '<li>' + LL.escapeHtml(expression || step.path || 'Gate condition') + ' · ' + LL.escapeHtml(step.result || 'UNKNOWN') +
+                                                        ' · ' + LL.escapeHtml(JSON.stringify(step.actual)) + ' vs ' + LL.escapeHtml(JSON.stringify(step.expected)) +
+                                                        (step.evidence_ids && step.evidence_ids.length ? ' · ' + LL.escapeHtml(step.evidence_ids.join(', ')) : '') + '</li>';
+                                        }).join('');
+                                        return '<tr class="border-b border-outline-variant align-top"><th class="p-2 text-left">' + LL.escapeHtml(gate.name) + '</th><td class="p-2">' + LL.escapeHtml(gate.state || 'UNKNOWN') + '</td><td class="p-2"><details><summary class="cursor-pointer text-primary">' + trace.length + ' conditions</summary><ul class="list-disc pl-4 mt-1">' + steps + '</ul></details></td></tr>';
+                                }).join('') + '</tbody></table>';
+
+                                var calculationResults = evaluation.calculations || {};
+                                calculationsEl.innerHTML = '<table class="w-full border-collapse text-label-md"><tbody>' +
+                                        Object.keys(calculationResults).map(function (key) {
+                                                var value = calculationResults[key] || {};
+                                                return '<tr class="border-b border-outline-variant"><th class="p-2 text-left">' + LL.escapeHtml(key.replace(/_/g, ' ')) +
+                                                        '</th><td class="p-2">' + LL.escapeHtml(value.status || 'NOT_ASSESSED') +
+                                                        '</td><td class="p-2">' + LL.escapeHtml(JSON.stringify(value)) + '</td></tr>';
+                                        }).join('') + '</tbody></table>';
+
+                                var statusClasses = {
+                                        PASS: 'text-secondary font-semibold',
+                                        FAIL: 'text-error font-semibold',
+                                        REVIEW_REQUIRED: 'text-tertiary-container font-semibold',
+                                        NOT_APPLICABLE: 'text-on-surface-variant',
+                                        NOT_ASSESSED: 'text-on-surface-variant'
+                                };
+                                resultsEl.innerHTML = evaluation.rules.map(function (rule, index) {
+                                        var trace = Array.isArray(rule.trace) ? rule.trace : [];
+                                        var traceHtml = trace.map(function (step) {
+                                                var expression = step.combinator ? step.combinator.toUpperCase() : [step.field, step.operator].filter(Boolean).join(' ');
+                                                var evidenceIds = Array.isArray(step.evidence_ids) ? step.evidence_ids.join(', ') : '';
+                                                var evidenceContext = (Array.isArray(step.evidence) ? step.evidence : []).map(function (item) {
+                                                        return 'OCR text: ' + (item.source_text || 'not available') + ' · OCR confidence: ' + (item.ocr_confidence == null ? 'not available' : item.ocr_confidence) + ' · extraction confidence: ' + (item.extraction_confidence == null ? 'not available' : item.extraction_confidence);
+                                                }).join('; ');
+                                                return '<li class="mb-1"><strong>' + LL.escapeHtml(expression || step.path || 'Trace') + ' · ' + LL.escapeHtml(step.result || 'UNKNOWN') +
+                                                        ':</strong> actual ' + LL.escapeHtml(JSON.stringify(step.actual)) + ' · expected ' + LL.escapeHtml(JSON.stringify(step.expected)) +
+                                                        (step.detail ? ' · ' + LL.escapeHtml(step.detail) : '') + (evidenceIds ? ' · evidence ' + LL.escapeHtml(evidenceIds) : '') + (evidenceContext ? '<br>' + LL.escapeHtml(evidenceContext) : '') + '</li>';
+                                        }).join('');
+                                        var evidenceIds = Array.isArray(rule.evidence_ids) ? rule.evidence_ids : [];
+                                        var regionIds = evidenceIds.filter(function (id) { return /^region_[0-9]+$/.test(id); });
+                                        var evidenceAction = regionIds.length
+                                                ? '<button type="button" class="evidence-toggle-btn mt-2 text-primary underline" data-json-rule-evidence="' + index + '" data-field="' + LL.escapeHtml(rule.rule_id) + '">View OCR evidence (' + regionIds.length + ')</button>'
+                                                : '';
+                                        return '<tr class="border-b border-outline-variant align-top"><td class="p-2"><strong>' + LL.escapeHtml(rule.rule_id) + '</strong><br>' + LL.escapeHtml(rule.title || rule.rule_name) +
+                                                '<br><span class="text-on-surface-variant">' + LL.escapeHtml(rule.category || '') + ' · Chapter ' + LL.escapeHtml(rule.chapter) + ' · ' + LL.escapeHtml(rule.severity) + '</span></td><td class="p-2">' + LL.escapeHtml(rule.rule_ref) +
+                                                '</td><td class="p-2 ' + (statusClasses[rule.status] || statusClasses.NOT_ASSESSED) + '">' + LL.escapeHtml(rule.status) +
+                                                '</td><td class="p-2">' + LL.escapeHtml(rule.explanation || '') +
+                                                (evidenceIds.length ? '<p class="mt-1 text-on-surface-variant">Evidence IDs: ' + LL.escapeHtml(evidenceIds.join(', ')) + '</p>' : '') + evidenceAction +
+                                                (traceHtml ? '<details class="mt-2"><summary class="cursor-pointer text-primary">Rule trace (' + trace.length + ' steps)</summary><ul class="mt-2 pl-4 list-disc">' + traceHtml + '</ul></details>' : '') + '</td></tr>';
+                                }).join('');
+                                resultsEl.querySelectorAll('[data-json-rule-evidence]').forEach(function (button) {
+                                        button.addEventListener('click', function () {
+                                                var rule = evaluation.rules[Number(button.getAttribute('data-json-rule-evidence'))];
+                                                var ids = (rule && rule.evidence_ids || []).filter(function (id) { return /^region_[0-9]+$/.test(id); });
+                                                highlightEvidenceRegions(ids, rule && rule.rule_id || 'Legal rule');
+                                        });
+                                });
+                        }
+                        renderJsonRulesEvaluation();
+
                         var sourceZoom = 1;
                         function setSourceZoom(nextZoom) {
                                 sourceZoom = Math.max(1, Math.min(4, nextZoom));
@@ -920,11 +1126,13 @@
                                         '<tr><th>Manufacturer</th><td>' + exportEscape(scan.manufacturer) + '</td></tr>' +
                                         '<tr><th>Category</th><td>' + exportEscape(scan.category) + '</td></tr>' +
                                         '<tr><th>Scan date</th><td>' + exportEscape(scan.date ? new Date(scan.date).toLocaleString() : '') + '</td></tr>' +
-                                        '<tr><th>Compliance status</th><td>' + exportEscape(scan.status) + '</td></tr>' +
-                                        '<tr><th>Compliance score</th><td>' + exportEscape(scan.score == null ? 'Pending' : scan.score + '%') + '</td></tr>' +
+                                        '<tr><th>Canonical compliance status</th><td>' + exportEscape(canonicalStatus) + '</td></tr>' +
+                                        '<tr><th>Canonical compliance score</th><td>' + exportEscape(scan.score == null ? (canonicalRulesAvailable ? 'Not scored; no JSON scoring formula' : 'Pending') : scan.score + '%') + '</td></tr>' +
+                                        '<tr><th>Legacy profile result (reference only)</th><td>' + exportEscape(scan.compliance && scan.compliance.legacy_comparison ? scan.compliance.legacy_comparison.overall_status : 'Unavailable') + '</td></tr>' +
+                                        '<tr><th>Legacy profile score (not a legal percentage)</th><td>' + exportEscape(scan.compliance && scan.compliance.legacy_comparison && scan.compliance.legacy_comparison.compliance_score != null ? scan.compliance.legacy_comparison.compliance_score + '%' : 'Not scored') + '</td></tr>' +
                                         '</tbody></table>';
-                                var reportScore = scan.score == null ? 'Pending' : scan.score + '%';
-                                var reportResult = String(scan.status || 'pending').replace(/_/g, ' ').toUpperCase();
+                                var reportScore = scan.score == null ? (canonicalRulesAvailable ? 'Not scored' : 'Pending') : scan.score + '%';
+                                var reportResult = String(canonicalStatus || 'REVIEW_REQUIRED').replace(/_/g, ' ').toUpperCase();
                                 document.getElementById('export-result').textContent = 'RESULT: ' + reportResult + ' | SCORE: ' + reportScore;
                                 document.getElementById('export-barcode-caption').textContent = (scan.reportId || scan.id) + ' | ' + reportScore + ' | ' + reportResult;
                                 if (window.JsBarcode) {
@@ -934,15 +1142,61 @@
                                 document.getElementById('export-ocr-rows').innerHTML = exportDetections().map(function (detection) {
                                         return '<tr><td>' + exportEscape(detection.text) + '</td></tr>';
                                 }).join('') || '<tr><td>No detected declarations returned.</td></tr>';
+                                var gs1 = scan.gs1Verification || null;
+                                var gs1Barcodes = gs1 && Array.isArray(gs1.barcodes) ? gs1.barcodes : [];
+                                document.getElementById('export-gs1-evidence').innerHTML = gs1
+                                        ? '<p><strong>Local GTIN check:</strong> ' + exportEscape(gs1.status || 'unavailable') + ' · Checked: ' + exportEscape(gs1.checked_at || 'time unavailable') + '</p>' +
+                                                '<p><strong>Resolver CE Digital Link resolution:</strong> ' + exportEscape((gs1.provider_state || {}).status || 'NOT_CONFIGURED') + ' · Provider: ' + exportEscape((gs1.provider_state || {}).provider || 'not configured') + '</p>' +
+                                                '<p>Local resolver only; not official GS1 registry verification. Verified by GS1 and GS1 India DataKart are not connected. Supporting evidence only, not a compliance decision.</p>' +
+                                                (gs1Barcodes.map(function (barcode) {
+                                                        var evidence = barcode.evidence || {};
+                                                        var comparisons = (barcode.ocr_comparison || []).map(function (comparison) {
+                                                                return '<tr><td>' + exportEscape(comparison.field || '') + '</td><td>' + exportEscape(comparison.ocr_value || 'Not available') + '</td><td>' + exportEscape(comparison.gs1_value || 'Not externally verified') + '</td><td>' + exportEscape(comparison.state || 'NOT_AVAILABLE') + '</td><td>' + exportEscape(comparison.explanation || '') + '</td></tr>';
+                                                        }).join('');
+                                                        return '<h3>' + exportEscape(barcode.barcode_type || 'Barcode') + ' · ' + exportEscape(barcode.barcode_id || '') + '</h3>' +
+                                                                '<p>Raw value: ' + exportEscape(barcode.raw_value || 'Unreadable') + ' · GTIN: ' + exportEscape(barcode.gtin || 'Unsupported/invalid') + ' · Check digit: ' + exportEscape(barcode.check_digit_valid ? 'VALID' : barcode.validation_state || 'unavailable') + '</p>' +
+                                                                '<p>Resolver CE Digital Link resolution: ' + exportEscape((barcode.external_verification || {}).status || 'NOT_CONFIGURED') + ' · Provider: ' + exportEscape((barcode.external_verification || {}).provider || 'not configured') + ' · Source: ' + exportEscape((barcode.external_verification || {}).source || 'local validation only') + ' · Environment: ' + exportEscape((barcode.external_verification || {}).environment || 'development') + ' · Fixture: ' + exportEscape((barcode.external_verification || {}).fixture_status || 'not applicable') + ' · Query time: ' + exportEscape((barcode.external_verification || {}).queried_at || 'not recorded') + '</p>' +
+                                                                (((barcode.external_verification || {}).resources || []).map(function (resource) { return '<p>Resolved resource: ' + exportEscape(resource.href || '') + '</p>'; }).join('')) +
+                                                                (comparisons ? '<table class="export-table"><thead><tr><th>Field</th><th>OCR</th><th>Provider</th><th>State</th><th>Explanation</th></tr></thead><tbody>' + comparisons + '</tbody></table>' : '') +
+                                                                '<p>Evidence ID: ' + exportEscape(evidence.evidence_id || 'unavailable') + ' · Source image ID: ' + exportEscape(evidence.source_image_id || 'unavailable') + ' · Report ID: ' + exportEscape(evidence.report_id || 'unavailable') + ' · Barcode region: ' + exportEscape(JSON.stringify(evidence.bbox || barcode.bbox || [])) + ' · Crop SHA-256: ' + exportEscape(evidence.crop_sha256 || 'unavailable') + '</p>';
+                                                }).join('') || '<p>No barcode candidates were decoded for this report.</p>')
+                                        : '<p>No report-scoped GS1 or barcode evidence was recorded.</p>';
                                 var rules = scan.compliance && scan.compliance.rule_results || [];
-                                document.getElementById('export-rules').innerHTML = rules.map(function (rule) {
+                                        var legacyRulesHtml = rules.map(function (rule) {
                                         var fields = Object.keys(rule.required_fields || {}).map(function (field) {
                                                 var item = rule.required_fields[field] || {};
                                                 return '<tr><td>' + exportEscape(field.replace(/_/g, ' ')) + '</td><td>' + exportEscape(LL.formatComplianceValue(item.value) || 'Not detected by OCR') + '</td><td>' + exportEscape(item.status || '') + '</td><td>' + exportEscape(item.explanation || '') + '</td></tr>';
                                         }).join('');
                                         return '<h3>' + exportEscape(rule.rule_name || 'Compliance rule') + '</h3><p>' + exportEscape(rule.explanation || '') + '</p>' +
                                                 '<table class="export-table"><thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Explanation</th></tr></thead><tbody>' + (fields || '<tr><td colspan="4">' + exportEscape(rule.recommended_action || 'No field-level results.') + '</td></tr>') + '</tbody></table>';
-                                }).join('') || '<p>No rule results are available for this scan.</p>';
+                                        }).join('') || '<p>No legacy profile rule results are available for this scan.</p>';
+                                        legacyRulesHtml = '<h2>Legacy profile findings (reference only)</h2><p>These findings do not determine the canonical JSON ruleset result.</p>' + legacyRulesHtml;
+                                        var dataDriven = scan.compliance && scan.compliance.data_driven_evaluation;
+                                        var dataDrivenRules = dataDriven && Array.isArray(dataDriven.rules) ? dataDriven.rules : [];
+                                        var dataDrivenGates = dataDriven && dataDriven.applicability_gates || {};
+                                        var gateTraceText = [
+                                                ['Rule 3', dataDrivenGates.rule_3_chapter_ii_scope, dataDrivenGates.rule_3_trace],
+                                                ['Rule 26', dataDrivenGates.rule_26_package_exemption, dataDrivenGates.rule_26_trace]
+                                        ].map(function (gate) {
+                                                var steps = (gate[2] || []).map(function (step) {
+                                                        return [step.field, step.operator, step.result, (step.evidence_ids || []).join(', ')].filter(Boolean).join(' ');
+                                                }).join(' | ');
+                                                return '<tr><td>' + exportEscape(gate[0]) + '</td><td>' + exportEscape(gate[1] || 'UNKNOWN') + '</td><td>' + exportEscape(steps) + '</td></tr>';
+                                        }).join('');
+                                        var dataDrivenRows = dataDrivenRules.map(function (rule) {
+                                                var trace = (rule.trace || []).map(function (step) {
+                                                        return [step.field, step.operator, step.result, step.detail].filter(Boolean).join(' ');
+                                                }).join(' | ');
+                                                return '<tr><td>' + exportEscape(rule.rule_id || '') + '</td><td>' + exportEscape(rule.rule_ref || '') + '</td><td>' + exportEscape(rule.status || '') + '</td><td>' + exportEscape(rule.explanation || '') + '</td><td>' + exportEscape((rule.evidence_ids || []).join(', ')) + '</td><td>' + exportEscape(trace) + '</td></tr>';
+                                        }).join('');
+                                        var dataDrivenHtml = dataDrivenRules.length
+                                                ? '<h2>Consolidated 75-Rule JSON Evaluation</h2><p>Source: ' + exportEscape((dataDriven.provenance || {}).source_file || '') + ' · Consolidated: ' + exportEscape((dataDriven.provenance || {}).consolidated_as_on || '') + ' · SHA-256: ' + exportEscape((dataDriven.provenance || {}).source_sha256 || '') + '</p>' +
+                                                        '<p>Loaded: ' + exportEscape((dataDriven.summary || {}).total_rules_loaded || 0) + ' · Evaluated: ' + exportEscape((dataDriven.summary || {}).total_rules_evaluated || 0) + ' · Executable checks: ' + exportEscape((dataDriven.summary || {}).total_rules_with_executable_checks || 0) + '</p>' +
+                                                        ((dataDriven.provenance || {}).validation_warnings || []).map(function (warning) { return '<p>Ruleset validation warning: ' + exportEscape(warning) + '</p>'; }).join('') +
+                                                        '<h3>Applicability Gates</h3><table class="export-table"><thead><tr><th>Gate</th><th>State</th><th>Trace</th></tr></thead><tbody>' + gateTraceText + '</tbody></table>' +
+                                                        '<table class="export-table"><thead><tr><th>Rule</th><th>Provision</th><th>Status</th><th>Explanation</th><th>Evidence IDs</th><th>Trace</th></tr></thead><tbody>' + dataDrivenRows + '</tbody></table>'
+                                                : '<p>JSON-driven rule evaluation was not recorded for this report.</p>';
+                                        document.getElementById('export-rules').innerHTML = legacyRulesHtml + dataDrivenHtml;
                         }
                         function getOfficialName() {
                                 var session = LL.getSession && LL.getSession();
@@ -984,7 +1238,9 @@
             var score = scan.score == null ? 0 : scan.score;
             var badge = document.getElementById('report-score-badge');
             var icon = document.getElementById('report-score-icon');
-            document.getElementById('report-score-value').textContent = (scan.score == null ? 'Pending' : score + '%');
+            var canonicalRulesAvailable = !!(scan.compliance && scan.compliance.data_driven_evaluation);
+            var canonicalStatus = scan.compliance && scan.compliance.overall_status || ({ compliant: 'PASS', flagged: 'NON_COMPLIANT', manual_review: 'REVIEW_REQUIRED', partial: 'REVIEW_REQUIRED', not_applicable: 'NOT_APPLICABLE' }[scan.status] || 'REVIEW_REQUIRED');
+            document.getElementById('report-score-value').textContent = String(canonicalStatus).replace(/_/g, ' ');
             if (scan.status === 'compliant') {
                 badge.className = 'flex items-center gap-2 bg-secondary-container/40 text-on-secondary-container px-4 py-2 rounded font-bold border border-secondary/40 shadow-sm';
                 icon.textContent = 'check_circle';
@@ -1064,8 +1320,9 @@
                 // FieldResult.region_ids) - never a fake/approximate box for a
                 // finding with no evidence region, per this task's explicit rule.
                 var hasRegions = Array.isArray(f.regionIds) && f.regionIds.length > 0;
+                                var evidenceIds = hasRegions ? f.regionIds.map(function (regionId) { return LL.escapeHtml(regionId); }).join(', ') : '';
                 var evidenceHtml = hasRegions
-                    ? '<button type="button" class="evidence-toggle-btn text-label-md font-label-md text-primary flex items-center gap-1 mt-1.5 hover:underline" data-field="' + LL.escapeHtml(f.field) + '"><span class="material-symbols-outlined text-[14px]">visibility</span>View evidence (' + f.regionIds.length + ')</button>'
+                                        ? '<div class="flex flex-col items-start gap-1 mt-1.5"><button type="button" class="evidence-toggle-btn text-label-md font-label-md text-primary flex items-center gap-1 hover:underline" data-field="' + LL.escapeHtml(f.field) + '"><span class="material-symbols-outlined text-[14px]">visibility</span>View evidence (' + f.regionIds.length + ')</button><span class="text-label-md text-on-surface-variant break-all">Evidence ID' + (f.regionIds.length === 1 ? '' : 's') + ': ' + evidenceIds + '</span></div>'
                     : '<span class="text-label-md font-label-md text-on-surface-variant italic mt-1.5 block">Evidence unavailable</span>';
                 row.innerHTML =
                     '<div class="flex flex-col gap-1">' +
@@ -1111,15 +1368,52 @@
                     NOT_APPLICABLE: { text: 'text-on-surface-variant', icon: 'remove', label: 'Not Applicable' }
                 };
 
+                                function listingUrlError(value) {
+                                        var parsed;
+                                        try {
+                                                parsed = new URL(value);
+                                        } catch (_error) {
+                                                return 'Enter a valid public HTTP or HTTPS listing URL.';
+                                        }
+                                        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                                                return 'Only HTTP and HTTPS listing URLs are accepted.';
+                                        }
+                                        if (!parsed.hostname || parsed.username || parsed.password) {
+                                                return 'Enter a listing URL with a hostname and no embedded credentials.';
+                                        }
+                                        var host = parsed.hostname.toLowerCase();
+                                        if (host === 'localhost' || host.endsWith('.localhost')) {
+                                                return 'Local and private-network addresses cannot be verified.';
+                                        }
+                                        var octets = host.split('.').map(Number);
+                                        if (octets.length === 4 && octets.every(function (part) { return Number.isInteger(part) && part >= 0 && part <= 255; })) {
+                                                var first = octets[0], second = octets[1];
+                                                if (first === 0 || first === 10 || first === 127 || (first === 169 && second === 254) ||
+                                                        (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168) ||
+                                                        (first === 100 && second >= 64 && second <= 127)) {
+                                                        return 'Local and private-network addresses cannot be verified.';
+                                                }
+                                        }
+                                        return '';
+                                }
+
+                                function renderListingFailure(message) {
+                                        resultEl.classList.remove('hidden');
+                                        resultEl.innerHTML = '<div class="p-4 border border-error/30 bg-error-container/10 rounded">' +
+                                                '<strong class="text-error">Listing verification unavailable / failed</strong>' +
+                                                '<p class="text-body-md text-on-surface-variant mt-1">' + LL.escapeHtml(message || 'The listing could not be retrieved.') + '</p>' +
+                                                '<p class="text-label-md text-on-surface-variant mt-2">This supplementary check did not change the physical-package compliance result.</p></div>';
+                                }
+
                 function renderListingResult(result) {
                     resultEl.classList.remove('hidden');
                     var listing = result.listing || {};
                     if (listing.retrieval_status !== 'SUCCESS') {
                         resultEl.innerHTML =
-                            '<div class="flex items-start gap-3 p-4 bg-tertiary-fixed-dim/10 border border-tertiary-fixed-dim/40 rounded">' +
+                                                        '<div class="flex items-start gap-3 p-4 bg-tertiary-fixed-dim/10 border border-tertiary-fixed-dim/40 rounded">' +
                             '<span class="material-symbols-outlined text-tertiary-container">warning</span>' +
-                            '<div><p class="font-bold text-on-surface">Listing could not be verified (' + LL.escapeHtml(listing.retrieval_status || 'UNKNOWN_ERROR') + ')</p>' +
-                            '<p class="text-body-md font-body-md text-on-surface-variant mt-1">' + LL.escapeHtml(listing.error_message || 'The listing page could not be retrieved or read. This is a retrieval limitation, not a compliance finding.') + '</p></div></div>';
+                                                        '<div><p class="font-bold text-on-surface">SUPPLEMENTARY EVIDENCE · Listing verification unavailable (' + LL.escapeHtml(listing.retrieval_status || 'UNKNOWN_ERROR') + ')</p>' +
+                                                        '<p class="text-body-md font-body-md text-on-surface-variant mt-1">' + LL.escapeHtml(listing.error_message || 'The public listing page could not be retrieved or read. This is not a compliance finding.') + '</p></div></div>';
                         return;
                     }
 
@@ -1133,11 +1427,14 @@
                     }).join('') || '<p class="text-body-md font-body-md text-on-surface-variant">No comparable fields were available on either side.</p>';
 
                     var evidenceRows = (listing.evidence || []).map(function (e) {
-                        return '<li>' + LL.escapeHtml(e.field.replace(/_/g, ' ')) + ': "' + LL.escapeHtml(e.extracted_value) + '" (' + LL.escapeHtml(e.extraction_source) + ')</li>';
+                                                return '<li>' + LL.escapeHtml(String(e.field || 'field').replace(/_/g, ' ')) + ': "' + LL.escapeHtml(e.extracted_value) + '" (' + LL.escapeHtml(e.extraction_source) + ')</li>';
                     }).join('');
+                                        var retrievedAt = listing.retrieved_at ? new Date(listing.retrieved_at).toLocaleString() : 'not recorded';
+                                        var evidencePackage = result.evidence_package_id || 'not recorded';
 
                     resultEl.innerHTML =
-                        '<div class="mb-3 text-label-md font-label-md text-on-surface-variant">Retrieved from <a class="text-primary underline" href="' + LL.escapeHtml(listing.final_url || listing.source_url) + '" target="_blank" rel="noopener">' + LL.escapeHtml(listing.final_url || listing.source_url) + '</a>' + (listing.product_name ? ' &middot; ' + LL.escapeHtml(listing.product_name) : '') + '</div>' +
+                                                '<div class="mb-3 text-label-md font-label-md text-on-surface-variant"><strong>SUPPLEMENTARY EVIDENCE · Retrieval SUCCESS</strong><p class="mt-1">Report: ' + LL.escapeHtml(result.report_id || scan.reportId || scan.id) + ' · Retrieved: ' + LL.escapeHtml(retrievedAt) + ' · Evidence package: ' + LL.escapeHtml(evidencePackage) + '</p>Retrieved from <a class="text-primary underline" href="' + LL.escapeHtml(listing.final_url || listing.source_url) + '" target="_blank" rel="noopener">' + LL.escapeHtml(listing.final_url || listing.source_url) + '</a>' + (listing.product_name ? ' &middot; ' + LL.escapeHtml(listing.product_name) : '') + '</div>' +
+                                                (result.evidence_merkle_root ? '<p class="mb-3 text-label-md text-on-surface-variant">Evidence package Merkle root: ' + LL.escapeHtml(result.evidence_merkle_root) + '</p>' : '') +
                         '<div class="flex flex-col">' + rows + '</div>' +
                         (result.price_note ? '<p class="mt-3 text-label-md font-label-md text-on-surface-variant italic">' + LL.escapeHtml(result.price_note) + '</p>' : '') +
                         (evidenceRows ? '<details class="mt-4"><summary class="cursor-pointer text-label-md font-label-md font-semibold text-primary">View listing evidence/provenance</summary><ul class="mt-2 text-label-md font-label-md text-on-surface-variant list-disc list-inside space-y-1">' + evidenceRows + '</ul></details>' : '') +
@@ -1157,19 +1454,30 @@
                             urlError.classList.remove('hidden');
                             return;
                         }
+                                                var validationError = listingUrlError(url);
+                                                if (validationError) {
+                                                        urlError.textContent = validationError;
+                                                        urlError.classList.remove('hidden');
+                                                        return;
+                                                }
                         resultEl.classList.add('hidden');
                         loadingEl.classList.remove('hidden');
                         verifyBtn.disabled = true;
-                        LLOcr.verifyListing(scan.id, url).then(function (response) {
-                            loadingEl.classList.add('hidden');
-                            verifyBtn.disabled = false;
+                                                var originalButtonText = verifyBtn.textContent.trim();
+                                                verifyBtn.textContent = 'Verifying listing…';
+                                                LLOcr.verifyListing(scan.id, url, undefined, scan.reportId).then(function (response) {
                             if (!response.httpOk) {
-                                urlError.textContent = (response.data && (response.data.detail || response.data.message)) || 'Listing verification request failed.';
-                                urlError.classList.remove('hidden');
+                                                                renderListingFailure((response.data && (response.data.detail || response.data.message)) || 'The verification request failed.');
                                 return;
                             }
                             scan.listingVerification = response.data;
                             renderListingResult(response.data);
+                                                }).catch(function (error) {
+                                                        renderListingFailure(error && error.message || 'The verification request failed.');
+                                                }).finally(function () {
+                                                        loadingEl.classList.add('hidden');
+                                                        verifyBtn.disabled = false;
+                                                        verifyBtn.textContent = originalButtonText;
                         });
                     });
                 }

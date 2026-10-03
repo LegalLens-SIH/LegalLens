@@ -10,9 +10,10 @@ from pydantic import BaseModel, Field
 # check confirmed). Kept alongside the pre-existing NEEDS_MANUAL_VERIFICATION
 # value (still used as-is by the instrument-verification rules, unrelated to
 # this change) rather than replacing it, for schema backward compatibility.
-ComplianceStatus = Literal["COMPLIANT", "PARTIALLY_COMPLIANT", "NON_COMPLIANT", "NOT_APPLICABLE", "NEEDS_MANUAL_VERIFICATION", "REVIEW_REQUIRED"]
+ComplianceStatus = Literal["PASS", "COMPLIANT", "PARTIALLY_COMPLIANT", "NON_COMPLIANT", "NOT_APPLICABLE", "NEEDS_MANUAL_VERIFICATION", "REVIEW_REQUIRED"]
 FieldStatus = Literal["PASS", "FAIL", "PARTIAL", "NEEDS_MANUAL_VERIFICATION", "NOT_DETECTED"]
 
+DataDrivenRuleStatus = Literal["PASS", "FAIL", "REVIEW_REQUIRED", "NOT_APPLICABLE", "NOT_ASSESSED"]
 
 class RegionEvidence(BaseModel):
     """One OCR detection that supports a field's resolved value - the
@@ -63,6 +64,7 @@ class FieldResult(BaseModel):
     # the exact OCR detection(s)/bounding box(es) behind it. Never
     # independently recomputed here - see compliance_engine.py's _field_result
     # and friends, which just pass `field.region_ids`/`field.regions` through.
+
     region_ids: list[str] = Field(default_factory=list)
     regions: list[RegionEvidence] = Field(default_factory=list)
 
@@ -119,11 +121,66 @@ class ComplianceSummary(BaseModel):
     # CONFIRMED compliant, CONFIRMED non-compliant (includes PARTIAL - an
     # evidence-backed incomplete declaration, not uncertainty), and
     # low-confidence (excluded from the score, never a hidden pass or fail).
-    # This is the authoritative source for compliance_score's calculation;
-    # the rule-level counts above are not.
+    # These check-level buckets remain the basis for the legacy profile score
+    # exposed under legacy_comparison; they are not a JSON legal-coverage score.
     compliant: int = 0
     non_compliant: int = 0
     low_confidence: int = 0
+
+
+class DataDrivenEvidence(BaseModel):
+    evidence_id: str
+    source_text: Optional[str] = None
+    ocr_confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    extraction_confidence: Optional[float] = Field(default=None, ge=0, le=1)
+
+
+class DataDrivenRuleTrace(BaseModel):
+    path: str
+    field: Optional[str] = None
+    operator: Optional[str] = None
+    combinator: Optional[str] = None
+    actual: Any = None
+    expected: Any = None
+    result: Optional[Literal["TRUE", "FALSE", "UNKNOWN"]] = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    evidence: list[DataDrivenEvidence] = Field(default_factory=list)
+    detail: str = ""
+
+
+class DataDrivenRuleResult(BaseModel):
+    rule_id: str
+    rule_ref: str
+    rule_name: str
+    title: str = ""
+    category: str = ""
+    severity: str
+    chapter: str
+    status: DataDrivenRuleStatus
+    applicability: Literal["TRUE", "FALSE", "UNKNOWN"]
+    has_executable_check: bool
+    explanation: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    trace: list[DataDrivenRuleTrace] = Field(default_factory=list)
+
+
+class DataDrivenEvaluation(BaseModel):
+    overall_status: Literal["PASS", "COMPLIANT", "NON_COMPLIANT", "REVIEW_REQUIRED", "NOT_APPLICABLE"]
+    rules: list[DataDrivenRuleResult] = Field(default_factory=list)
+    summary: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    applicability_gates: dict[str, Any] = Field(default_factory=dict)
+    calculations: dict[str, Any] = Field(default_factory=dict)
+
+
+class LegacyComplianceComparison(BaseModel):
+    overall_status: ComplianceStatus
+    compliance_score: Optional[float] = Field(default=None, ge=0, le=100)
+    summary: Optional[ComplianceSummary] = None
+    rule_results: list[RuleResult] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class ComplianceResult(BaseModel):
@@ -133,17 +190,30 @@ class ComplianceResult(BaseModel):
     ruleset_version: str
     validation_profile: str
     overall_status: ComplianceStatus
-    # None (never 0, never 100) when there are applicable checks but none of
-    # them are confirmed either way - see compliance_engine.py's
-    # _aggregate_checks. Represented as null over the API/in the frontend's
-    # existing "scan.score == null" convention (already used for a pending
-    # scan) - reused here rather than inventing a second null-score meaning.
+    # The source JSON ruleset has no percentage-scoring formula. This stays
+    # null rather than presenting the legacy profile score as legal coverage.
     compliance_score: Optional[float] = Field(default=None, ge=0, le=100)
-    summary: ComplianceSummary
-    rule_results: list[RuleResult] = Field(default_factory=list)
-    missing_fields: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    recommendations: list[str] = Field(default_factory=list)
+    legacy_comparison: Optional[LegacyComplianceComparison] = None
+    summary: ComplianceSummary = Field(
+        ..., description="Legacy profile summary retained for compatibility; not the canonical JSON ruleset result."
+    )
+    rule_results: list[RuleResult] = Field(
+        default_factory=list,
+        description="Legacy profile rule results retained for compatibility; see data_driven_evaluation for canonical rules.",
+    )
+    data_driven_evaluation: Optional[DataDrivenEvaluation] = None
+    missing_fields: list[str] = Field(
+        default_factory=list,
+        description="Legacy profile findings retained for compatibility; JSON uncertainty is represented in data_driven_evaluation.",
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Compatibility warnings retained from the legacy profile evaluation; see legacy_comparison.",
+    )
+    recommendations: list[str] = Field(
+        default_factory=list,
+        description="Compatibility recommendations retained from the legacy profile evaluation; see legacy_comparison.",
+    )
     audit: dict[str, Any]
     # Phase 1: unconditional, deterministic disclaimer - populated by
     # ComplianceEngine.evaluate() on every result, regardless of outcome

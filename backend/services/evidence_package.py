@@ -293,6 +293,7 @@ def assemble_evidence_package_from_scan(
     ruleset_digest: str | None = None,
     scan_evidence: dict[str, Any] | None = None,
     source_images: list[dict[str, Any]] | None = None,
+    supporting_artifacts: dict[str, Any] | None = None,
 ) -> EvidencePackage:
     raw_artifacts: dict[str, Any] = {
         "ocr_output": {"artifact_type": "ocr_output", "value": ocr_result, "source": "ocr", "metadata": {"document_id": ocr_result.get("document_id")}},
@@ -359,6 +360,11 @@ def assemble_evidence_package_from_scan(
                 "source": source,
                 "derived_from": derived_from,
             }
+
+    for artifact_id, artifact in (supporting_artifacts or {}).items():
+        if artifact_id in raw_artifacts:
+            raise ValueError(f"Supporting artifact conflicts with reserved evidence artifact: {artifact_id}")
+        raw_artifacts[artifact_id] = artifact
 
     return build_evidence_package(
         evidence_id=evidence_id,

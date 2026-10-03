@@ -22,6 +22,7 @@ function readPage(name) {
 }
 
 const SOURCE = readPage("compliance-report.html");
+const OCR_CLIENT = readPage(path.join("assets", "ocr-client.js"));
 
 test("has a URL input, verify button, and result containers", () => {
   assert.match(SOURCE, /id=["']listing-url-input["']/);
@@ -38,13 +39,86 @@ test("the listing verification section is structurally separate from the physica
   assert.doesNotMatch(section, /id=["']report-score-badge["']/, "must not contain the physical compliance score badge");
 });
 
+test("findings, evidence, external services, listing verification, and report actions are independent sections", () => {
+  assert.match(SOURCE, /id=["']report-findings["']/);
+  assert.match(SOURCE, /id=["']source-evidence-viewer["']/);
+  assert.match(SOURCE, /Evidence ID' \+ \(f\.regionIds\.length === 1/);
+  const experimentalStart = SOURCE.lastIndexOf('<details', SOURCE.indexOf('id="experimental-evidence-card"'));
+  const experimentalEnd = SOURCE.indexOf('</details>', experimentalStart);
+  const externalStart = SOURCE.lastIndexOf('<section', SOURCE.indexOf('id="external-services-card"'));
+  const listingStart = SOURCE.lastIndexOf('<section', SOURCE.indexOf('id="listing-verification-card"'));
+  const actionsStart = SOURCE.lastIndexOf('<section', SOURCE.indexOf('id="report-actions"'));
+  assert.ok(experimentalStart >= 0 && experimentalEnd > experimentalStart);
+  assert.ok(externalStart > experimentalEnd && listingStart > externalStart && actionsStart > listingStart);
+  const experimental = SOURCE.slice(experimentalStart, experimentalEnd + '</details>'.length);
+  assert.doesNotMatch(experimental, /id=["'](?:external-services-card|listing-verification-card|report-actions)["']/);
+  assert.match(SOURCE.slice(externalStart, listingStart), /id=["']external-services-content["']/);
+  assert.match(SOURCE.slice(listingStart, actionsStart), /id=["']listing-verification-result["']/);
+  assert.match(SOURCE, /externalStatusContainer = document\.getElementById\('external-services-content'\)/);
+  assert.doesNotMatch(SOURCE, /externalStatusContainer = document\.getElementById\('experimental-evidence-content'\)/);
+});
+
+test("main report actions expose PDF and DOC exports outside collapsible review content", () => {
+  const actions = SOURCE.match(/<section[^>]*id=["']report-actions["'][\s\S]*?<\/section>/);
+  assert.ok(actions, "expected a standalone Report Actions section");
+  assert.match(actions[0], /id=["']export-pdf-btn["']/);
+  assert.match(actions[0], /id=["']export-doc-btn["']/);
+  assert.match(actions[0], /class="no-print/);
+  assert.doesNotMatch(actions[0], /<details|id=["']experimental-evidence-card["']/);
+  assert.match(SOURCE, /document\.getElementById\('export-pdf-btn'\)\.addEventListener/);
+  assert.match(SOURCE, /document\.getElementById\('export-doc-btn'\)\.addEventListener/);
+  assert.match(SOURCE, /populateExportDetails\(officialName\)[\s\S]*?scan\.compliance && scan\.compliance\.rule_results/);
+});
+
+test("exports use only the selected report's image, OCR, identity, and compliance", () => {
+  assert.match(SOURCE, /sourceImageUrl: activeSource && activeSource\.url/);
+  assert.match(SOURCE, /reportId: activeReport\.reportId/);
+  assert.match(SOURCE, /detections: activeReport\.ocr && activeReport\.ocr\.detections \|\| \[\]/);
+  assert.match(SOURCE, /compliance: activeReport\.compliance/);
+  assert.match(SOURCE, /document\.getElementById\('export-image'\)\.src = sourceImage\.src/);
+  assert.match(SOURCE, /link\.download = 'LegalLens-' \+ \(scan\.reportId \|\| scan\.id/);
+  assert.doesNotMatch(SOURCE.match(/function populateExportDetails\(officialName\) \{[\s\S]*?\n\s*\}/)[0], /listingVerification|experimental-evidence/);
+});
+
+test("listing client sends report_id without changing backend URL safety", () => {
+  assert.match(OCR_CLIENT, /function verifyListing\(scanId, url, baseUrl, reportId\)/);
+  assert.match(OCR_CLIENT, /JSON\.stringify\(\{ url: url, report_id: reportId \|\| undefined \}\)/);
+  assert.match(OCR_CLIENT, /function getListingVerification\(scanId, baseUrl, reportId\)/);
+  assert.match(OCR_CLIENT, /endpoint \+= "\?report_id=" \+ encodeURIComponent\(reportId\)/);
+});
+
 test("displays a disclaimer distinguishing this from a legal compliance determination", () => {
   assert.match(SOURCE, /id=["']listing-verification-disclaimer["']/);
   assert.match(SOURCE, /does not determine legal compliance/i);
 });
 
-test("calls LLOcr.verifyListing with the scan id and entered URL", () => {
-  assert.match(SOURCE, /LLOcr\.verifyListing\(\s*scan\.id\s*,\s*url\s*\)/);
+test("calls LLOcr.verifyListing with the selected report identity and entered URL", () => {
+  assert.match(SOURCE, /LLOcr\.verifyListing\(\s*scan\.id\s*,\s*url\s*,\s*undefined\s*,\s*scan\.reportId\s*\)/);
+  assert.match(SOURCE, /listingVerification: activeReport\.listingVerification \|\| null/);
+  assert.match(SOURCE, /if \(requestedReportId && !activeReport\)[\s\S]*?report-actions[\s\S]*?return;/);
+});
+
+test("empty, malformed, and obvious private URLs are rejected before the API call", () => {
+  const emptyCheck = SOURCE.indexOf("if (!url)");
+  const malformedCheck = SOURCE.indexOf("var validationError = listingUrlError(url)");
+  const verifyCall = SOURCE.indexOf("LLOcr.verifyListing(scan.id, url");
+  assert.ok(emptyCheck >= 0 && emptyCheck < verifyCall);
+  assert.ok(malformedCheck >= 0 && malformedCheck < verifyCall);
+  assert.match(SOURCE, /parsed\.protocol !== 'http:' && parsed\.protocol !== 'https:'/);
+  assert.match(SOURCE, /host === 'localhost' \|\| host\.endsWith\('\.localhost'\)/);
+  assert.match(SOURCE, /first === 127[\s\S]*?first === 192 && second === 168/);
+  assert.doesNotMatch(SOURCE, /example-marketplace\.com/);
+});
+
+test("listing failures remain supplementary and do not modify compliance", () => {
+  assert.match(SOURCE, /function renderListingFailure\(message\)/);
+  assert.match(SOURCE, /Listing verification unavailable \/ failed/);
+  assert.match(SOURCE, /SUPPLEMENTARY EVIDENCE · Retrieval SUCCESS/);
+  assert.match(SOURCE, /verifyBtn\.disabled = true[\s\S]*?\.finally\(function \(\)/);
+  const listingStart = SOURCE.indexOf("// --- Phase 2A: E-commerce Listing Verification");
+  const listingEnd = SOURCE.indexOf("})();", listingStart);
+  assert.ok(listingStart >= 0 && listingEnd > listingStart);
+  assert.doesNotMatch(SOURCE.slice(listingStart, listingEnd), /scan\.compliance\s*=/);
 });
 
 test("every dynamic listing/comparison value rendered into innerHTML is escaped via LL.escapeHtml", () => {
@@ -60,7 +134,7 @@ test("every dynamic listing/comparison value rendered into innerHTML is escaped 
     /LL\.escapeHtml\(c\.physical_value/,
     /LL\.escapeHtml\(c\.listing_value/,
     /LL\.escapeHtml\(c\.explanation\)/,
-    /LL\.escapeHtml\(e\.field\.replace/,
+    /LL\.escapeHtml\(String\(e\.field \|\| 'field'\)\.replace/,
     /LL\.escapeHtml\(e\.extracted_value\)/,
     /LL\.escapeHtml\(e\.extraction_source\)/,
     /LL\.escapeHtml\(listing\.final_url \|\| listing\.source_url\)/,
@@ -88,4 +162,12 @@ test("Phase 1 statutory disclaimer element is still present and unrelated to the
   assert.notEqual(disclaimerIndex, -1);
   assert.notEqual(listingDisclaimerIndex, -1);
   assert.notEqual(disclaimerIndex, listingDisclaimerIndex);
+});
+
+test("inline report scripts remain syntactically valid", () => {
+  const scripts = [...SOURCE.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((match) => match[1])
+    .filter((body) => body.trim());
+  assert.ok(scripts.length > 0);
+  for (const body of scripts) new Function(body);
 });

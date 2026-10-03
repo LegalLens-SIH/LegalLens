@@ -15,6 +15,7 @@ tests.
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 
 from bson import ObjectId
 from fastapi.testclient import TestClient
@@ -53,7 +54,7 @@ def _fixed_ocr_run(image_path: str, yolo_service=None, preprocess_options=None) 
 
 
 def _cleanup(db, official_id) -> None:
-    scans = list(db.scans.find({"userId": official_id}, {"sourceImageId": 1, "id": 1}))
+    scans = list(db.scans.find({"userId": official_id}, {"sourceImageId": 1, "id": 1, "reports.reportId": 1}))
     fs = GridFS(db, collection="scan_images")
     for scan in scans:
         image_id = scan.get("sourceImageId")
@@ -63,7 +64,13 @@ def _cleanup(db, official_id) -> None:
             except Exception:
                 pass
     db.scans.delete_many({"userId": official_id})
-    db.evidence_packages.delete_many({"evidence_id": {"$in": [f"{scan['id']}:listing-verification" for scan in scans]}})
+    evidence_ids = [f"{scan['id']}:listing-verification" for scan in scans]
+    evidence_ids.extend(
+        f"{scan['id']}:{report['reportId']}:listing-verification"
+        for scan in scans
+        for report in scan.get("reports", [])
+    )
+    db.evidence_packages.delete_many({"evidence_id": {"$in": evidence_ids}})
     db.history.delete_many({"userId": official_id})
 
 
@@ -177,6 +184,83 @@ def test_retrieval_failure_returns_safe_result_never_a_compliance_failure(monkey
 
                 get_response = client.get(f"/api/scans/{scan['id']}")
                 assert get_response.json()["compliance"]["overall_status"] == scan["compliance"]["overall_status"]
+            finally:
+                _cleanup(get_database(), FAKE_OFFICIAL["_id"])
+    finally:
+        app.dependency_overrides.pop(official_user, None)
+
+
+def test_multi_image_listing_verification_is_persisted_only_to_selected_report(monkeypatch):
+    monkeypatch.setattr(ocr_module._service, "run", _fixed_ocr_run)
+    app.dependency_overrides[official_user] = lambda: FAKE_OFFICIAL
+    try:
+        with TestClient(app) as client:
+            try:
+                scan = _create_scan(client)
+                report_a = deepcopy(scan["reports"][0])
+                report_a["reportId"] = "RPT-LISTING-A"
+                report_b = deepcopy(scan["reports"][0])
+                report_b["reportId"] = "RPT-LISTING-B"
+
+                def set_quantity(report, value):
+                    for rule in report["compliance"]["rule_results"]:
+                        field = (rule.get("required_fields") or {}).get("net_quantity")
+                        if field is not None:
+                            field["value"] = value
+                            return
+                    raise AssertionError("test scan must contain a net_quantity finding")
+
+                set_quantity(report_a, "250 g")
+                set_quantity(report_b, "500 g")
+                database = get_database()
+                database.scans.update_one(
+                    {"id": scan["id"], "userId": FAKE_OFFICIAL["_id"]},
+                    {"$set": {"reports": [report_a, report_b]}},
+                )
+
+                def fake_fetch(url: str) -> RetrievalOutcome:
+                    html = '<html><script type="application/ld+json">{"@type":"Product","additionalProperty":[{"name":"Net Quantity","value":"500 g"}]}</script></html>'
+                    return RetrievalOutcome(
+                        status="SUCCESS", requested_url=url, final_url=url, html=html,
+                        content_type="text/html", http_status=200,
+                        body_sha256=hashlib.sha256(html.encode("utf-8")).hexdigest(),
+                    )
+
+                monkeypatch.setattr(listing_module._fetcher, "fetch", fake_fetch)
+                ambiguous = client.post(
+                    f"/api/scans/{scan['id']}/listing-verification",
+                    json={"url": "https://shop.example/p/1"},
+                )
+                assert ambiguous.status_code == 422
+
+                first = client.post(
+                    f"/api/scans/{scan['id']}/listing-verification",
+                    json={"url": "https://shop.example/p/1", "report_id": report_a["reportId"]},
+                )
+                second = client.post(
+                    f"/api/scans/{scan['id']}/listing-verification",
+                    json={"url": "https://shop.example/p/1", "report_id": report_b["reportId"]},
+                )
+                assert first.status_code == second.status_code == 200
+                first_quantity = next(c for c in first.json()["comparisons"] if c["field"] == "net_quantity")
+                second_quantity = next(c for c in second.json()["comparisons"] if c["field"] == "net_quantity")
+                assert first_quantity["outcome"] == "MISMATCH"
+                assert second_quantity["outcome"] == "MATCH"
+
+                persisted = client.get(f"/api/scans/{scan['id']}").json()
+                reports = {report["reportId"]: report for report in persisted["reports"]}
+                assert reports[report_a["reportId"]]["listingVerification"]["report_id"] == report_a["reportId"]
+                assert reports[report_b["reportId"]]["listingVerification"]["report_id"] == report_b["reportId"]
+                assert "listingVerification" not in persisted
+                assert client.get(
+                    f"/api/scans/{scan['id']}/listing-verification",
+                    params={"report_id": report_a["reportId"]},
+                ).json()["report_id"] == report_a["reportId"]
+                assert client.get(
+                    f"/api/scans/{scan['id']}/listing-verification",
+                    params={"report_id": report_b["reportId"]},
+                ).json()["report_id"] == report_b["reportId"]
+                assert persisted["compliance"] == scan["compliance"]
             finally:
                 _cleanup(get_database(), FAKE_OFFICIAL["_id"])
     finally:

@@ -38,8 +38,45 @@ def ocr(**overrides):
     return result
 
 
+def _stub_json_evaluator(monkeypatch, overall_status, rule_status):
+    class StubEvaluator:
+        def evaluate(self, *_args, **_kwargs):
+            return {
+                "overall_status": overall_status,
+                "rules": [{
+                    "rule_id": "LM-TEST",
+                    "rule_ref": "Test rule",
+                    "rule_name": "Test rule",
+                    "severity": "mandatory",
+                    "chapter": "Test",
+                    "status": rule_status,
+                    "applicability": "FALSE" if rule_status == "NOT_APPLICABLE" else "TRUE",
+                    "has_executable_check": rule_status not in {"NOT_ASSESSED", "NOT_APPLICABLE"},
+                    "explanation": "Test result",
+                    "evidence_ids": ["IMG-TEST:REGION-1"],
+                    "trace": [{
+                        "path": "label.test_field",
+                        "field": "test_field",
+                        "actual": "observed OCR text",
+                        "result": "FALSE" if rule_status == "FAIL" else "UNKNOWN",
+                        "evidence_ids": ["IMG-TEST:REGION-1"],
+                        "detail": "Test trace",
+                    }],
+                }],
+                "summary": {},
+                "provenance": {},
+                "applicability_gates": {},
+                "calculations": {},
+            }
+
+    monkeypatch.setattr("backend.services.compliance_engine.LegalRulesEvaluator", StubEvaluator)
+
+
 def test_fully_compliant_retail_package():
-    assert ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing").overall_status == "COMPLIANT"
+    result = ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing")
+    assert result.legacy_comparison.overall_status == "COMPLIANT"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
+    assert result.compliance_score is None
 
 
 def test_missing_mrp_is_review_required_not_confirmed_non_compliant():
@@ -62,6 +99,25 @@ def test_keyword_only_net_quantity_requires_manual_verification():
     quantity = result.rule_results[0].required_fields["net_quantity"]
     assert quantity.status == "NEEDS_MANUAL_VERIFICATION"
     assert result.overall_status == "REVIEW_REQUIRED"
+
+
+@pytest.mark.parametrize(
+    ("full_text", "expected_value", "expected_status"),
+    [
+        ("Net Vol.", "Net Vol.", "NEEDS_MANUAL_VERIFICATION"),
+        ("Net Vol.\n100 ml", "Net Vol. 100 ml", "PASS"),
+    ],
+)
+def test_net_quantity_ocr_text_requires_parseable_amount_end_to_end(full_text, expected_value, expected_status):
+    data = ocr(full_text=full_text)
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in full_text.splitlines()]
+
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+
+    quantity = result.rule_results[0].required_fields["net_quantity"]
+    assert quantity.value == expected_value
+    assert quantity.status == expected_status
 
 
 def test_ocr_mrp_without_currency_is_detected():
@@ -94,8 +150,89 @@ def test_missing_consumer_email_is_confirmed_non_compliant():
     data = ocr()
     data["fields"]["consumer_care_details"]["value"]["email_address"] = None
     result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
-    assert result.overall_status == "NON_COMPLIANT"
+    assert result.legacy_comparison.overall_status == "NON_COMPLIANT"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
     assert result.rule_results[0].required_fields["consumer_care_details"].status == "PARTIAL"
+
+
+def test_json_fail_is_canonical_and_preserves_rule_evidence(monkeypatch):
+    _stub_json_evaluator(monkeypatch, "NON_COMPLIANT", "FAIL")
+
+    result = ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing")
+
+    assert result.legacy_comparison.overall_status == "COMPLIANT"
+    assert result.overall_status == "NON_COMPLIANT"
+    assert result.data_driven_evaluation.rules[0].evidence_ids == ["IMG-TEST:REGION-1"]
+    assert result.data_driven_evaluation.rules[0].trace[0].actual == "observed OCR text"
+
+
+def test_legacy_non_compliance_cannot_override_json_review_required(monkeypatch):
+    _stub_json_evaluator(monkeypatch, "REVIEW_REQUIRED", "REVIEW_REQUIRED")
+    data = ocr()
+    data["fields"]["consumer_care_details"]["value"]["email_address"] = None
+
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+
+    assert result.legacy_comparison.overall_status == "NON_COMPLIANT"
+    assert result.overall_status == "REVIEW_REQUIRED"
+    assert result.data_driven_evaluation.rules[0].status == "REVIEW_REQUIRED"
+
+
+def test_75_rule_review_distribution_stays_canonical_over_legacy_partial(monkeypatch):
+    statuses = ["REVIEW_REQUIRED"] * 60 + ["NOT_ASSESSED"] * 13 + ["NOT_APPLICABLE"] * 2
+
+    class DistributionEvaluator:
+        def evaluate(self, *_args, **_kwargs):
+            rules = [{
+                "rule_id": f"LM-TEST-{index}",
+                "rule_ref": f"Test {index}",
+                "rule_name": f"Test rule {index}",
+                "title": f"Test rule {index}",
+                "category": "test",
+                "severity": "mandatory",
+                "chapter": "II",
+                "status": status,
+                "applicability": "FALSE" if status == "NOT_APPLICABLE" else "UNKNOWN",
+                "has_executable_check": status != "NOT_ASSESSED",
+                "explanation": "Fixture rule result",
+                "evidence_ids": [],
+                "trace": [],
+            } for index, status in enumerate(statuses)]
+            return {
+                "overall_status": "REVIEW_REQUIRED",
+                "rules": rules,
+                "summary": {
+                    "total_rules_loaded": 75,
+                    "total_rules_evaluated": 75,
+                    "status_counts": {
+                        "PASS": 0,
+                        "FAIL": 0,
+                        "REVIEW_REQUIRED": 60,
+                        "NOT_ASSESSED": 13,
+                        "NOT_APPLICABLE": 2,
+                    },
+                },
+                "provenance": {},
+                "applicability_gates": {},
+                "calculations": {},
+            }
+
+    monkeypatch.setattr("backend.services.compliance_engine.LegalRulesEvaluator", DistributionEvaluator)
+    data = ocr()
+    data["fields"]["consumer_care_details"]["value"]["name"] = None
+
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+
+    assert result.data_driven_evaluation.summary["status_counts"] == {
+        "PASS": 0,
+        "FAIL": 0,
+        "REVIEW_REQUIRED": 60,
+        "NOT_ASSESSED": 13,
+        "NOT_APPLICABLE": 2,
+    }
+    assert result.legacy_comparison.overall_status == "NON_COMPLIANT"
+    assert result.overall_status == "REVIEW_REQUIRED"
+    assert result.compliance_score is None
 
 
 def test_wholesale_profile_evaluates_wholesale_rule():
@@ -117,7 +254,9 @@ def test_low_confidence_requires_manual_verification():
 
 def test_expired_instrument_is_non_compliant():
     data = {"document_id": "INST-1", "product_type": "weighing_instrument", "fields": {}, "instrument_category": "weighing_instrument", "last_verification_date": "2020-08-20"}
-    assert ComplianceEngine().evaluate(data, "pos_hardware_audit").overall_status == "NON_COMPLIANT"
+    result = ComplianceEngine().evaluate(data, "pos_hardware_audit")
+    assert result.legacy_comparison.overall_status == "NON_COMPLIANT"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
 
 
 def test_missing_physical_seal_requires_manual_verification():
@@ -128,7 +267,9 @@ def test_missing_physical_seal_requires_manual_verification():
 
 def test_unrelated_product_is_not_applicable():
     data = ocr(product_type="unrelated")
-    assert ComplianceEngine().evaluate(data, "e_commerce_product_listing").overall_status == "NOT_APPLICABLE"
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    assert result.legacy_comparison.overall_status == "NOT_APPLICABLE"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
 
 
 # --- multi_region YOLO detection mode: per-class region extraction ---
@@ -377,6 +518,227 @@ def test_country_of_origin_matches_valid_declaration_forms():
         assert field.value == expected_line, text
 
 
+@pytest.mark.parametrize("made_in", ["MADEIN", "MADE IN", "MADE-IN", "MADE_IN"])
+def test_country_of_origin_normalizes_merged_made_in_declarations(made_in):
+    text = f"{made_in}\nTotal Fat\n3 g\nSodium\n16 mg\nProtein\n1 g\nINDIA"
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": made_in, "confidence": 0.99, "bbox": [100, 100, 220, 130]},
+        {"text": "Total Fat", "confidence": 0.99, "bbox": [400, 105, 470, 130]},
+        {"text": "3 g", "confidence": 0.99, "bbox": [400, 135, 440, 160]},
+        {"text": "Sodium", "confidence": 0.99, "bbox": [400, 165, 470, 190]},
+        {"text": "16 mg", "confidence": 0.99, "bbox": [400, 195, 450, 220]},
+        {"text": "Protein", "confidence": 0.99, "bbox": [400, 225, 470, 250]},
+        {"text": "1 g", "confidence": 0.99, "bbox": [400, 255, 440, 280]},
+        {"text": "INDIA", "confidence": 0.98, "bbox": [90, 135, 230, 190]},
+    ]
+
+    field = normalize_ocr_result(data).fields["country_of_origin"]
+
+    assert field.value == "MADE IN INDIA"
+    assert field.confidence == 0.985
+    assert field.region_ids == ["region_0", "region_7"]
+    assert [item.text for item in field.regions] == [made_in, "INDIA"]
+
+
+def test_country_of_origin_does_not_match_unrelated_made_words():
+    data = ocr(full_text="Homemade Indian recipe\nMADE the best snack\nNET WEIGHT: 60 g")
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in data["full_text"].splitlines()]
+
+    assert normalize_ocr_result(data).fields["country_of_origin"].detected is False
+
+
+def test_generic_name_rejects_serving_size_and_nutrition_candidates():
+    text = "\n".join([
+        "NUTRITIONAL INFORMATION",
+        "Serving Size (per Cookie)-12.5g",
+        "Number of Servings in this pack - 6 units",
+        "Energy (kcal)", "52.13", "Total Fat (g)", "3.03", "Protein (g)", "1.39",
+        "NETWEIGHT: 75 g (6 units x 12.5 g)",
+        "A. CHOCO ALMOND nutty cookies",
+        "INGREDIENTS:", "Almonds, sugar and cocoa solids",
+    ])
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in text.splitlines()]
+
+    normalized = normalize_ocr_result(data)
+    generic_name = normalized.fields["common_generic_name_of_commodity"]
+
+    assert generic_name.value == "A. CHOCO ALMOND nutty cookies"
+    assert generic_name.value not in {
+        "Serving Size (per Cookie)-12.5g",
+        "NETWEIGHT: 75 g (6 units x 12.5 g)",
+        "Energy (kcal)",
+    }
+    assert generic_name.region_ids == ["region_10"]
+
+
+def test_multi_product_generic_name_includes_each_name_and_its_quantity():
+    lines = [
+        "NUTRITIONAL INFORMATION",
+        "Serving Size (per Cookie)-12.5g",
+        "A. CHOCO ALMOND nutty cookies",
+        "B. WHITE CHOCO CASHEW nutty cookies",
+        "C. PEANUT BUTTER nutty cookies",
+        "(2 units x 12.5g)", "(2 units x 12.5g)", "(2 units x 12.5g)",
+        "NETWEIGHT: 75 g (6 units x 12.5 g)",
+        "INGREDIENTS:", "Almonds, sugar and cocoa solids",
+    ]
+    data = ocr(full_text="\n".join(lines))
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": lines[0], "confidence": 0.99, "bbox": [800, 20, 1000, 40]},
+        {"text": lines[1], "confidence": 0.99, "bbox": [800, 45, 1100, 65]},
+        {"text": lines[2], "confidence": 0.99, "bbox": [80, 100, 450, 125]},
+        {"text": lines[3], "confidence": 0.99, "bbox": [520, 100, 980, 125]},
+        {"text": lines[4], "confidence": 0.99, "bbox": [1010, 100, 1380, 125]},
+        {"text": lines[5], "confidence": 0.98, "bbox": [80, 130, 250, 150]},
+        {"text": lines[6], "confidence": 0.97, "bbox": [520, 130, 690, 150]},
+        {"text": lines[7], "confidence": 0.96, "bbox": [1010, 130, 1180, 150]},
+        {"text": lines[8], "confidence": 0.99, "bbox": [800, 180, 1300, 205]},
+        {"text": lines[9], "confidence": 0.99, "bbox": [80, 220, 200, 245]},
+        {"text": lines[10], "confidence": 0.99, "bbox": [80, 250, 400, 275]},
+    ]
+
+    field = normalize_ocr_result(data).fields["common_generic_name_of_commodity"]
+
+    for item in lines[2:8]:
+        assert item in field.value
+    assert "((" not in field.value
+    assert "Serving Size" not in field.value
+    assert "NETWEIGHT" not in field.value
+    assert field.region_ids == [f"region_{index}" for index in range(2, 8)]
+    assert field.confidence < CONFIDENCE_THRESHOLD
+
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    requirement = result.rule_results[0].required_fields["common_generic_name_of_commodity"]
+    assert requirement.status == "NEEDS_MANUAL_VERIFICATION"
+    assert requirement.region_ids == field.region_ids
+
+
+def test_spatial_entity_association_ignores_adjacent_storage_temperature():
+    lines = [
+        "Manufactured by:", "Marketed by:", "BELOW30℃.",
+        "B:Immaculatebites Private Limited", "ImmaculateBites Pvt Ltd,",
+        "108, Cala No.1, 2", "Refer B for address",
+    ]
+    data = ocr(full_text="\n".join(lines))
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": lines[0], "confidence": 0.99, "bbox": [80, 100, 245, 125]},
+        {"text": lines[1], "confidence": 0.99, "bbox": [460, 100, 580, 125]},
+        {"text": lines[2], "confidence": 0.99, "bbox": [900, 95, 1075, 135]},
+        {"text": lines[3], "confidence": 0.99, "bbox": [80, 128, 390, 155]},
+        {"text": lines[4], "confidence": 0.99, "bbox": [460, 130, 690, 155]},
+        {"text": lines[5], "confidence": 0.99, "bbox": [80, 158, 240, 182]},
+        {"text": lines[6], "confidence": 0.99, "bbox": [460, 158, 630, 182]},
+    ]
+
+    field = normalize_ocr_result(data).fields["manufacturer_packer_importer_details"]
+
+    assert "B:Immaculatebites Private Limited" in field.value
+    assert "ImmaculateBites Pvt Ltd" in field.value
+    assert "BELOW30℃" not in field.value
+    assert "region_2" not in field.region_ids
+    assert set(field.region_ids) >= {"region_0", "region_1", "region_3", "region_4"}
+
+
+def test_missing_field_confidence_is_zero_not_page_average():
+    data = ocr(full_text="MRP Rs. 10\nNET WEIGHT: 50 g")
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in data["full_text"].splitlines()]
+
+    field = normalize_ocr_result(data).fields["unit_sale_price"]
+
+    assert field.detected is False
+    assert field.confidence == 0
+    assert field.region_ids == []
+
+
+@pytest.mark.parametrize(("text", "expected_name", "expected_address", "expected_phone", "expected_email"), [
+    ("Consumer Care Cell\nPhone: 1800-123-4567", "Consumer Care Cell", None, "1800-123-4567", None),
+    ("For Queries or Feedback:\ne-mail care@example.com", None, None, None, "care@example.com"),
+    ("Customer Care Department\n123 Market Street, Pune", "Customer Care Department", "123 Market Street, Pune", None, None),
+    ("Consumer Care Cell\nPhone: 1800-123-4567\nEmail: care@example.com", "Consumer Care Cell", None, "1800-123-4567", "care@example.com"),
+    ("Customer Care Department\n123 Market Street, Pune\nPhone: 1800-123-4567\nEmail: care@example.com", "Customer Care Department", "123 Market Street, Pune", "1800-123-4567", "care@example.com"),
+])
+def test_consumer_care_groups_only_printed_fields(text, expected_name, expected_address, expected_phone, expected_email):
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in text.splitlines()]
+
+    care = normalize_ocr_result(data).fields["consumer_care_details"].value
+
+    assert care["name"] == expected_name
+    assert care["address"] == expected_address
+    assert care["telephone_number"] == expected_phone
+    assert care["email_address"] == expected_email
+
+
+def test_consumer_care_does_not_borrow_contacts_from_another_ocr_column():
+    lines = ["Consumer Care Cell", "MRP Rs. 99", "Phone: 1800-555-0000", "Email: other@example.com"]
+    data = ocr(full_text="\n".join(lines))
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": lines[0], "confidence": 0.99, "bbox": [100, 100, 280, 125]},
+        {"text": lines[1], "confidence": 0.99, "bbox": [600, 100, 730, 125]},
+        {"text": lines[2], "confidence": 0.99, "bbox": [600, 130, 790, 155]},
+        {"text": lines[3], "confidence": 0.99, "bbox": [600, 160, 800, 185]},
+    ]
+
+    care = normalize_ocr_result(data).fields["consumer_care_details"].value
+
+    assert care["name"] == "Consumer Care Cell"
+    assert care["telephone_number"] is None
+    assert care["email_address"] is None
+
+
+def test_consumer_care_resolves_only_explicit_manufacturer_address_reference():
+    text = "\n".join([
+        "Manufactured by:", "Example Foods Pvt Ltd,", "12 Main Road, Pune.",
+        "For Queries or Feedback:", "Write to us at the mfg. address",
+        "Phone: 1800-123-4567", "Email: care@example.in",
+    ])
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.98} for line in text.splitlines()]
+
+    normalized = normalize_ocr_result(data)
+    care = normalized.fields["consumer_care_details"]
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    care_result = result.rule_results[0].required_fields["consumer_care_details"]
+
+    assert care.value["name"] is None
+    assert "Example Foods Pvt Ltd" in care.value["address"]
+    assert "12 Main Road, Pune" in care.value["address"]
+    assert care.value["telephone_number"] == "1800-123-4567"
+    assert care.value["email_address"] == "care@example.in"
+    assert set(care.region_ids) >= {"region_0", "region_1", "region_2", "region_3", "region_4", "region_5", "region_6"}
+    assert care_result.status == "PARTIAL"
+    assert "name" in care_result.missing
+
+
+def test_coding_panel_pointer_does_not_create_mrp_or_manufacture_date():
+    text = "For MRP (incl. of all taxes), MFG Date, Used By and Batch No, please refer to the coding panel.\nNETWEIGHT: 75 g (6 units x 12.5 g)"
+    data = ocr(full_text=text)
+    data["fields"] = {}
+    data["detections"] = [{"text": line, "confidence": 0.99} for line in text.splitlines()]
+
+    normalized = normalize_ocr_result(data)
+    result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
+    fields = result.rule_results[0].required_fields
+
+    assert normalized.fields["maximum_retail_price_mrp"].detected is False
+    assert normalized.fields["month_and_year_of_manufacture_or_packing"].detected is False
+    assert normalized.fields["unit_sale_price"].detected is False
+    assert fields["maximum_retail_price_mrp"].status == "NEEDS_MANUAL_VERIFICATION"
+    assert fields["month_and_year_of_manufacture_or_packing"].status == "NEEDS_MANUAL_VERIFICATION"
+    assert fields["unit_sale_price"].status == "NEEDS_MANUAL_VERIFICATION"
+
+
 # --- Issue 1: consumer-care structured completeness + boundary absorption,
 # and Issue 2: unit-sale-price vs. MRP proviso logic - found on the real
 # Parle-G scan report (name was never extracted so the ruleset's 4-field
@@ -599,7 +961,8 @@ def test_scoring_6_not_applicable_rule_excluded_completely_from_scoring():
     not counted as a pass, a fail, or a review."""
     data = ocr(package_type="retail")
     result = ComplianceEngine().evaluate(data, "wholesale_package")
-    assert result.overall_status == "NOT_APPLICABLE"
+    assert result.legacy_comparison.overall_status == "NOT_APPLICABLE"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
     assert result.compliance_score is None
     assert result.summary.compliant == 0
     assert result.summary.non_compliant == 0
@@ -1670,7 +2033,9 @@ def test_existing_retail_profile_behavior_unchanged_by_wholesale_wiring():
     """A plain retail e_commerce_product_listing evaluation (package_type
     defaults to "retail") is byte-for-byte unaffected by the wholesale
     wiring added in this task."""
-    assert ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing").overall_status == "COMPLIANT"
+    result = ComplianceEngine().evaluate(ocr(), "e_commerce_product_listing")
+    assert result.legacy_comparison.overall_status == "COMPLIANT"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
 
 
 # MRP "inclusive of all taxes" (LMPC-R6 mrp_format.text_requirement) - the
@@ -2093,9 +2458,9 @@ def _country_of_origin_field(full_text: str):
 
 
 @pytest.mark.parametrize("text,expected_line", [
-    ("Made in India", "Made in India"),
+    ("Made in India", "MADE IN INDIA"),
     ("MADE IN INDIA", "MADE IN INDIA"),
-    ("made in USA", "made in USA"),
+    ("made in USA", "MADE IN USA"),
 ])
 def test_country_of_origin_made_in_still_detected_after_move_to_regex(text, expected_line):
     """"Made in <country>" must keep working exactly as before, now that it
@@ -2175,7 +2540,7 @@ def test_country_of_origin_madein_collapsed_and_nearby_line_completion():
     fix and the new nearby-line completion mechanism together."""
     field = _country_of_origin_field("MADEIN\nSodium\n50mg\nINDIA")
     assert field.detected
-    assert field.value == "MADEIN INDIA"
+    assert field.value == "MADE IN INDIA"
 
 
 def test_country_of_origin_madein_collapsed_bare_still_detected():
@@ -3136,7 +3501,8 @@ def test_disclaimer_present_even_for_not_applicable_result():
     from the normal per-rule loop."""
     data = ocr(product_type="unrelated")
     result = ComplianceEngine().evaluate(data, "e_commerce_product_listing")
-    assert result.overall_status == "NOT_APPLICABLE"
+    assert result.legacy_comparison.overall_status == "NOT_APPLICABLE"
+    assert result.overall_status == result.data_driven_evaluation.overall_status
     assert result.disclaimer
 
 

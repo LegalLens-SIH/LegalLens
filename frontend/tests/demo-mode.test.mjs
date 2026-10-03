@@ -106,3 +106,11 @@ test('demo sessions stored in localStorage stay disabled until an explicit opt-i
   assert.equal(auth.session.email, 'demo.official@example.com');
   assert.equal(context.LL.requireAuthenticated(), true);
 });
+
+test('canonical status takes precedence over absent score or legacy percentages', () => {
+  const context = loadScripts();
+  assert.equal(context.LL.complianceStatus({ status: 'manual_review', score: null, compliance: { overall_status: 'REVIEW_REQUIRED' } }).label, 'Manual Verification');
+  assert.equal(context.LL.complianceStatus({ status: 'flagged', score: null, compliance: { overall_status: 'NON_COMPLIANT' } }).label, 'Non-Compliant');
+  assert.equal(context.LL.complianceStatus({ status: 'compliant', score: null, compliance: { overall_status: 'PASS' } }).label, 'Compliant');
+  assert.equal(context.LL.complianceStatus({ status: 'not_applicable', score: null, compliance: { overall_status: 'NOT_APPLICABLE' } }).label, 'Not Applicable');
+});

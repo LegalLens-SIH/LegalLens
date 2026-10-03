@@ -515,6 +515,20 @@
   }
 
   function complianceStatus(record) {
+    var rawStatus = record && (record.status || (record.compliance && record.compliance.overall_status));
+    var normalizedStatus = String(rawStatus || "").toUpperCase();
+    if (["PASS", "COMPLIANT"].includes(normalizedStatus)) {
+      return { type: "success", label: "Compliant", icon: "check_circle", cls: "bg-secondary-container text-on-secondary-container", score: normalizeComplianceScore(record) };
+    }
+    if (["FLAGGED", "FAIL", "NON_COMPLIANT"].includes(normalizedStatus)) {
+      return { type: "failed", label: "Non-Compliant", icon: "cancel", cls: "bg-error-container text-on-error-container border border-error/20", score: normalizeComplianceScore(record) };
+    }
+    if (["MANUAL_REVIEW", "REVIEW_REQUIRED", "NEEDS_MANUAL_VERIFICATION", "NOT_ASSESSED", "PARTIAL"].includes(normalizedStatus)) {
+      return { type: "manual", label: "Manual Verification", icon: "warning", cls: "bg-tertiary-container text-on-tertiary-container", score: normalizeComplianceScore(record) };
+    }
+    if (["NOT_APPLICABLE"].includes(normalizedStatus)) {
+      return { type: "not-applicable", label: "Not Applicable", icon: "remove_circle_outline", cls: "bg-surface-variant text-on-surface-variant", score: null };
+    }
     var score = normalizeComplianceScore(record);
     if (score === null) return { type: "manual", label: "Manual Verification", icon: "warning", cls: "bg-tertiary-container text-on-tertiary-container", score: null };
     if (score >= 100) return { type: "success", label: "Fully Compliant", icon: "check_circle", cls: "bg-secondary-container text-on-secondary-container", score: score };

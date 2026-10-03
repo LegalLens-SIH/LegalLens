@@ -73,6 +73,7 @@ from backend.models.extraction import (
     Origin,
     Pricing,
     Product,
+    ProductComponent,
     QuantityField,
     StructuredExtraction,
 )
@@ -247,6 +248,26 @@ def _line_confidence(detections: list[dict[str, Any]], text: str) -> float:
     return _field_confidence({"detections": detections}, text, 0.0)
 
 
+def _raw_text_for_regions(detections: list[dict[str, Any]], region_ids: list[str], fallback: str | None) -> str | None:
+    texts = []
+    for region_id in region_ids:
+        match = re.fullmatch(r"region_(\d+)", region_id)
+        if match and int(match.group(1)) < len(detections):
+            text = str(detections[int(match.group(1))].get("text", "")).strip()
+            if text:
+                texts.append(text)
+    return "\n".join(texts) if texts else fallback
+
+
+def _ocr_confidence_for_regions(detections: list[dict[str, Any]], region_ids: list[str], fallback: float) -> float:
+    scores = [
+        float(detections[int(match.group(1))].get("confidence", 0))
+        for region_id in region_ids
+        if (match := re.fullmatch(r"region_(\d+)", region_id)) and int(match.group(1)) < len(detections)
+    ]
+    return round(sum(scores) / len(scores), 4) if scores else fallback
+
+
 # --- mapping normalize_ocr_result()'s existing fields into the new schema --
 
 def _money_field(field: NormalizedField, detections: list[dict[str, Any]], require_wording: Optional[re.Pattern] = None) -> MoneyField:
@@ -265,10 +286,10 @@ def _money_field(field: NormalizedField, detections: list[dict[str, Any]], requi
     return MoneyField(
         value=parsed_value,
         currency="INR" if parsed_value is not None else None,
-        raw_text=value_text,
+        raw_text=_raw_text_for_regions(detections, field.region_ids, value_text),
         ocr_confidence=field.confidence,
         extraction_confidence=extraction_confidence,
-        evidence_region_ids=_region_ids_for_text(detections, value_text),
+        evidence_region_ids=field.region_ids,
     )
 
 
@@ -279,8 +300,8 @@ def _quantity_field(field: NormalizedField, detections: list[dict[str, Any]]) ->
     match = _QUANTITY_PATTERN.search(value_text)
     if not match:
         return QuantityField(
-            raw_text=value_text, ocr_confidence=field.confidence, extraction_confidence=0.0,
-            evidence_region_ids=_region_ids_for_text(detections, value_text),
+            raw_text=_raw_text_for_regions(detections, field.region_ids, value_text), ocr_confidence=field.confidence, extraction_confidence=0.0,
+            evidence_region_ids=field.region_ids,
         )
     amount = float(match.group(1))
     if amount == int(amount):
@@ -293,8 +314,8 @@ def _quantity_field(field: NormalizedField, detections: list[dict[str, Any]]) ->
         "litre": "l", "litres": "l", "liter": "l", "liters": "l",
     }.get(unit_token, unit_token)
     return QuantityField(
-        value=amount, unit=unit, raw_text=value_text, ocr_confidence=field.confidence,
-        extraction_confidence=0.95, evidence_region_ids=_region_ids_for_text(detections, value_text),
+        value=amount, unit=unit, raw_text=_raw_text_for_regions(detections, field.region_ids, value_text), ocr_confidence=field.confidence,
+        extraction_confidence=0.95, evidence_region_ids=field.region_ids,
     )
 
 
@@ -303,8 +324,9 @@ def _plain_field(field: NormalizedField, detections: list[dict[str, Any]], extra
         return None
     value_text = str(field.value)
     return EvidenceField(
-        value=value_text, raw_text=value_text, ocr_confidence=field.confidence,
-        extraction_confidence=extraction_confidence, evidence_region_ids=_region_ids_for_text(detections, value_text),
+        value=value_text, raw_text=_raw_text_for_regions(detections, field.region_ids, value_text),
+        ocr_confidence=_ocr_confidence_for_regions(detections, field.region_ids, field.confidence),
+        extraction_confidence=extraction_confidence, evidence_region_ids=field.region_ids,
     )
 
 
@@ -315,9 +337,9 @@ def _date_field(field: NormalizedField, detections: list[dict[str, Any]]) -> Opt
     match = _DATE_PATTERN.search(value_text)
     parsed = match.group(0) if match else None
     return EvidenceField(
-        value=parsed, raw_text=value_text, ocr_confidence=field.confidence,
+        value=parsed, raw_text=_raw_text_for_regions(detections, field.region_ids, value_text), ocr_confidence=field.confidence,
         extraction_confidence=0.9 if parsed else 0.3,
-        evidence_region_ids=_region_ids_for_text(detections, value_text),
+        evidence_region_ids=field.region_ids,
     )
 
 
@@ -328,19 +350,21 @@ def _business_details(normalized: NormalizedOCRResult, lines: list[str], detecti
     re-deriving roles from the already-joined `manufacturer_packer_importer_
     details` string, per this task's rule 6 (never randomly infer a role
     from unrelated text)."""
-    declarations = _entity_declarations(lines)
+    declarations = _entity_declarations(lines, detections)
     average_confidence = normalized.fields.get(
         "manufacturer_packer_importer_details", NormalizedField(),
     ).confidence
     by_role: dict[str, EvidenceField] = {}
     for role, value in declarations:
         is_heading_only = bool(_HEADING_ONLY_PATTERN.match(value))
+        region_ids = _region_ids_for_text(detections, value)
+        role_confidence = _field_confidence({"detections": detections}, value, average_confidence)
         by_role[role] = EvidenceField(
             value=None if is_heading_only else value,
             raw_text=value,
-            ocr_confidence=average_confidence,
+            ocr_confidence=role_confidence,
             extraction_confidence=0.0 if is_heading_only else 0.9,
-            evidence_region_ids=_region_ids_for_text(detections, value),
+            evidence_region_ids=region_ids,
         )
     return BusinessDetails(
         manufacturer=by_role.get("manufacturer"),
@@ -349,6 +373,36 @@ def _business_details(normalized: NormalizedOCRResult, lines: list[str], detecti
         marketer=by_role.get("marketer"),
         distributor=by_role.get("distributor"),
     )
+
+
+def _product_components(metadata: dict[str, Any], detections: list[dict[str, Any]]) -> list[ProductComponent]:
+    components = metadata.get("product_components")
+    if not isinstance(components, list):
+        return []
+    results: list[ProductComponent] = []
+    for component in components:
+        if not isinstance(component, dict) or not isinstance(component.get("name"), str):
+            continue
+        name_region_ids = component.get("name_region_ids") if isinstance(component.get("name_region_ids"), list) else []
+        name = EvidenceField(
+            value=component["name"],
+            raw_text=_raw_text_for_regions(detections, name_region_ids, component["name"]),
+            ocr_confidence=_ocr_confidence_for_regions(detections, name_region_ids, 0.0),
+            extraction_confidence=0.75,
+            evidence_region_ids=name_region_ids,
+        )
+        quantity = None
+        if isinstance(component.get("quantity"), str):
+            quantity_region_ids = component.get("quantity_region_ids") if isinstance(component.get("quantity_region_ids"), list) else []
+            quantity = EvidenceField(
+                value=component["quantity"],
+                raw_text=_raw_text_for_regions(detections, quantity_region_ids, component["quantity"]),
+                ocr_confidence=_ocr_confidence_for_regions(detections, quantity_region_ids, 0.0),
+                extraction_confidence=0.9,
+                evidence_region_ids=quantity_region_ids,
+            )
+        results.append(ProductComponent(name=name, quantity=quantity))
+    return results
 
 
 def _consumer_care(field: NormalizedField, detections: list[dict[str, Any]]) -> ConsumerCare:
@@ -360,9 +414,9 @@ def _consumer_care(field: NormalizedField, detections: list[dict[str, Any]]) -> 
     if not populated:
         return ConsumerCare()
     return ConsumerCare(details=EvidenceField(
-        value=care, raw_text=address, ocr_confidence=field.confidence,
+        value=care, raw_text=_raw_text_for_regions(detections, field.region_ids, address), ocr_confidence=field.confidence,
         extraction_confidence=0.9 if (care.get("telephone_number") or care.get("email_address")) else 0.6,
-        evidence_region_ids=_region_ids_for_text(detections, address),
+        evidence_region_ids=field.region_ids,
     ))
 
 
@@ -494,9 +548,10 @@ def build_structured_extraction(
         return normalized.fields.get(name, NormalizedField())
 
     product_name = _plain_field(field("common_generic_name_of_commodity"), detections, extraction_confidence=0.75)
+    product_components = _product_components(normalized.metadata, detections)
 
     result = StructuredExtraction(
-        product=Product(name=product_name, brand=None),  # brand: see module docstring - no reliable signal, left null rather than guessed
+        product=Product(name=product_name, brand=None, items=product_components),  # brand: no reliable signal, left null rather than guessed
         pricing=Pricing(
             maximum_retail_price_mrp=_money_field(field("maximum_retail_price_mrp"), detections, require_wording=_MRP_WORDING_PATTERN),
             unit_sale_price=_money_field(field("unit_sale_price"), detections),
@@ -555,7 +610,12 @@ def _overall_confidence(result: StructuredExtraction) -> float:
         if item is not None and item.value is not None:
             scores.append(item.ocr_confidence)
 
-    collect(result.product.name)
+    if result.product.items:
+        for component in result.product.items:
+            collect(component.name)
+            collect(component.quantity)
+    else:
+        collect(result.product.name)
     collect(result.product.brand)
     collect(result.pricing.maximum_retail_price_mrp)
     collect(result.pricing.unit_sale_price)

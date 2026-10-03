@@ -213,6 +213,107 @@ def test_original_is_never_confused_with_origin():
     assert result.origin.country_of_origin is None
 
 
+def test_merged_made_in_value_keeps_original_ocr_regions_in_structured_output():
+    lines = ["MADEIN", "Total Fat", "3 g", "Sodium", "16 mg", "Protein", "1 g", "INDIA"]
+    data = ocr(full_text="\n".join(lines))
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": lines[0], "confidence": 0.99, "bbox": [100, 100, 220, 130]},
+        {"text": lines[1], "confidence": 0.99, "bbox": [400, 105, 470, 130]},
+        {"text": lines[2], "confidence": 0.99, "bbox": [400, 135, 440, 160]},
+        {"text": lines[3], "confidence": 0.99, "bbox": [400, 165, 470, 190]},
+        {"text": lines[4], "confidence": 0.99, "bbox": [400, 195, 450, 220]},
+        {"text": lines[5], "confidence": 0.99, "bbox": [400, 225, 470, 250]},
+        {"text": lines[6], "confidence": 0.99, "bbox": [400, 255, 440, 280]},
+        {"text": lines[7], "confidence": 0.98, "bbox": [90, 135, 230, 190]},
+    ]
+
+    country = build_structured_extraction(data).origin.country_of_origin
+
+    assert country.value == "MADE IN INDIA"
+    assert country.raw_text == "MADEIN\nINDIA"
+    assert country.evidence_region_ids == ["region_0", "region_7"]
+    assert country.ocr_confidence == 0.985
+
+
+def test_spatial_business_entity_values_and_evidence_stay_in_their_own_columns():
+    lines = [
+        "Manufactured by:", "Marketed by:", "BELOW30℃.",
+        "B:Immaculatebites Private Limited", "ImmaculateBites Pvt Ltd,",
+        "108, Cala No.1, 2", "Refer B for address",
+    ]
+    data = ocr(full_text="\n".join(lines))
+    data["fields"] = {}
+    data["detections"] = [
+        {"text": lines[0], "confidence": 0.99, "bbox": [80, 100, 245, 125]},
+        {"text": lines[1], "confidence": 0.98, "bbox": [460, 100, 580, 125]},
+        {"text": lines[2], "confidence": 0.99, "bbox": [900, 95, 1075, 135]},
+        {"text": lines[3], "confidence": 0.97, "bbox": [80, 128, 390, 155]},
+        {"text": lines[4], "confidence": 0.96, "bbox": [460, 130, 690, 155]},
+        {"text": lines[5], "confidence": 0.95, "bbox": [80, 158, 240, 182]},
+        {"text": lines[6], "confidence": 0.94, "bbox": [460, 158, 630, 182]},
+    ]
+
+    details = build_structured_extraction(data).business_details
+
+    assert "B:Immaculatebites Private Limited" in details.manufacturer.value
+    assert "ImmaculateBites Pvt Ltd" in details.marketer.value
+    assert "BELOW30" not in details.manufacturer.value
+    assert "BELOW30" not in details.marketer.value
+    assert "region_2" not in details.manufacturer.evidence_region_ids
+    assert "region_2" not in details.marketer.evidence_region_ids
+    assert details.manufacturer.ocr_confidence == 0.97
+    assert details.marketer.ocr_confidence == 0.96
+
+
+def test_generic_name_structured_value_is_not_a_serving_size():
+    text = "NUTRITIONAL INFORMATION\nServing Size (per Cookie)-12.5g\nEnergy (kcal)\n52.13\nNETWEIGHT: 75 g\nA. CHOCO ALMOND nutty cookies"
+    result = build_structured_extraction(_text_ocr(text))
+
+    assert result.product.name.value == "A. CHOCO ALMOND nutty cookies"
+    assert result.product.name.raw_text == "A. CHOCO ALMOND nutty cookies"
+    assert result.product.name.ocr_confidence == 0.98
+    assert result.product.name.extraction_confidence == 0.75
+    assert result.product.name.value != "Serving Size (per Cookie)-12.5g"
+
+
+def test_multi_product_structured_extraction_keeps_each_name_quantity_and_evidence():
+    lines = [
+        "NUTRITIONAL INFORMATION", "Serving Size (per Cookie)-12.5g",
+        "A. CHOCO ALMOND nutty cookies", "B. WHITE CHOCO CASHEW nutty cookies",
+        "C. PEANUT BUTTER nutty cookies", "(2 units x 12.5g)",
+        "(2 units x 12.5g)", "(2 units x 12.5g)",
+    ]
+    result = build_structured_extraction(_text_ocr("\n".join(lines)))
+
+    assert [item.name.value for item in result.product.items] == lines[2:5]
+    assert [item.quantity.value for item in result.product.items] == lines[5:8]
+    assert [item.name.evidence_region_ids for item in result.product.items] == [
+        ["region_2"], ["region_3"], ["region_4"],
+    ]
+    assert [item.quantity.evidence_region_ids for item in result.product.items] == [
+        ["region_5"], ["region_6"], ["region_7"],
+    ]
+    assert all(item.name.ocr_confidence == 0.98 for item in result.product.items)
+    assert all(item.quantity.ocr_confidence == 0.98 for item in result.product.items)
+    for descriptor in lines[2:5]:
+        assert descriptor in result.product.name.value
+    assert "Serving Size" not in result.product.name.value
+
+
+def test_consumer_care_structured_evidence_cites_heading_and_contact_regions():
+    text = "For Queries or Feedback:\nwrite to us at the mfg. address\nor call +91 9015227230\ne-mail sayhello@example.in"
+    result = build_structured_extraction(_text_ocr(text))
+    care = result.consumer_care.details
+
+    assert care.value["name"] is None
+    assert care.value["address"] is None
+    assert care.value["telephone_number"] == "+91 9015227230"
+    assert care.value["email_address"] == "sayhello@example.in"
+    assert care.evidence_region_ids == ["region_0", "region_1", "region_2", "region_3"]
+    assert care.raw_text == text
+
+
 # --- consumer care -----------------------------------------------------
 
 def test_consumer_care_extraction_from_real_parle_g_label():

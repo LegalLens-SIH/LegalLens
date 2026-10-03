@@ -5,6 +5,7 @@ from typing import Any
 
 from backend.database import get_database
 from backend.services.audit import append_audit_event
+from backend.services.gs1_verification import normalize_gtin
 
 MIN_BARCODE_EVIDENCE_CONFIDENCE = 0.90
 
@@ -65,16 +66,25 @@ def decode_ean13_barcodes(image: Any, *, source_image_sha256: str) -> dict[str, 
         raw_value = str(decoded_values[index] or "").strip() if index < len(decoded_values) else ""
         symbology = str(decoded_types[index] or "unknown") if index < len(decoded_types) else "unknown"
         try:
-            polygon = [[float(x), float(y)] for x, y in points[index]]
+            source_points = points[index]
+            if len(source_points) == 1 and len(source_points[0]) == 4:
+                source_points = source_points[0]
+            polygon = [[float(x), float(y)] for x, y in source_points]
         except (IndexError, TypeError, ValueError):
             polygon = []
         if len(polygon) != 4 or any(not math.isfinite(value) for point in polygon for value in point):
             polygon = []
-        checksum_valid = symbology == "EAN_13" and validate_ean13(raw_value)
+        normalized = normalize_gtin(raw_value, symbology) if raw_value else None
+        checksum_valid = bool(normalized and normalized["valid"])
         detection_status = "decoded" if checksum_valid else "unreadable" if not raw_value else "unsupported_or_invalid"
         detections.append({
+            "barcode_id": f"barcode_{index}",
             "detection_id": f"barcode_{index}",
-            "code": raw_value if checksum_valid else None,
+            "code": raw_value if checksum_valid and normalized["symbology"] == "EAN_13" else None,
+            "raw_value": raw_value or None,
+            "gtin": normalized["gtin"] if normalized else None,
+            "gtin_status": normalized["status"] if normalized else "UNREADABLE",
+            "gtin_error": normalized["error"] if normalized else "Barcode decoder returned no value.",
             "symbology": symbology,
             "checksum_valid": checksum_valid,
             "status": detection_status,
@@ -87,6 +97,18 @@ def decode_ean13_barcodes(image: Any, *, source_image_sha256: str) -> dict[str, 
             "source": "opencv_barcode_detector",
             "source_image_sha256": source_image_sha256.lower(),
         })
+
+    detections.sort(key=lambda item: (
+        not item["checksum_valid"],
+        -((item["bbox"][2] - item["bbox"][0]) * (item["bbox"][3] - item["bbox"][1])) if item["bbox"] else 0,
+        item["bbox"][1] if item["bbox"] else float("inf"),
+        item["bbox"][0] if item["bbox"] else float("inf"),
+        item["symbology"],
+        item["raw_value"] or "",
+    ))
+    for index, detection in enumerate(detections):
+        detection["barcode_id"] = f"barcode_{index}"
+        detection["detection_id"] = detection["barcode_id"]
 
     valid_codes = any(item["status"] == "decoded" for item in detections)
     detected_geometry = any(item["polygon"] for item in detections)

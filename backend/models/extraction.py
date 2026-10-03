@@ -44,9 +44,15 @@ class QuantityField(EvidenceField):
     unit: Optional[str] = None
 
 
+class ProductComponent(BaseModel):
+    name: EvidenceField
+    quantity: Optional[EvidenceField] = None
+
+
 class Product(BaseModel):
     name: Optional[EvidenceField] = None
     brand: Optional[EvidenceField] = None
+    items: List[ProductComponent] = Field(default_factory=list)
 
 
 class Pricing(BaseModel):

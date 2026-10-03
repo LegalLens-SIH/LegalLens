@@ -10,6 +10,8 @@ authoritative_components:
   - paddleocr
   - compliance_engine
   - verified_legal_corpus
+supporting_components:
+  - gs1_barcode_identity_verification
 experimental_components:
   - tesseract
   - ocr_ensemble
@@ -25,6 +27,7 @@ feature_flags:
   pdp_enabled: false
   tsa_enabled: false
   emaap_simulator_enabled: false
+  gs1_resolver_enabled: false
 production_defaults:
   experimental_authority: false
   missing_evidence_status: REVIEW_REQUIRED

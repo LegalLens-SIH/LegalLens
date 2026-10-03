@@ -224,7 +224,7 @@ async def create_self_check(
     # (including the NEEDS_MANUAL_VERIFICATION / NOT_APPLICABLE states) lives
     # on the revision's own complianceResult above, which is what the report
     # page renders.
-    latest_status = "compliant" if compliance.overall_status == "COMPLIANT" else "needs_fix"
+    latest_status = "compliant" if compliance.overall_status in {"PASS", "COMPLIANT"} else "needs_fix"
     db.products.update_one({"productId": product["productId"], "manufacturerId": user["_id"]}, {"$set": {"latestStatus": latest_status, "latestScore": compliance.compliance_score, "updatedAt": now}})
     db.history.insert_one({"userId": user["_id"], "manufacturerId": user["_id"], "actionType": "self_check_performed", "title": "Self-check completed", "description": f"Revision {version} for {resolved_product_name}", "documentId": revision["revisionId"], "createdAt": now})
     return {"success": True, "revision": public_revision(revision)}

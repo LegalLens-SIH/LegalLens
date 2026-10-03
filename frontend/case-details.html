@@ -259,17 +259,23 @@
 </div>
 </div>
 </div>
-<!-- Compliance Findings -->
+<!-- Canonical JSON Evaluation -->
 <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
 <h3 class="text-headline-sm font-headline-sm font-semibold text-primary mb-4 flex items-center gap-2">
-<span class="material-symbols-outlined">checklist</span>
-                            Compliance Findings
+<span class="material-symbols-outlined">rule</span>
+                            Canonical 75-Rule JSON Evaluation
                         </h3>
+<p class="text-body-md text-on-surface-variant mb-3" id="case-json-summary">Loading canonical rule results.</p>
+<ul class="divide-y divide-outline-variant" id="case-json-rules"></ul>
+<details class="mt-5 border-t border-outline-variant pt-4">
+<summary class="cursor-pointer font-semibold text-primary">Legacy profile findings (reference only)</summary>
+<p class="text-label-md text-on-surface-variant my-3">These compatibility fields do not determine the canonical JSON result.</p>
 <div class="space-y-3" id="case-findings-list"></div>
 <div class="mt-4 pt-4 border-t border-outline-variant/60 flex items-start gap-2 text-label-md font-label-md text-on-surface-variant" id="case-ai-assist-note">
 <span class="material-symbols-outlined text-[16px]">smart_toy</span>
-<span id="case-ai-assist-text">No AI-assisted fields were used for this analysis - every finding above is from the deterministic rule engine only.</span>
+<span id="case-ai-assist-text">Legacy profile field findings are retained for comparison only.</span>
 </div>
+</details>
 </div>
 </div>
 <!-- Right Column: Timeline (Span 2) -->
@@ -344,19 +350,37 @@
             var aiBadge = document.getElementById('case-ai-status-badge');
             aiBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label-md font-label-md font-bold ' + aiMeta.chip;
             aiBadge.innerHTML = '<span class="material-symbols-outlined text-[14px]">' + aiMeta.icon + '</span>' + aiMeta.label;
-            document.getElementById('case-ai-score').textContent = (typeof compliance.compliance_score === 'number' ? compliance.compliance_score + '% score' : 'Score unavailable') + ' - AI assessment only';
+            document.getElementById('case-ai-score').textContent = 'No JSON-defined percentage score - AI assessment only';
 
             var reviewStatusMeta = { PENDING_OFFICIAL_REVIEW: { label: 'Pending Review', icon: 'pending_actions' }, UNDER_OFFICIAL_REVIEW: { label: 'Under Review', icon: 'visibility' }, DECISION_RECORDED: { label: 'Decision Recorded', icon: 'gavel' } };
             var rMeta = reviewStatusMeta[revision.reviewStatus] || { label: revision.reviewStatus || 'Unknown', icon: 'help' };
             document.getElementById('case-status-label').innerHTML = rMeta.label;
             document.querySelector('#case-status-badge .material-symbols-outlined').textContent = rMeta.icon;
 
-            // Compliance findings - the SAME deterministic engine output the
-            // manufacturer already saw on their own self-check-report.html,
-            // never recomputed here. The manufacturer self-check flow does
-            // not use the backend's vision-AI fallback today, so no field is
-            // ever flagged aiAssisted here - see compliance-render.js's
-            // flattenChecks doc comment for how that would surface if it did.
+            var evaluation = compliance.data_driven_evaluation;
+            var canonicalSummary = document.getElementById('case-json-summary');
+            var canonicalRules = document.getElementById('case-json-rules');
+            if (!evaluation || !Array.isArray(evaluation.rules)) {
+                canonicalSummary.textContent = 'Canonical JSON evaluation is unavailable for this revision.';
+                canonicalRules.innerHTML = '';
+            } else {
+                var counts = (evaluation.summary && evaluation.summary.status_counts) || {};
+                canonicalSummary.textContent = 'Overall: ' + evaluation.overall_status + ' · ' + (evaluation.summary.total_rules_loaded || evaluation.rules.length) + ' rules · PASS ' + (counts.PASS || 0) + ' · FAIL ' + (counts.FAIL || 0) + ' · REVIEW_REQUIRED ' + (counts.REVIEW_REQUIRED || 0) + ' · NOT_ASSESSED ' + (counts.NOT_ASSESSED || 0) + ' · NOT_APPLICABLE ' + (counts.NOT_APPLICABLE || 0);
+                canonicalRules.innerHTML = evaluation.rules.map(function (rule) {
+                    var trace = (rule.trace || []).map(function (step) {
+                        var evidence = (step.evidence || []).map(function (item) {
+                            return '<li>' + LL.escapeHtml(item.evidence_id || '') + ': ' + LL.escapeHtml(item.source_text || 'source text unavailable') + ' · OCR confidence ' + LL.escapeHtml(item.ocr_confidence == null ? 'unavailable' : item.ocr_confidence) + ' · extraction confidence ' + LL.escapeHtml(item.extraction_confidence == null ? 'unavailable' : item.extraction_confidence) + '</li>';
+                        }).join('');
+                        return '<li class="py-2"><strong>' + LL.escapeHtml(step.path || step.field || 'Rule trace') + '</strong> · ' + LL.escapeHtml(step.result || 'UNKNOWN') + ' · actual ' + LL.escapeHtml(step.actual == null ? 'UNKNOWN' : JSON.stringify(step.actual)) + ' · expected ' + LL.escapeHtml(step.expected == null ? 'UNKNOWN' : JSON.stringify(step.expected)) + (step.detail ? '<br>' + LL.escapeHtml(step.detail) : '') + (evidence ? '<ul class="list-disc pl-5 mt-1">' + evidence + '</ul>' : '') + '</li>';
+                    }).join('');
+                    return '<li class="py-3"><div class="flex flex-wrap items-baseline justify-between gap-2"><strong>' + LL.escapeHtml(rule.rule_id) + ' · ' + LL.escapeHtml(rule.title || rule.rule_name) + '</strong><span class="font-semibold">' + LL.escapeHtml(rule.status) + '</span></div><p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(rule.rule_ref) + ' · ' + LL.escapeHtml(rule.category || '') + ' · ' + LL.escapeHtml(rule.severity) + ' · Applicability ' + LL.escapeHtml(rule.applicability) + '</p><p>' + LL.escapeHtml(rule.explanation || '') + '</p>' + (trace ? '<details class="mt-1"><summary class="cursor-pointer text-primary">Rule trace and evidence</summary><ul class="pl-4">' + trace + '</ul></details>' : '') + '</li>';
+                }).join('');
+            }
+
+            // Legacy profile findings are retained for comparison; the JSON
+            // evaluation above is canonical. The manufacturer self-check flow
+            // does not use the backend's vision-AI fallback today, so no
+            // legacy field is flagged aiAssisted here.
             var checks = R.flattenChecks(compliance);
             var list = document.getElementById('case-findings-list');
             list.innerHTML = '';

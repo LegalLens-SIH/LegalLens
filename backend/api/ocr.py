@@ -37,6 +37,8 @@ from backend.services.authenticity_service import build_authenticity_evidence
 from backend.services.capture_quality import evaluate_capture_bytes
 from backend.services.evidence_package import assemble_evidence_package_from_scan, build_evidence_package, record_evidence_package
 from backend.services.barcode_calibration import calibrate_ean13_scale, decode_ean13_barcodes
+from backend.services.gs1_verification import GS1VerificationService, crop_barcode_image
+from backend.services.gs1_resolver_provider import GS1ResolverCEProvider
 from backend.services.image_integrity import compute_image_sha256, sniff_image_mime_type
 from backend.services.legibility_validator import measure_ocr_detection
 from backend.services.measurement import measure_ocr_dimensions
@@ -67,6 +69,7 @@ router = APIRouter()
 # process, not once per request.
 _service = PaddleOCRService()
 _compliance_engine = ComplianceEngine()
+_gs1_verification_service = GS1VerificationService(provider=GS1ResolverCEProvider.from_env())
 
 # Same one-instance-per-process pattern as _service above: YOLOService caches
 # the loaded YOLO26 model at the class level, so it is loaded once and reused
@@ -406,6 +409,108 @@ def _public_scan(scan: dict[str, Any]) -> dict[str, Any]:
     if public.get("userId") is not None:
         public["userId"] = str(public["userId"])
     return public
+
+
+def _attach_gs1_verification(
+    *,
+    database: Any,
+    scan_id: str,
+    image_id: str,
+    report_id: str,
+    user_id: Any,
+    image_bytes: bytes,
+    ocr_result: OCRResult,
+    structured_extraction: Any,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Create local GS1 evidence for exactly one image/report; never affects compliance."""
+    decoding = ocr_result.barcode_decoding or {"status": "no_barcode_detected", "detections": [], "authoritative": False}
+    extraction = (
+        structured_extraction.model_dump(mode="json")
+        if hasattr(structured_extraction, "model_dump")
+        else structured_extraction if isinstance(structured_extraction, dict) else None
+    )
+    result = _gs1_verification_service.verify(
+        decoding,
+        structured_extraction=extraction,
+        scan_id=scan_id,
+        image_id=image_id,
+        report_id=report_id,
+    )
+    crops: list[dict[str, Any]] = []
+    image_store = GridFS(database, collection="scan_images")
+    for barcode in result["barcodes"]:
+        bbox = barcode.get("bbox")
+        crop_bytes = crop_barcode_image(image_bytes, bbox)
+        if not crop_bytes:
+            continue
+        crop_digest = compute_image_sha256(crop_bytes)
+        evidence_id = barcode["evidence"]["evidence_id"]
+        try:
+            crop_file_id = image_store.put(
+                crop_bytes,
+                filename=f"{report_id}-{barcode['barcode_id']}.png",
+                content_type="image/png",
+                metadata={
+                    "scan_id": scan_id,
+                    "user_id": str(user_id),
+                    "image_id": image_id,
+                    "report_id": report_id,
+                    "barcode_id": barcode["barcode_id"],
+                    "evidence_id": evidence_id,
+                    "artifact_type": "gs1_barcode_crop",
+                    "sha256": crop_digest,
+                },
+            )
+        except Exception:
+            logger.exception("Could not persist GS1 barcode crop for report %s", report_id)
+            continue
+        crop_url = f"/api/scans/{scan_id}/gs1-evidence/{crop_file_id}"
+        barcode["evidence"].update({"crop_file_id": str(crop_file_id), "crop_url": crop_url, "crop_sha256": crop_digest})
+        crops.append({
+            "contents": crop_bytes,
+            "file_name": f"{report_id}-{barcode['barcode_id']}.png",
+            "sha256": crop_digest,
+            "image_id": image_id,
+            "report_id": report_id,
+            "barcode_id": barcode["barcode_id"],
+            "evidence_id": evidence_id,
+        })
+    try:
+        append_audit_event(
+            database,
+            event_type="gs1_verification",
+            entity_type="scan_report",
+            entity_id=report_id,
+            user_id=user_id,
+            actor_role="system",
+            action=result["status"],
+            file_name=ocr_result.image,
+            source_image_sha256=decoding.get("source_image_sha256"),
+            details={
+                "scan_id": scan_id,
+                "image_id": image_id,
+                "report_id": report_id,
+                "barcode_ids": [barcode["barcode_id"] for barcode in result["barcodes"]],
+                "gtins": [barcode["gtin"] for barcode in result["barcodes"] if barcode["gtin"]],
+                "validation_states": [barcode["validation_state"] for barcode in result["barcodes"]],
+                "provider_state": result["provider_state"]["status"],
+                "resolver_states": [
+                    (barcode.get("external_verification") or {}).get("status", "NOT_CONFIGURED")
+                    for barcode in result["barcodes"]
+                ],
+                "resolver_sources": sorted({
+                    (barcode.get("external_verification") or {}).get("source")
+                    for barcode in result["barcodes"]
+                    if (barcode.get("external_verification") or {}).get("source")
+                }),
+                "evidence_ids": [barcode["evidence"]["evidence_id"] for barcode in result["barcodes"]],
+                "authoritative": False,
+                "used_for_compliance": False,
+            },
+        )
+    except Exception:
+        logger.exception("Could not record GS1 evidence audit for report %s", report_id)
+    return result, crops
 
 
 def _unavailable_font_measurements(detections: list[dict[str, Any]]) -> dict[str, Any]:
@@ -780,7 +885,7 @@ async def create_scan(
     validation_profile, is_wholesale = _select_validation_profile(category)
     if is_wholesale:
         ocr_dict["package_type"] = "wholesale"
-    compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
+    compliance = _compliance_engine.evaluate(ocr_dict, validation_profile, structured_extraction=structured_extraction)
     _report_progress("RULE_VALIDATION")
     scan = _scan_document(result, product_name.strip(), category.strip(), manufacturer.strip(), result.image)
     font_measurements = _unavailable_font_measurements([d.model_dump() for d in result.detections])
@@ -829,6 +934,7 @@ async def create_scan(
     # produced this scan's OCR result, never consulted by ComplianceEngine.
     scan["ocrMode"] = resolved_ocr_mode
     status_map = {
+        "PASS": "compliant",
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",
         "PARTIALLY_COMPLIANT": "partial",
@@ -1023,6 +1129,35 @@ async def create_scan(
         image=single_image, result=result, structured_extraction=structured_extraction,
         compliance=compliance, source_index=0,
     )]
+    gs1_verification, gs1_crops = _attach_gs1_verification(
+        database=database,
+        scan_id=scan["id"],
+        image_id=str(image_id),
+        report_id=scan["reportId"],
+        user_id=user["_id"],
+        image_bytes=original_contents,
+        ocr_result=result,
+        structured_extraction=structured_extraction,
+    )
+    scan["gs1Verification"] = gs1_verification
+    scan["reports"][0]["gs1Verification"] = gs1_verification
+    gs1_artifacts: dict[str, Any] = {
+        f"gs1_verification_{scan['reportId']}": {
+            "artifact_type": "gs1_verification_result",
+            "value": gs1_verification,
+            "source": "local_gs1_verification",
+            "derived_from": ["source_image_0"],
+            "metadata": {"scan_id": scan["id"], "image_id": str(image_id), "report_id": scan["reportId"]},
+        },
+    }
+    for crop in gs1_crops:
+        gs1_artifacts[f"gs1_barcode_crop_{crop['barcode_id']}"] = {
+            "artifact_type": "gs1_barcode_crop",
+            "value": crop["contents"],
+            "source": "barcode_region_crop",
+            "derived_from": ["source_image_0"],
+            "metadata": {key: crop[key] for key in ("image_id", "report_id", "barcode_id", "evidence_id", "sha256")},
+        }
     package = assemble_evidence_package_from_scan(
         evidence_id=scan["id"],
         ocr_result=ocr_dict,
@@ -1039,6 +1174,7 @@ async def create_scan(
             "mime_type": source_mime_type,
             "sha256": source_image_sha256,
         }],
+        supporting_artifacts=gs1_artifacts,
     )
     package_audit = record_evidence_package(database, package, entity_id=scan["id"], entity_type="scan")
     scan["evidencePackageId"] = package.package_id
@@ -1104,6 +1240,7 @@ async def _run_analysis_job(
 
 def _status_for_compliance(status: str) -> str:
     return {
+        "PASS": "compliant",
         "COMPLIANT": "compliant",
         "NON_COMPLIANT": "flagged",
         "PARTIALLY_COMPLIANT": "partial",
@@ -1263,7 +1400,7 @@ async def _run_multi_analysis_job(
             image_extraction = build_structured_extraction(image_ocr_dict, normalized=image_normalized)
             if is_wholesale:
                 image_ocr_dict["package_type"] = "wholesale"
-            image_compliance = _compliance_engine.evaluate(image_ocr_dict, validation_profile)
+            image_compliance = _compliance_engine.evaluate(image_ocr_dict, validation_profile, structured_extraction=image_extraction)
             per_image_payloads.append(_image_report(
                 scan_id="pending", report_id=report_id, image_id=image_id,
                 image=image, result=result, structured_extraction=image_extraction,
@@ -1289,7 +1426,7 @@ async def _run_multi_analysis_job(
         _report_analysis_update(91, "DECLARATION_IDENTIFICATION", "Identifying product declarations across all sides", processedImages=len(successful), failedImages=total - len(successful))
         if is_wholesale:
             ocr_dict["package_type"] = "wholesale"
-        compliance = _compliance_engine.evaluate(ocr_dict, validation_profile)
+        compliance = _compliance_engine.evaluate(ocr_dict, validation_profile, structured_extraction=structured_extraction)
         _report_analysis_update(95, "RULE_VALIDATION", "Checking Legal Metrology rules", processedImages=len(successful), failedImages=total - len(successful))
 
         scan = _scan_document(combined, product_name.strip(), category.strip(), manufacturer.strip(), combined.image)
@@ -1360,6 +1497,41 @@ async def _run_multi_analysis_job(
             scan["sourceImageUrl"] = f"/api/scans/{scan['id']}/image"
             for source_index, source_image in enumerate(source_images):
                 source_image["url"] = f"/api/scans/{scan['id']}/images/{source_index}"
+
+            gs1_reports: list[dict[str, Any]] = []
+            gs1_artifacts: dict[str, Any] = {}
+            for source_index, item in enumerate(image_results):
+                report = per_image_payloads[source_index]
+                image = item["image"]
+                result = item["result"]
+                gs1_verification, gs1_crops = _attach_gs1_verification(
+                    database=database,
+                    scan_id=scan["id"],
+                    image_id=report["imageId"],
+                    report_id=report["reportId"],
+                    user_id=user["_id"],
+                    image_bytes=image["contents"],
+                    ocr_result=result,
+                    structured_extraction=report.get("structuredExtraction"),
+                )
+                report["gs1Verification"] = gs1_verification
+                gs1_reports.append(gs1_verification)
+                gs1_artifacts[f"gs1_verification_{report['reportId']}"] = {
+                    "artifact_type": "gs1_verification_result",
+                    "value": gs1_verification,
+                    "source": "local_gs1_verification",
+                    "derived_from": [f"source_image_{source_index}"],
+                    "metadata": {"scan_id": scan["id"], "image_id": report["imageId"], "report_id": report["reportId"]},
+                }
+                for crop in gs1_crops:
+                    gs1_artifacts[f"gs1_barcode_crop_{report['reportId']}_{crop['barcode_id']}"] = {
+                        "artifact_type": "gs1_barcode_crop",
+                        "value": crop["contents"],
+                        "source": "barcode_region_crop",
+                        "derived_from": [f"source_image_{source_index}"],
+                        "metadata": {key: crop[key] for key in ("image_id", "report_id", "barcode_id", "evidence_id", "sha256")},
+                    }
+            scan["gs1Verifications"] = gs1_reports
 
         upload_audit = append_audit_event(
             database,
@@ -1463,6 +1635,7 @@ async def _run_multi_analysis_job(
                 "authenticity": image["authenticity"],
                 "capture_assessment": image["capture_assessment"],
             } for image in images],
+            supporting_artifacts=gs1_artifacts,
         )
         package_audit = record_evidence_package(database, package, entity_id=scan["id"], entity_type="scan")
         scan["evidencePackageId"] = package.package_id
@@ -1860,6 +2033,17 @@ def delete_scan(scan_id: str, user: dict[str, Any] = Depends(official_user)):
             GridFS(database, collection="scan_images").delete(ObjectId(scan["sourceImageId"]))
         except NoFile:
             logger.info("Source image %s was already absent for scan %s", scan["sourceImageId"], scan_id)
+    gs1_crop_files = database["scan_images.files"].find({
+        "metadata.scan_id": scan_id,
+        "metadata.user_id": str(user["_id"]),
+        "metadata.artifact_type": "gs1_barcode_crop",
+    }, {"_id": 1})
+    crop_store = GridFS(database, collection="scan_images")
+    for crop_file in gs1_crop_files:
+        try:
+            crop_store.delete(crop_file["_id"])
+        except NoFile:
+            pass
     database.scans.delete_one({"_id": scan["_id"]})
     database.history.delete_many({"userId": user["_id"], "documentId": scan_id})
     return {"success": True, "id": scan_id}
@@ -1892,6 +2076,37 @@ def get_scan_source_image(scan_id: str, image_index: int, user: dict[str, Any] =
     except NoFile as exc:
         raise HTTPException(status_code=404, detail="Source image not found") from exc
     return StreamingResponse(image, media_type=image.content_type or "application/octet-stream")
+
+
+@router.get("/api/scans/{scan_id}/gs1-evidence/{file_id}")
+def get_gs1_barcode_evidence(
+    scan_id: str,
+    file_id: str,
+    report_id: str,
+    user: dict[str, Any] = Depends(official_user),
+):
+    """Stream a barcode crop only to the owner of its matching image report."""
+    database = get_database()
+    scan = database.scans.find_one({"id": scan_id, "userId": user["_id"]}, {"reports": 1})
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    report = next((item for item in scan.get("reports", []) if item.get("reportId") == report_id), None)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    try:
+        crop = GridFS(database, collection="scan_images").get(ObjectId(file_id))
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Barcode evidence not found") from exc
+    metadata = (getattr(crop, "_file", {}) or {}).get("metadata") or {}
+    if (
+        metadata.get("artifact_type") != "gs1_barcode_crop"
+        or metadata.get("scan_id") != scan_id
+        or metadata.get("user_id") != str(user["_id"])
+        or metadata.get("report_id") != report_id
+        or metadata.get("image_id") != report.get("imageId")
+    ):
+        raise HTTPException(status_code=404, detail="Barcode evidence not found")
+    return StreamingResponse(crop, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/cases")

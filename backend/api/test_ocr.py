@@ -9,7 +9,7 @@ from backend.api import manufacturer as manufacturer_module
 from backend.api import ocr as ocr_module
 from backend.api.auth import manufacturer_user, official_user
 from backend.main import app
-from backend.api.ocr import _image_report, _select_validation_profile
+from backend.api.ocr import _image_report, _select_validation_profile, _status_for_compliance
 from backend.ocr.schemas import OCRResult
 from backend.ocr import paddle_ocr_service as paddle_module
 from backend.ocr.paddle_ocr_service import PaddleOCRService
@@ -21,6 +21,13 @@ def test_default_category_selects_retail_profile():
     assert _select_validation_profile("General") == ("e_commerce_product_listing", False)
     assert _select_validation_profile("") == ("e_commerce_product_listing", False)
     assert _select_validation_profile("Food & Beverage") == ("e_commerce_product_listing", False)
+
+
+def test_canonical_status_mapper_keeps_existing_scan_status_contract():
+    assert _status_for_compliance("PASS") == "compliant"
+    assert _status_for_compliance("NON_COMPLIANT") == "flagged"
+    assert _status_for_compliance("REVIEW_REQUIRED") == "manual_review"
+    assert _status_for_compliance("NOT_APPLICABLE") == "not_applicable"
 
 
 def test_instrument_category_selects_pos_hardware_profile_unchanged():
@@ -77,6 +84,7 @@ def test_image_report_keeps_stable_image_and_report_identity():
     assert report["imageId"] == "IMG-1"
     assert report["side"] == "Back"
     assert report["evidenceScope"] == "image_only"
+    assert report["status"] == "manual_review"
 
 
 def test_all_upload_workflows_reject_oversize_files_after_bounded_reads(monkeypatch):

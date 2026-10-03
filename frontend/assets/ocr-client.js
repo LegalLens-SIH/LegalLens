@@ -167,13 +167,13 @@
   // Phase 2A: e-commerce listing verification (backend/api/listing.py) -
   // supplementary evidence for an already-persisted scan the official
   // owns. Never touches compliance/status/score.
-  function verifyListing(scanId, url, baseUrl) {
+  function verifyListing(scanId, url, baseUrl, reportId) {
     var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(scanId) + "/listing-verification";
     return fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ url: url }),
+      body: JSON.stringify({ url: url, report_id: reportId || undefined }),
     }).then(function (response) {
       return response.json().then(function (data) {
         return { httpOk: response.ok, status: response.status, data: data };
@@ -183,8 +183,9 @@
     });
   }
 
-  function getListingVerification(scanId, baseUrl) {
+  function getListingVerification(scanId, baseUrl, reportId) {
     var endpoint = (baseUrl || DEFAULT_BASE_URL) + "/api/scans/" + encodeURIComponent(scanId) + "/listing-verification";
+    if (reportId) endpoint += "?report_id=" + encodeURIComponent(reportId);
     return fetch(endpoint, { credentials: "include", cache: "no-store" }).then(function (response) {
       if (!response.ok) return null;
       return response.json();

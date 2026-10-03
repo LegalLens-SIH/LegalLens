@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "source": "LegalLense synthetic GS1 Resolver CE fixture",
+    "environment": "development",
+    "status": "synthetic",
+    "note": "Not an official GS1 registry record; does not establish GTIN ownership or product authenticity."
+  },
+  "payload": {
+    "anchor": "/01/10012345678902",
+    "itemDescription": "Synthetic LegalLense Resolver Fixture Product",
+    "defaultLinktype": "gs1:pip",
+    "links": [
+      {
+        "linktype": "gs1:pip",
+        "href": "https://synthetic.invalid/legal-lense/gs1-resolver-ce/10012345678902",
+        "title": "Synthetic development resource; not a registry product page",
+        "type": "text/html",
+        "hreflang": ["en"],
+        "context": ["development", "synthetic"]
+      }
+    ]
+  },
+  "expected_resolution": {
+    "gtin": "10012345678902",
+    "status": 307,
+    "location": "https://synthetic.invalid/legal-lense/gs1-resolver-ce/10012345678902"
+  }
+}

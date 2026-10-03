@@ -43,6 +43,7 @@ MAX_URL_LENGTH = 2048
 
 class ListingVerificationRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=MAX_URL_LENGTH)
+    report_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 def _physical_fields_from_scan(scan: dict[str, Any]) -> dict[str, Any]:
@@ -66,17 +67,31 @@ def _get_owned_scan(scan_id: str, user: dict[str, Any]) -> dict[str, Any]:
     return scan
 
 
+def _selected_report(scan: dict[str, Any], report_id: str | None) -> dict[str, Any]:
+    reports = scan.get("reports") or []
+    if report_id:
+        report = next((item for item in reports if item.get("reportId") == report_id), None)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Report not found")
+        return report
+    if len(reports) > 1:
+        raise HTTPException(status_code=422, detail="report_id is required for a multi-image scan")
+    return reports[0] if reports else scan
+
+
 @router.post("/{scan_id}/listing-verification")
 def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict[str, Any] = Depends(official_user)) -> dict[str, Any]:
     scan = _get_owned_scan(scan_id, user)
+    selected_report = _selected_report(scan, payload.report_id)
 
     outcome = _fetcher.fetch(payload.url)
     listing = extract_listing_data(payload.url, outcome)
     listing.retrieved_at = datetime.now(timezone.utc)
 
-    physical_fields = _physical_fields_from_scan(scan)
+    physical_fields = _physical_fields_from_scan(selected_report)
     comparisons = compare_listing_to_physical(listing, physical_fields)
     result_dict: dict[str, Any] = {
+        "report_id": selected_report.get("reportId"),
         "listing": listing.model_dump(mode="json"),
         "comparisons": [c.model_dump(mode="json") for c in comparisons],
         "discrepancy_count": sum(1 for c in comparisons if c.outcome == "MISMATCH"),
@@ -97,6 +112,7 @@ def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict
         action="listing_data_compared" if listing.retrieval_status == "SUCCESS" else "listing_retrieval_unavailable",
         details={
             "source_url": payload.url,
+            "report_id": selected_report.get("reportId"),
             "final_url": listing.final_url,
             "retrieval_status": listing.retrieval_status,
             "source_page_sha256": outcome.body_sha256,
@@ -131,7 +147,11 @@ def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict
             "metadata": {"source_url": payload.url, "final_url": listing.final_url, "content_type": outcome.content_type},
         }
     package = build_evidence_package(
-        evidence_id=f"{scan_id}:listing-verification",
+        evidence_id=(
+            f"{scan_id}:{selected_report['reportId']}:listing-verification"
+            if selected_report is not scan and selected_report.get("reportId")
+            else f"{scan_id}:listing-verification"
+        ),
         raw_artifacts=raw_artifacts,
         audit_refs=[retrieval_audit["eventHash"]],
         ruleset_digest=(scan.get("compliance") or {}).get("audit", {}).get("ruleset_digest"),
@@ -140,10 +160,16 @@ def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict
     result_dict["evidence_package_id"] = package.package_id
     result_dict["evidence_merkle_root"] = package.merkle_root
     result_dict["evidence_package_audit_hash"] = package_audit["eventHash"]
-    database.scans.update_one(
-        {"id": scan_id, "userId": user["_id"]},
-        {"$set": {"listingVerification": result_dict}},
-    )
+    if selected_report is scan:
+        update_fields = {"listingVerification": result_dict}
+    else:
+        update_fields = {"reports.$.listingVerification": result_dict}
+        if len(scan.get("reports") or []) == 1:
+            update_fields["listingVerification"] = result_dict
+    query: dict[str, Any] = {"id": scan_id, "userId": user["_id"]}
+    if selected_report is not scan:
+        query["reports.reportId"] = selected_report["reportId"]
+    database.scans.update_one(query, {"$set": update_fields})
     logger.info(
         "Listing verification for scan %s: status=%s discrepancies=%d review_required=%d",
         scan_id, listing.retrieval_status, result_dict["discrepancy_count"], result_dict["review_required_count"],
@@ -152,8 +178,20 @@ def verify_listing(scan_id: str, payload: ListingVerificationRequest, user: dict
 
 
 @router.get("/{scan_id}/listing-verification")
-def get_listing_verification(scan_id: str, user: dict[str, Any] = Depends(official_user)) -> dict[str, Any] | None:
-    scan = get_database().scans.find_one({"id": scan_id, "userId": user["_id"]}, {"listingVerification": 1})
+def get_listing_verification(
+    scan_id: str,
+    report_id: str | None = None,
+    user: dict[str, Any] = Depends(official_user),
+) -> dict[str, Any] | None:
+    scan = get_database().scans.find_one({"id": scan_id, "userId": user["_id"]}, {"listingVerification": 1, "reports": 1})
     if scan is None:
         raise HTTPException(status_code=404, detail="Scan not found")
+    if report_id:
+        report = next((item for item in scan.get("reports", []) if item.get("reportId") == report_id), None)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Report not found")
+        return report.get("listingVerification")
+    reports = scan.get("reports") or []
+    if len(reports) == 1:
+        return reports[0].get("listingVerification") or scan.get("listingVerification")
     return scan.get("listingVerification")

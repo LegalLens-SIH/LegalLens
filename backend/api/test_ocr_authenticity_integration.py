@@ -53,11 +53,18 @@ def _fixed_ocr_run(image_path: str, yolo_service=None, preprocess_options=None) 
 
 
 def _cleanup(db) -> None:
-    scans = list(db.scans.find({"userId": FAKE_OFFICIAL["_id"]}, {"sourceImageId": 1, "sourceImages": 1}))
+    scans = list(db.scans.find({"userId": FAKE_OFFICIAL["_id"]}, {"sourceImageId": 1, "sourceImages": 1, "reports": 1, "gs1Verification": 1}))
     fs = GridFS(db, collection="scan_images")
     for scan in scans:
         image_ids = {scan.get("sourceImageId")}
         image_ids.update(image.get("id") for image in scan.get("sourceImages", []) if image.get("id"))
+        verification_results = [scan.get("gs1Verification")]
+        verification_results.extend(report.get("gs1Verification") for report in scan.get("reports", []))
+        for verification in verification_results:
+            for barcode in (verification or {}).get("barcodes", []):
+                file_id = (barcode.get("evidence") or {}).get("crop_file_id")
+                if file_id:
+                    image_ids.add(file_id)
         for image_id in image_ids - {None}:
             try:
                 fs.delete(ObjectId(image_id))
@@ -111,6 +118,16 @@ def test_scan_upload_attaches_real_exif_evidence_without_changing_compliance(mon
                 # produces - unaffected by EXIF being present. ---
                 assert scan["full_text"] == _FIXED_TEXT
                 assert scan["detection_count"] == 2
+                assert scan["compliance"]["overall_status"] == scan["compliance"]["data_driven_evaluation"]["overall_status"]
+                assert scan["score"] is None
+                assert scan["status"] == ocr_module._status_for_compliance(scan["compliance"]["overall_status"])
+                trace_evidence = [
+                    evidence
+                    for rule in scan["compliance"]["data_driven_evaluation"]["rules"]
+                    for trace in rule["trace"]
+                    for evidence in trace["evidence"]
+                ]
+                assert any(item["extraction_confidence"] is not None for item in trace_evidence)
                 mrp = scan["compliance"]["rule_results"][0]["required_fields"]["maximum_retail_price_mrp"]
                 assert mrp["status"] == "PASS"
                 assert mrp["value"]["normalized_value"] == 99
@@ -225,6 +242,17 @@ def test_real_barcode_decode_is_persisted_as_non_authoritative_scan_evidence(mon
                 assert barcode_result["authoritative"] is False
                 assert barcode_result["used_for_compliance"] is False
 
+                gs1 = scan["reports"][0]["gs1Verification"]
+                assert scan["gs1Verification"]["report_id"] == scan["reportId"]
+                assert gs1["status"] == "LOCAL_VALIDATION_ONLY"
+                assert gs1["provider_state"]["status"] == "DISABLED"
+                gtin = next(item for item in gs1["barcodes"] if item["gtin"] == "8000500003787")
+                assert gtin["check_digit_valid"] is True
+                assert gtin["external_verification"]["verified"] is False
+                assert gtin["source_image_id"] == scan["sourceImageId"]
+                assert gtin["evidence"]["report_id"] == scan["reportId"]
+                assert gtin["evidence"]["crop_file_id"]
+
                 expected_compliance = ocr_module._compliance_engine.evaluate(
                     {"success": True, "full_text": _FIXED_TEXT, "detections": [d.model_dump() for d in _fixed_ocr_run("unused").detections]},
                     "e_commerce_product_listing",
@@ -239,9 +267,20 @@ def test_real_barcode_decode_is_persisted_as_non_authoritative_scan_evidence(mon
                 artifacts = {artifact["artifact_id"]: artifact for artifact in package["artifacts"]}
                 assert artifacts["barcodeDecoding"]["artifact_type"] == "barcode_decoding_evidence"
                 assert artifacts["barcodeDecoding"]["source"] == "opencv_barcode_decoder"
+                gs1_artifact = artifacts[f"gs1_verification_{scan['reportId']}"]
+                assert gs1_artifact["artifact_type"] == "gs1_verification_result"
+                assert artifacts[f"gs1_barcode_crop_{gtin['barcode_id']}"]["artifact_type"] == "gs1_barcode_crop"
                 barcode_audit = database.audit_events.find_one({"entityId": scan["id"], "eventType": "barcode_decoding"})
                 assert barcode_audit is not None
                 assert barcode_audit["eventHash"] in package["audit_refs"]
+                gs1_audit = database.audit_events.find_one({"entityId": scan["reportId"], "eventType": "gs1_verification"})
+                assert gs1_audit is not None
+                crop_url = gtin["evidence"]["crop_url"] + "?report_id=" + scan["reportId"]
+                crop_response = client.get(crop_url)
+                assert crop_response.status_code == 200
+                assert crop_response.headers["content-type"].startswith("image/png")
+                wrong_report_crop = client.get(gtin["evidence"]["crop_url"] + "?report_id=RPT-OTHER")
+                assert wrong_report_crop.status_code == 404
                 database.evidence_packages.delete_one({"package_id": scan["evidencePackageId"]})
             finally:
                 _cleanup(get_database())
@@ -463,7 +502,16 @@ def test_multi_image_scan_records_panel_hashes(monkeypatch):
     def fake_ocr_for_panel(image_path: str, yolo_service=None, preprocess_options=None) -> OCRResult:
         text = "MRP Rs. 99\nNET WEIGHT: 250 g\n"
         detections = [Detection(text=text, confidence=0.95, bbox=[0, 0, 10, 10], polygon=[[0, 0], [10, 0], [10, 10], [0, 10]])]
-        return OCRResult(success=True, image=image_path, full_text=text, detections=detections, detection_count=1)
+        image_bytes = image_path
+        is_front = image_bytes == front_bytes
+        code, symbology = ("4006381333931", "EAN_13") if is_front else ("036000291452", "UPC_A")
+        result = OCRResult(success=True, image="front.png" if is_front else "back.png", full_text=text, detections=detections, detection_count=1)
+        result.barcode_decoding = {
+            "status": "decoded", "decoder": "test_decoder", "source_image_sha256": hashlib.sha256(image_bytes).hexdigest(),
+            "detections": [{"raw_value": code, "code": code, "symbology": symbology, "checksum_valid": True, "bbox": None, "polygon": [], "source": "test_decoder"}],
+            "authoritative": False, "used_for_compliance": False,
+        }
+        return result
 
     monkeypatch.setattr(ocr_module, "_run_image_ocr", fake_ocr_for_panel)
     connect_to_mongodb()
@@ -487,6 +535,17 @@ def test_multi_image_scan_records_panel_hashes(monkeypatch):
             hashlib.sha256(front_bytes).hexdigest(),
             hashlib.sha256(back_bytes).hexdigest(),
         ]
+        assert not scan.get("gs1Verification")
+        reports_by_side = {report["side"]: report for report in scan["reports"]}
+        front_gs1 = reports_by_side["Front"]["gs1Verification"]
+        back_gs1 = reports_by_side["Back"]["gs1Verification"]
+        assert front_gs1["barcodes"][0]["gtin"] == "4006381333931"
+        assert back_gs1["barcodes"][0]["gtin"] == "036000291452"
+        assert front_gs1["report_id"] == reports_by_side["Front"]["reportId"]
+        assert back_gs1["report_id"] == reports_by_side["Back"]["reportId"]
+        assert front_gs1["image_id"] == reports_by_side["Front"]["imageId"]
+        assert back_gs1["image_id"] == reports_by_side["Back"]["imageId"]
+        assert all(item["status"] == "LOCAL_VALIDATION_ONLY" for item in scan["gs1Verifications"])
 
         database = get_database()
         package = database.evidence_packages.find_one({"package_id": scan["evidencePackageId"]})
@@ -496,6 +555,8 @@ def test_multi_image_scan_records_panel_hashes(monkeypatch):
         assert artifacts["source_image_1"]["sha256"] == hashlib.sha256(back_bytes).hexdigest()
         assert artifacts["authenticity_0"]["derived_from"] == ["source_image_0"]
         assert artifacts["authenticity_1"]["derived_from"] == ["source_image_1"]
+        assert artifacts[f"gs1_verification_{reports_by_side['Front']['reportId']}"]["derived_from"] == ["source_image_0"]
+        assert artifacts[f"gs1_verification_{reports_by_side['Back']['reportId']}"]["derived_from"] == ["source_image_1"]
         audit_events = list(database.audit_events.find({"entityId": scan["id"]}))
         assert {event["eventHash"] for event in audit_events if event["eventType"] in {"upload", "ocr_run", "image_authenticity_analysis"}}.issubset(set(package["audit_refs"]))
     finally:

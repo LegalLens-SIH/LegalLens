@@ -7,8 +7,9 @@ from calendar import monthrange
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from backend.services.legal_rules_engine import LegalRulesEvaluator
 
-from backend.models.compliance import ComplianceResult, ComplianceSummary, Evidence, FieldResult, NormalizedField, NormalizedOCRResult, RegionEvidence, RuleResult
+from backend.models.compliance import ComplianceResult, ComplianceSummary, Evidence, FieldResult, LegacyComplianceComparison, NormalizedField, NormalizedOCRResult, RegionEvidence, RuleResult
 
 RULESET_PATH = Path(__file__).resolve().parents[1] / "rules" / "legal_metrology_rules_2011.json"
 ENGINE_VERSION = "1.0.0"
@@ -169,6 +170,7 @@ REGEX_ALIASES: dict[str, list[re.Pattern]] = {
         # inside some other run-together OCR string that happens to contain
         # "madein" as a substring).
         re.compile(r"\bmadein\b", re.I),
+        re.compile(r"\bmade[-_]in\b", re.I),
     ],
     # Real observed fixture wording (Handwash_back.jpg's benchmark OCR
     # text: "180 ml Net" - the quantity printed BEFORE the bare "Net"
@@ -502,7 +504,7 @@ def _in_nutrition_table_context(lines: list[str], index: int, radius: int = 1) -
 # name itself, so stripping it would wrongly read as an empty remainder.
 # \s* (not \s+) so this also recognizes the OCR-collapsed "madein" form
 # without needing a second copy of this pattern.
-_COUNTRY_KEYWORD_STRIP_PATTERN = re.compile(r"country\s+of\s+origin|\borigin\b|\bmade\s*in\b", re.I)
+_COUNTRY_KEYWORD_STRIP_PATTERN = re.compile(r"country\s+of\s+origin|\borigin\b|\bmade[\s_-]*in\b", re.I)
 
 # A candidate line accepted as a country-of-origin completion value:
 # SINGLE WORD only (no internal space/punctuation at all), 2-20 letters.
@@ -524,6 +526,11 @@ _COUNTRY_KEYWORD_STRIP_PATTERN = re.compile(r"country\s+of\s+origin|\borigin\b|\
 # silently mishandled: it simply leaves the field at its keyword-only
 # value rather than fabricating a wrong one.
 _COUNTRY_CANDIDATE_PATTERN = re.compile(r"^[A-Za-z]{2,20}$")
+
+
+def _canonicalize_made_in_country(value: str) -> str:
+    match = re.fullmatch(r"\s*made[\s_-]*in\s*[:\-]?\s*([A-Za-z]{2,20})\s*", value, re.I)
+    return f"MADE IN {match.group(1).upper()}" if match else value
 
 
 # LMPC-R24 (rules/legal_metrology_rules_2011.json) requires a wholesale
@@ -737,6 +744,14 @@ _COMMODITY_NOUN_PATTERN = re.compile(
     r"soaps?|shampoos?|detergents?|toothpaste|lotions?)\b",
     re.I,
 )
+_BUSINESS_ENTITY_PATTERN = re.compile(r"\b(?:private|pvt\.?|limited|ltd\.?|llp|incorporated|corporation|industries|enterprises)\b", re.I)
+_SERVING_SIZE_PATTERN = re.compile(r"\bserving\s+size\b|\bper\s+serving\b|\bnumber\s+of\s+servings\b", re.I)
+_ENUMERATED_PRODUCT_PATTERN = re.compile(r"^\s*([A-Z])\s*[.)]\s*(.+?)\s*$", re.I)
+_PRODUCT_COMPONENT_QUANTITY_PATTERN = re.compile(
+    r"^\(?\s*(\d+)\s*(?:units?|pieces?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*"
+    r"(kgs?|kilograms?|gms?|grams?|g|mls?|millilit(?:er|re)s?|lit(?:er|re)s?|l)\s*\)?$",
+    re.I,
+)
 
 
 def _is_identity_candidate(line: str) -> bool:
@@ -806,6 +821,10 @@ _CARE_NAME_PATTERN = re.compile(
     r"|customer\s+service(?:\s+(?:cell|department|desk|centre|center))?"
     r"|toll[\s-]?free(?:\s+(?:number|helpline))?"
     r"|helpline",
+    re.I,
+)
+_CARE_MANUFACTURER_ADDRESS_REFERENCE_PATTERN = re.compile(
+    r"\b(?:write|send)\b.*\b(?:mfg\.?|manufacturer(?:'s)?)\s+address\b",
     re.I,
 )
 
@@ -896,6 +915,7 @@ def _looks_like_unrelated_fragment(line: str) -> bool:
 # absorbing unrelated content indefinitely even when a trailing comma keeps
 # inviting "one more line" (see that function's docstring).
 _ENTITY_CONTINUATION_LINE_CAP = 4
+_SPATIAL_ENTITY_LINE_CAP = 8
 
 
 def _resolve_entity_continuation(lines: list[str], start: int) -> str:
@@ -940,7 +960,59 @@ def _resolve_entity_continuation(lines: list[str], start: int) -> str:
     return " ".join(collected)
 
 
-def _entity_declarations(lines: list[str]) -> list[tuple[str, str]]:
+def _spatial_entity_continuation(detections: list[dict[str, Any]], heading_line: str) -> str | None:
+    heading = next((item for item in detections if str(item.get("text", "")).strip() == heading_line), None)
+    if heading is None:
+        return None
+    heading_bbox = heading.get("bbox")
+    if not isinstance(heading_bbox, (list, tuple)) or len(heading_bbox) != 4:
+        return None
+    heading_x1, heading_y1, heading_x2, heading_y2 = (float(value) for value in heading_bbox)
+    if heading_x2 <= heading_x1 or heading_y2 <= heading_y1:
+        return None
+
+    column_tolerance = max(50, (heading_x2 - heading_x1) * 0.5)
+    candidates: list[tuple[float, float, dict[str, Any]]] = []
+    for item in detections:
+        if item is heading:
+            continue
+        bbox = item.get("bbox")
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            continue
+        x1, y1, x2, y2 = (float(value) for value in bbox)
+        if x2 <= x1 or y2 <= y1 or y1 < heading_y2 - 3:
+            continue
+        if y1 > heading_y2 + 360 or abs(x1 - heading_x1) > column_tolerance:
+            continue
+        candidates.append((y1, x1, item))
+    candidates.sort(key=lambda entry: (entry[0], entry[1]))
+
+    collected: list[str] = []
+    previous_bottom = heading_y2
+    for y1, _x1, item in candidates:
+        text = str(item.get("text", "")).strip()
+        bbox = item["bbox"]
+        line_height = float(bbox[3]) - float(bbox[1])
+        if y1 - previous_bottom > max(50, line_height * 2.5):
+            break
+        if not text:
+            continue
+        if _DECLARATION_HEADING_PATTERN.search(text) or any(pattern.search(text) for pattern in _ROLE_HEADING_PATTERNS.values()):
+            if collected:
+                break
+            continue
+        if _looks_like_unrelated_fragment(text) or _BARE_NUMBER_OR_PRICE_PATTERN.match(text):
+            if collected:
+                break
+            continue
+        collected.append(text)
+        previous_bottom = float(bbox[3])
+        if re.search(r"\brefer\b.*\bfor\s+address\b", text, re.I) or len(collected) >= _SPATIAL_ENTITY_LINE_CAP:
+            break
+    return " ".join(collected)
+
+
+def _entity_declarations(lines: list[str], detections: list[dict[str, Any]] | None = None) -> list[tuple[str, str]]:
     """Find the FIRST declaration line for EACH distinct role (manufacturer,
     packer, importer, marketer, distributor) - not just the first role
     found overall - so multiple roles declared on the same package (a
@@ -973,7 +1045,9 @@ def _entity_declarations(lines: list[str]) -> list[tuple[str, str]]:
         claimed_indices.add(index)
         heading_line = lines[index].strip()
         if _HEADING_ONLY_PATTERN.match(heading_line):
-            continuation = _resolve_entity_continuation(lines, index)
+            continuation = _spatial_entity_continuation(detections or [], heading_line)
+            if continuation is None:
+                continuation = _resolve_entity_continuation(lines, index)
             value = f"{heading_line} {continuation}".strip() if continuation else heading_line
         else:
             value = heading_line
@@ -1053,7 +1127,9 @@ def _looks_like_phone_number(candidate: str) -> bool:
     return len(re.sub(r"[^0-9]", "", candidate)) <= _PHONE_MAX_UNGROUPED_DIGITS
 
 
-def _care_contact(lines: list[str], start: int) -> tuple[str | None, str | None]:
+def _care_contact(
+    lines: list[str], start: int, detections: list[dict[str, Any]] | None = None,
+) -> tuple[str | None, str | None]:
     """Search CONSUMER_CARE_CONTACT_WINDOW lines from the "consumer care"
     trigger for a phone number and/or email address PATTERN, independent of
     `_care_block`'s shorter descriptive-text window - contact details are
@@ -1062,6 +1138,43 @@ def _care_contact(lines: list[str], start: int) -> tuple[str | None, str | None]
     on the real test image, past the previous fixed 3-line lookahead)."""
     phone = None
     email = None
+    trigger_line = lines[start].strip()
+    if detections:
+        trigger = next((item for item in detections if str(item.get("text", "")).strip() == trigger_line), None)
+        trigger_bbox = trigger.get("bbox") if trigger else None
+        if isinstance(trigger_bbox, (list, tuple)) and len(trigger_bbox) == 4:
+            x1, y1, x2, y2 = (float(value) for value in trigger_bbox)
+            if x2 > x1 and y2 > y1:
+                column_tolerance = max(80, (x2 - x1) * 0.35)
+                candidates = []
+                for item in detections:
+                    bbox = item.get("bbox")
+                    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                        continue
+                    left, top, right, bottom = (float(value) for value in bbox)
+                    if right <= left or bottom <= top or top < y1 - 5 or top > y2 + 450:
+                        continue
+                    if abs(left - x1) > column_tolerance:
+                        continue
+                    candidates.append((top, left, item))
+                for _top, _left, item in sorted(candidates, key=lambda entry: (entry[0], entry[1])):
+                    text = str(item.get("text", "")).strip()
+                    is_address_reference = bool(re.search(r"\b(?:write|send)\b.*\bmfg\.?\s+address\b", text, re.I))
+                    if text != trigger_line and _DECLARATION_HEADING_PATTERN.search(text) and not is_address_reference:
+                        break
+                    if phone is None:
+                        for found in _PHONE_CANDIDATE_PATTERN.finditer(text):
+                            if _looks_like_phone_number(found.group(0)):
+                                phone = found.group(0)
+                                break
+                    if email is None:
+                        found = re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)
+                        if found:
+                            email = found.group(0)
+                    if phone and email:
+                        break
+                return phone, email
+
     search_end = min(len(lines), start + CONSUMER_CARE_CONTACT_WINDOW)
     for line in lines[start:search_end]:
         if phone is None:
@@ -1088,6 +1201,18 @@ def _region_confidence(region: dict[str, Any]) -> float:
     return sum(float(item.get("confidence", 0)) for item in detections) / len(detections)
 
 
+_NON_EVIDENTIARY_SINGLE_TOKENS = {"a", "an", "and", "at", "by", "for", "in", "of", "or", "per", "the", "to"}
+_EVIDENTIARY_SINGLE_LABELS = {"barcode", "fssai", "gtin", "madein", "mfd", "mfg", "mrp", "netqty", "netweight", "netwt", "origin", "pkd"}
+
+
+def _evidence_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _contains_token_sequence(tokens: list[str], sequence: list[str]) -> bool:
+    return any(tokens[index:index + len(sequence)] == sequence for index in range(len(tokens) - len(sequence) + 1))
+
+
 def _matching_detection_indices(ocr_result: dict[str, Any], matched_text: str | None) -> list[int]:
     """The ONE canonical text->OCR-detection matcher this whole module (and
     backend/services/structured_extraction.py, which reuses this instead of
@@ -1109,14 +1234,25 @@ def _matching_detection_indices(ocr_result: dict[str, Any], matched_text: str | 
     """
     if not matched_text:
         return []
-    needle = matched_text.strip().lower()
+    needle = _evidence_tokens(matched_text.strip())
     if not needle:
         return []
     detections = ocr_result.get("detections") or []
     indices: list[int] = []
     for index, det in enumerate(detections):
-        det_text = str(det.get("text", "")).strip().lower()
-        if det_text and (det_text in needle or needle in det_text):
+        det_tokens = _evidence_tokens(str(det.get("text", "")).strip())
+        if not det_tokens:
+            continue
+        if len(det_tokens) == 1 and needle != det_tokens and (
+            det_tokens[0] in _NON_EVIDENTIARY_SINGLE_TOKENS
+            or det_tokens[0] not in _EVIDENTIARY_SINGLE_LABELS
+        ):
+            continue
+        if (
+            det_tokens == needle
+            or _contains_token_sequence(needle, det_tokens)
+            or _contains_token_sequence(det_tokens, needle)
+        ):
             indices.append(index)
     return indices
 
@@ -1142,6 +1278,8 @@ def _field_confidence(ocr_result: dict[str, Any], matched_text: str | None, fall
     """
     indices = _matching_detection_indices(ocr_result, matched_text)
     if not indices:
+        if not matched_text or not matched_text.strip():
+            return 0.0
         return fallback
     detections = ocr_result.get("detections") or []
     scores = [float(detections[i].get("confidence", 0)) for i in indices]
@@ -1165,6 +1303,8 @@ def _field_evidence(
     """
     indices = _matching_detection_indices(ocr_result, matched_text)
     if not indices:
+        if not matched_text or not matched_text.strip():
+            return 0.0, [], []
         return fallback_confidence, [], []
     detections = ocr_result.get("detections") or []
     scores: list[float] = []
@@ -1183,6 +1323,141 @@ def _field_evidence(
         ))
     field_confidence = round(sum(scores) / len(scores), 4) if scores else fallback_confidence
     return field_confidence, region_ids, regions
+
+
+def _enumerated_product_components(lines: list[str], ocr_result: dict[str, Any]) -> list[dict[str, Any]]:
+    detections = ocr_result.get("detections") or []
+
+    def line_region_ids(line_index: int, line: str) -> list[str]:
+        if line_index < len(detections) and str(detections[line_index].get("text", "")).strip() == line:
+            return [f"region_{line_index}"]
+        return [f"region_{index}" for index in _matching_detection_indices(ocr_result, line)]
+
+    products: list[dict[str, Any]] = []
+    for line_index, line in enumerate(lines):
+        match = _ENUMERATED_PRODUCT_PATTERN.fullmatch(line)
+        if not match:
+            continue
+        descriptor = match.group(2).strip()
+        if (
+            not _COMMODITY_NOUN_PATTERN.search(descriptor)
+            or not _is_short_description_shaped(descriptor)
+            or _SERVING_SIZE_PATTERN.search(descriptor)
+            or _BUSINESS_ENTITY_PATTERN.search(descriptor)
+        ):
+            continue
+        products.append({
+            "name": line,
+            "name_line_index": line_index,
+            "name_region_ids": line_region_ids(line_index, line),
+            "quantity": None,
+            "quantity_region_ids": [],
+        })
+    if len(products) < 2:
+        return []
+
+    quantities: list[dict[str, Any]] = []
+    for line_index, line in enumerate(lines):
+        if not _PRODUCT_COMPONENT_QUANTITY_PATTERN.fullmatch(line):
+            continue
+        region_ids = line_region_ids(line_index, line)
+        if region_ids:
+            detection = detections[int(region_ids[0].split("_")[1])]
+            bbox = detection.get("bbox")
+        else:
+            bbox = None
+        quantities.append({"text": line, "region_ids": region_ids, "bbox": bbox, "line_index": line_index})
+
+    assignments: dict[int, int] = {}
+    costs: list[tuple[float, int, int]] = []
+    for product_index, product in enumerate(products):
+        product_region_ids = product["name_region_ids"]
+        if not product_region_ids:
+            continue
+        product_detection = detections[int(product_region_ids[0].split("_")[1])]
+        product_bbox = product_detection.get("bbox")
+        if not isinstance(product_bbox, (list, tuple)) or len(product_bbox) != 4:
+            continue
+        product_center_x = (float(product_bbox[0]) + float(product_bbox[2])) / 2
+        product_top = float(product_bbox[1])
+        for quantity_index, quantity in enumerate(quantities):
+            bbox = quantity["bbox"]
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                continue
+            quantity_top = float(bbox[1])
+            if quantity_top < product_top or quantity_top - product_top > 250:
+                continue
+            quantity_center_x = (float(bbox[0]) + float(bbox[2])) / 2
+            costs.append((abs(product_center_x - quantity_center_x) + (quantity_top - product_top) * 0.1, product_index, quantity_index))
+
+    assigned_quantities: set[int] = set()
+    for _cost, product_index, quantity_index in sorted(costs):
+        if product_index in assignments or quantity_index in assigned_quantities:
+            continue
+        assignments[product_index] = quantity_index
+        assigned_quantities.add(quantity_index)
+    if not assignments:
+        for product_index, quantity_index in zip(range(len(products)), range(len(quantities))):
+            assignments[product_index] = quantity_index
+
+    for product_index, quantity_index in assignments.items():
+        quantity = quantities[quantity_index]
+        products[product_index]["quantity"] = quantity["text"]
+        products[product_index]["quantity_region_ids"] = quantity["region_ids"]
+    return products
+
+
+def _spatial_made_in_country(ocr_result: dict[str, Any]) -> tuple[str, float, list[str], list["RegionEvidence"]] | None:
+    detections = ocr_result.get("detections") or []
+    for marker_index, marker in enumerate(detections):
+        marker_text = str(marker.get("text", "")).strip()
+        if not re.fullmatch(r"made[\s_-]*in\s*[:\-]?", marker_text, re.I):
+            continue
+        marker_bbox = marker.get("bbox")
+        if not isinstance(marker_bbox, (list, tuple)) or len(marker_bbox) != 4:
+            continue
+        marker_x1, marker_y1, marker_x2, marker_y2 = (float(value) for value in marker_bbox)
+        marker_height = marker_y2 - marker_y1
+        if marker_x2 <= marker_x1 or marker_height <= 0:
+            continue
+        candidates: list[tuple[float, int, str]] = []
+        for index, candidate in enumerate(detections):
+            if index == marker_index:
+                continue
+            candidate_text = str(candidate.get("text", "")).strip()
+            if not _COUNTRY_CANDIDATE_PATTERN.fullmatch(candidate_text):
+                continue
+            if _NUTRITION_ROW_LABEL_PATTERN.search(candidate_text):
+                continue
+            bbox = candidate.get("bbox")
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                continue
+            x1, y1, x2, y2 = (float(value) for value in bbox)
+            if x2 <= x1 or y2 <= y1 or y1 < marker_y1 or y1 > marker_y2 + max(80, marker_height * 4):
+                continue
+            horizontal_overlap = max(0.0, min(marker_x2, x2) - max(marker_x1, x1))
+            if horizontal_overlap / min(marker_x2 - marker_x1, x2 - x1) < 0.35:
+                continue
+            candidates.append((y1 - marker_y2, index, candidate_text))
+        if not candidates:
+            continue
+        _distance, country_index, country = min(candidates)
+        indices = [marker_index, country_index]
+        confidence = round(sum(float(detections[index].get("confidence", 0)) for index in indices) / 2, 4)
+        region_ids: list[str] = []
+        regions: list[RegionEvidence] = []
+        for index in indices:
+            detection = detections[index]
+            region_id = f"region_{index}"
+            region_ids.append(region_id)
+            regions.append(RegionEvidence(
+                region_id=region_id,
+                bbox=[int(value) for value in detection.get("bbox", [0, 0, 0, 0])],
+                text=str(detection.get("text", "")),
+                confidence=float(detection.get("confidence", 0)),
+            ))
+        return f"MADE IN {country.upper()}", confidence, region_ids, regions
+    return None
 
 
 def _yolo_region_evidence(class_name: str, region: dict[str, Any]) -> tuple[list[str], list[RegionEvidence]]:
@@ -1378,11 +1653,30 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
     # already pushes any accepted guess below the manual-verification
     # threshold anyway (see CONFIDENCE_THRESHOLD) - an explicit "not
     # detected" is more honest than a still-displayed low-confidence guess.
-    identity_candidates = [line for line in lines[:10] if _is_identity_candidate(line)]
-    identity_value = next(
-        (c for c in identity_candidates if _is_short_description_shaped(c) and _COMMODITY_NOUN_PATTERN.search(c)),
-        None,
-    )
+    identity_candidates = [
+        (index, line) for index, line in enumerate(lines)
+        if _is_identity_candidate(line)
+        and _is_short_description_shaped(line)
+        and _COMMODITY_NOUN_PATTERN.search(line)
+        and not _BUSINESS_ENTITY_PATTERN.search(line)
+        and not _SERVING_SIZE_PATTERN.search(line)
+        and not _NUTRITION_ROW_LABEL_PATTERN.search(line)
+        and not _in_nutrition_table_context(lines, index)
+    ]
+    descriptive_candidates = [
+        candidate for candidate in identity_candidates
+        if len([token for token in _evidence_tokens(candidate[1]) if token not in {"a", "b", "c"}]) > 1
+    ]
+    product_components = _enumerated_product_components(lines, ocr_result)
+    identity_value = None
+    if product_components:
+        metadata["product_components"] = product_components
+        identity_value = "; ".join(
+            f"{component['name']} {component['quantity']}" if component.get("quantity") else component["name"]
+            for component in product_components
+        )
+    elif identity_candidates:
+        identity_value = (descriptive_candidates or identity_candidates)[0][1]
     if identity_value:
         _identity_confidence, _identity_region_ids, _identity_regions = _field_evidence(ocr_result, identity_value, average_confidence)
         for identity_field in ("common_generic_name_of_commodity", "identity_of_commodity"):
@@ -1478,6 +1772,7 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
     # whitelist, so it can accept a country this project has never seen
     # without inventing one.
     country_field = fields["country_of_origin"]
+    country_completed = False
     if country_field.detected and country_field.value:
         country_remainder = _COUNTRY_KEYWORD_STRIP_PATTERN.sub("", str(country_field.value)).strip(" :-\n")
         if not country_remainder:
@@ -1497,7 +1792,23 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
                         value=joined_value, detected=True,
                         confidence=_country_confidence, region_ids=_country_region_ids, regions=_country_regions,
                     )
+                    country_completed = True
                     break
+            if not country_completed:
+                spatial_country = _spatial_made_in_country(ocr_result)
+                if spatial_country is not None:
+                    value, confidence, region_ids, regions = spatial_country
+                    fields["country_of_origin"] = NormalizedField(
+                        value=value, detected=True, confidence=confidence,
+                        region_ids=region_ids, regions=regions,
+                    )
+                    country_completed = True
+
+    country_field = fields["country_of_origin"]
+    if country_field.detected and isinstance(country_field.value, str):
+        normalized_country = _canonicalize_made_in_country(country_field.value)
+        if normalized_country != country_field.value:
+            country_field.value = normalized_country
 
     # manufacturer_packer_importer_details / name_and_address_of_manufacturer_or_packer:
     # both fields are populated ENTIRELY by _entity_declarations - see that
@@ -1508,7 +1819,7 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
     # roles are joined with " | " so none of them silently overwrites or
     # merges with another (see _manufacturer_result below for how this
     # combined value is validated).
-    entity_declarations = _entity_declarations(lines)
+    entity_declarations = _entity_declarations(lines, ocr_result.get("detections"))
     if entity_declarations:
         combined_entity_value = " | ".join(value for _role, value in entity_declarations)
         entity_confidence, entity_region_ids, entity_regions = _field_evidence(ocr_result, combined_entity_value, average_confidence)
@@ -1652,8 +1963,28 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
         # etc. from a single-line block, so the address value stays a
         # clean address instead of redundantly starting with "Care Office,"
         # on top of the already-separate `name` field.
-        care_text = re.sub(r"^(?:consumer|customer)\s+care|customer\s+service|helpline|toll\s*free|contact\s+us\s*[:-]?|^care\s+(?:office|cell|department|desk|division|team|centre|center)", "", care_block_raw, flags=re.I).strip(" :-\n")
-        phone, email = _care_contact(lines, care_start)
+        care_text = care_block_raw
+        if name:
+            care_text = re.sub(rf"^\s*{re.escape(name)}", "", care_text, count=1, flags=re.I)
+        care_text = re.sub(r"^(?:for\s+)?queries\s+or\s+feedback|(?:consumer|customer)\s+care|customer\s+service|helpline|toll\s*free|contact\s+us\s*[:-]?|^care\s+(?:office|cell|department|desk|division|team|centre|center)", "", care_text, flags=re.I).strip(" :-\n")
+        care_text = re.sub(_PHONE_CANDIDATE_PATTERN, "", care_text)
+        care_text = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "", care_text)
+        care_text = re.sub(r"(?im)^\s*(?:(?:or\s+)?call|phone|mobile|telephone|e?-?mail)\s*[:\-]?\s*$\n?", "", care_text)
+        care_text = re.sub(r"(?im)^\s*or\s*$\n?", "", care_text).strip(" :-\n")
+        reference_lines = [
+            line for line in lines[care_start:care_start + CONSUMER_CARE_CONTACT_WINDOW]
+            if _CARE_MANUFACTURER_ADDRESS_REFERENCE_PATTERN.search(line)
+        ]
+        referenced_manufacturer = None
+        if not care_text and reference_lines:
+            manufacturer_value = next((value for role, value in entity_declarations if role == "manufacturer"), None)
+            if manufacturer_value:
+                care_text = re.sub(
+                    r"^\s*(?:manufact(?:u|ij)r\w*|mf[dgr])(?:\s+\S+){0,2}\s+(?:by|for)\s*[:\-]?\s*",
+                    "", manufacturer_value, count=1, flags=re.I,
+                ).strip()
+                referenced_manufacturer = manufacturer_value
+        phone, email = _care_contact(lines, care_start, ocr_result.get("detections"))
         # Confidence evidence: the raw (pre-strip) block PLUS phone/email,
         # since _care_contact searches a wider window than _care_block and
         # can find a phone/email on a line the block itself doesn't
@@ -1663,7 +1994,12 @@ def normalize_ocr_result(ocr_result: dict[str, Any], document_id: str | None = N
         # `consumer_line_for_evidence` (only set for a split match) is
         # included too, so the evidence trail covers BOTH real OCR lines
         # that together justify this detection, not just the second half.
-        care_evidence = "\n".join(filter(None, [consumer_line_for_evidence, lines[care_start], care_block_raw, phone, email]))
+        contact_lines = [
+            line for line in lines[care_start:care_start + CONSUMER_CARE_CONTACT_WINDOW]
+            if (phone and phone in line) or (email and email in line)
+            or _CARE_MANUFACTURER_ADDRESS_REFERENCE_PATTERN.search(line)
+        ]
+        care_evidence = "\n".join(filter(None, [consumer_line_for_evidence, lines[care_start], care_block_raw, *contact_lines, referenced_manufacturer]))
         _care_confidence, _care_region_ids, _care_regions = _field_evidence(ocr_result, care_evidence, average_confidence)
         fields["consumer_care_details"] = NormalizedField(
             value={
@@ -2228,7 +2564,14 @@ class ComplianceEngine:
     def __init__(self, ruleset_path: Path = RULESET_PATH):
         self.ruleset_path = ruleset_path
 
-    def evaluate(self, ocr_result: dict[str, Any], validation_profile: str, reference_date: date | None = None) -> ComplianceResult:
+    def evaluate(
+        self,
+        ocr_result: dict[str, Any],
+        validation_profile: str,
+        reference_date: date | None = None,
+        *,
+        structured_extraction: Any = None,
+    ) -> ComplianceResult:
         # Phase 1: optional, injectable "now" for every date-comparison
         # check this evaluation performs (LMPC-R6's manufacture-date-not-
         # in-future check, LMGEN-R12's verification-interval expiry check).
@@ -2261,7 +2604,7 @@ class ComplianceEngine:
             elif item.status in ("NEEDS_MANUAL_VERIFICATION", "REVIEW_REQUIRED"): summary.manual_verification += 1
             elif item.status == "NOT_APPLICABLE": summary.not_applicable += 1
 
-        # Overall status/score: aggregate every APPLICABLE check at the
+        # Legacy profile status/score: aggregate every APPLICABLE check at the
         # finest granularity available - a rule with its own required_fields
         # contributes each field's status individually (so one field's
         # uncertainty can't be hidden by nine other fields passing); a rule
@@ -2292,5 +2635,39 @@ class ComplianceEngine:
         missing = [f"{rule.rule_name}: {name}" for rule in results for name, field in rule.required_fields.items() if field.status in ("FAIL", "PARTIAL")]
         warnings = ["OCR confidence is evidence quality, not legal compliance."]
         if bucket_counts["low_confidence"]:
-            warnings.append(f"{bucket_counts['low_confidence']} check(s) could not be confidently verified from the available evidence and require manual review; they are excluded from the numerical score (neither counted as passed nor failed).")
-        return ComplianceResult(document_id=normalized.document_id, ruleset_id=ruleset["ruleset_id"], ruleset_version=ruleset["version"], validation_profile=validation_profile, overall_status=overall, compliance_score=score, summary=summary, rule_results=results, missing_fields=missing, warnings=warnings, recommendations=[rule.recommended_action for rule in results if rule.recommended_action], audit={"evaluated_at": datetime.now(timezone.utc).isoformat(), "engine_version": ENGINE_VERSION, "ocr_result_version": ocr_result.get("version", "unknown")}, disclaimer=DISCLAIMER_TEXT)
+            warnings.append(f"{bucket_counts['low_confidence']} legacy profile check(s) could not be confidently verified from the available evidence and require manual review; they are excluded from the legacy profile score (neither counted as passed nor failed).")
+        data_driven_result = LegalRulesEvaluator().evaluate(
+            ocr_result,
+            normalized_fields=normalized.fields,
+            normalized_metadata=normalized.metadata,
+            validation_profile=validation_profile,
+            confidence_threshold=CONFIDENCE_THRESHOLD,
+            structured_extraction=structured_extraction,
+        )
+        canonical_status = data_driven_result["overall_status"]
+        warnings.append("The JSON ruleset does not define a percentage scoring formula; canonical compliance_score is not available.")
+        return ComplianceResult(
+            document_id=normalized.document_id,
+            ruleset_id=ruleset["ruleset_id"],
+            ruleset_version=ruleset["version"],
+            validation_profile=validation_profile,
+            overall_status=canonical_status,
+            compliance_score=None,
+            legacy_comparison=LegacyComplianceComparison(
+                overall_status=overall,
+                compliance_score=score,
+                summary=summary,
+                rule_results=results,
+                missing_fields=missing,
+                warnings=warnings,
+                recommendations=[rule.recommended_action for rule in results if rule.recommended_action],
+            ),
+            summary=summary,
+            rule_results=results,
+            missing_fields=missing,
+            warnings=warnings,
+            recommendations=[rule.recommended_action for rule in results if rule.recommended_action],
+            audit={"evaluated_at": datetime.now(timezone.utc).isoformat(), "engine_version": ENGINE_VERSION, "ocr_result_version": ocr_result.get("version", "unknown")},
+            disclaimer=DISCLAIMER_TEXT,
+            data_driven_evaluation=data_driven_result,
+        )

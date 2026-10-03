@@ -1,0 +1,929 @@
+{
+  "meta": {
+    "title": "The Legal Metrology (Packaged Commodities) Rules, 2011",
+    "notification": "GSR 202(E) dated 07-03-2011",
+    "consolidated_as_on": "2024-12-24",
+    "enabling_act": "Legal Metrology Act, 2009 (1 of 2010), s.52(1) read with s.52(2)(j) and (q)",
+    "source": "Department of Consumer Affairs consolidated PDF (with all amendments as on 24.12.2024)",
+    "schema_version": "1.0",
+    "condition_dsl": {
+      "description": "Conditions are JSON trees. Leaf: {field, op, value}. Combinators: all, any, not.",
+      "operators": ["eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "exists", "not_exists", "matches", "contains", "between"],
+      "field_namespaces": ["package.*  (facts about the package/product)", "label.*  (declarations found on the label/PDP)"]
+    },
+    "severity_levels": ["mandatory", "conditional", "permissive", "prohibition"],
+    "status_notes": [
+      "Rule 5 (standard pack sizes) and the Second Schedule are OMITTED w.e.f. 01-01-2024 (GSR 779(E) as extended up to GSR 714(E)). Do not validate standard pack sizes.",
+      "Rule 33(2) is omitted. Rule 3(1) text as substituted by GSR 629(E) (w.e.f. 01-01-2018) is used.",
+      "Struck-through / superseded text in the PDF (old Table I and II of rule 7, old rule 19(5), old rule 20, old rule 32(1)-(3)) is NOT included."
+    ]
+  },
+
+  "data_model": {
+    "package": {
+      "package_type": "retail | wholesale | export | industrial_or_institutional",
+      "net_quantity_basis": "mass | volume | length | area | number",
+      "net_quantity_value": "number",
+      "net_quantity_unit": "string (g, kg, ml, l, cm, m, dm2, m2, cm3, dm3, m3, number, unit, piece, pair, set)",
+      "capacity_cm3": "number (container capacity)",
+      "pdp_area_cm2": "number (see calculations.pdp_area)",
+      "is_blown_formed_or_molded_on_container": "boolean",
+      "category_flags": ["is_food", "is_cosmetic", "is_seed_certified_under_seeds_act", "is_alcoholic_beverage", "is_electronic_product", "is_spare_part_or_accessory", "is_spare_part_for_warranty_servicing_not_sold_to_end_customer", "is_gm_food", "is_soap_shampoo_toothpaste_cosmetic_or_toiletry", "is_bidi", "is_incense_sticks", "is_domestic_lpg_cylinder_14_2kg_or_5kg_psu", "is_lpg_cylinder_price_under_apm", "is_tobacco_product", "is_drug_under_DPCO_2013", "is_medical_device_declared_as_drug", "is_fast_food_packed_by_restaurant_or_hotel", "is_thread_in_coil_for_handloom_weavers", "is_garment_or_hosiery_sold_loose_inspectable", "is_loose_commodity_ordered_via_ecommerce", "is_returnable_refillable_soft_drink_bottle", "is_essential_commodity_with_notified_price", "is_made_outside_india_and_packed_in_india", "is_imported", "is_export_package", "is_cement_fertilizer_or_farm_produce_bag", "is_food_with_shelf_life_90_days_or_less", "may_become_unfit_for_human_consumption", "is_promotional_group_pack", "is_combination_package", "is_group_package", "is_multi_piece_package", "has_outer_container_or_wrapper", "outer_wrapper_transparent_and_inner_declarations_readable", "outer_package_contains_all_declarations", "is_sold_via_ecommerce", "is_sheet_type_commodity", "is_container_type_commodity", "is_dimension_relevant_commodity", "is_made_up_textile_item", "is_multi_component_commodity", "is_multi_product_package", "is_multi_pack_of_same_commodity"]
+    },
+    "label": {
+      "manufacturer_name": "string",
+      "manufacturer_address": "string (street/premises, city, state, PIN)",
+      "packer_name": "string", "packer_address": "string",
+      "importer_name": "string", "importer_address": "string",
+      "qualifier_words": "string (e.g. 'Manufactured by', 'Packed by', 'Marketed by')",
+      "country_of_origin": "string",
+      "generic_name": "string",
+      "net_quantity_text": "string", "net_quantity_declared_value": "number", "net_quantity_declared_unit": "string",
+      "mfg_month_year": "string", "best_before_or_use_by": "string",
+      "mrp_text": "string", "mrp_value": "number", "mrp_inclusive_of_taxes_wording": "boolean", "mrp_currency_indian": "boolean",
+      "unit_sale_price_value": "number", "unit_sale_price_unit": "string",
+      "dimensions_text": "string",
+      "consumer_care_name": "string", "consumer_care_address": "string", "consumer_care_phone": "string", "consumer_care_email": "string",
+      "gm_marker_text": "string", "veg_dot_color": "red | brown | green | none",
+      "languages": "array of strings",
+      "numeral_height_mm": "number", "numeral_width_mm": "number",
+      "net_qty_clear_space_above_mm": "number", "net_qty_clear_space_below_mm": "number", "net_qty_clear_space_left_mm": "number", "net_qty_clear_space_right_mm": "number",
+      "mrp_and_net_qty_contrast_ok": "boolean",
+      "all_declarations_on_pdp": "boolean",
+      "read_through_liquid_required": "boolean",
+      "has_individual_stickers_for_mandatory_declarations": "boolean",
+      "sticker_is_lower_mrp_not_covering_original": "boolean",
+      "when_packed_qualifier_present": "boolean",
+      "misleading_quantity_words_present": "boolean",
+      "qr_code_present": "boolean", "qr_code_covers_address_and_related_info": "boolean", "label_says_scan_qr_for_info": "boolean",
+      "ecommerce_listing_shows_mandatory_declarations": "boolean",
+      "number_of_usable_sheets": "number", "sheet_dimensions": "string",
+      "mrp_per_piece_and_dimensions_marked_on_each_piece": "boolean"
+    }
+  },
+
+  "applicability": {
+    "chapter_II_retail": {
+      "rule_ref": "Rule 3",
+      "applies_unless_any": [
+        {
+          "id": "LM-3-a",
+          "description": "Packages containing more than 25 kg or 25 litre",
+          "condition": {"all": [{"field": "package.net_quantity_basis", "op": "in", "value": ["mass", "volume"]}, {"field": "package.net_quantity_in_kg_or_l", "op": "gt", "value": 25}]}
+        },
+        {
+          "id": "LM-3-b",
+          "description": "Cement, fertilizer and agricultural farm produce sold in bags above 50 kg",
+          "condition": {"all": [{"field": "package.is_cement_fertilizer_or_farm_produce_bag", "op": "eq", "value": true}, {"field": "package.net_quantity_in_kg", "op": "gt", "value": 50}]}
+        },
+        {
+          "id": "LM-3-c",
+          "description": "Packaged commodities meant for industrial or institutional consumers (package must carry declaration 'not for retail sale')",
+          "condition": {"field": "package.package_type", "op": "eq", "value": "industrial_or_institutional"},
+          "requires": {"field": "label.not_for_retail_sale_declaration", "op": "eq", "value": true},
+          "definitions_ref": ["industrial_consumer", "institutional_consumer"]
+        }
+      ]
+    },
+    "rule_26_exemptions": {
+      "rule_ref": "Rule 26",
+      "description": "Nothing in these rules applies to a package if any of the following is true",
+      "exemptions": [
+        {
+          "id": "LM-26-a",
+          "description": "Net weight/measure is 10 g or 10 ml or less (if sold by weight or measure)",
+          "condition": {"all": [{"field": "package.net_quantity_basis", "op": "in", "value": ["mass", "volume"]}, {"field": "package.net_quantity_in_g_or_ml", "op": "lte", "value": 10}]},
+          "except_when": {"field": "package.is_tobacco_product", "op": "eq", "value": true}
+        },
+        {"id": "LM-26-b", "description": "Fast food items packed by restaurant or hotel and the like", "condition": {"field": "package.is_fast_food_packed_by_restaurant_or_hotel", "op": "eq", "value": true}},
+        {
+          "id": "LM-26-c",
+          "description": "Scheduled and non-scheduled formulations covered under the Drugs (Price Control) Order, 2013",
+          "condition": {"field": "package.is_drug_under_DPCO_2013", "op": "eq", "value": true},
+          "except_when": {"field": "package.is_medical_device_declared_as_drug", "op": "eq", "value": true}
+        },
+        {"id": "LM-26-e", "description": "Thread sold in coil to handloom weavers", "condition": {"field": "package.is_thread_in_coil_for_handloom_weavers", "op": "eq", "value": true}},
+        {
+          "id": "LM-26-f",
+          "description": "Garment or hosiery sold loose/open so consumer can inspect (finished products only), provided it bears the listed details",
+          "condition": {"field": "package.is_garment_or_hosiery_sold_loose_inspectable", "op": "eq", "value": true},
+          "conditional_requirements": [
+            {"field": "label.manufacturer_or_marketer_or_brand_owner_or_importer_name_address", "op": "exists", "note": "plus country of origin/manufacture if imported"},
+            {"field": "label.consumer_care_email", "op": "exists"},
+            {"field": "label.consumer_care_phone", "op": "exists"},
+            {"field": "label.size_metric_cm_or_m_or_alpha_size_with_metric", "op": "exists"},
+            {"field": "label.mrp_inclusive_of_all_taxes_in_indian_currency", "op": "exists"},
+            {"field": "package.is_sold_via_ecommerce", "op": "eq", "value": true, "then": "same information must be displayed on the e-commerce website"}
+          ],
+          "inserted_by": "GSR 648(E) dated 22-08-2022 w.e.f. 01-01-2023; (iii) substituted by GSR 722(E) dated 06-10-2023"
+        },
+        {
+          "id": "LM-26-g",
+          "description": "Loose commodities ordered through e-commerce where the consumer is aware of the ordered commodity, its type and quantity, provided information below is borne",
+          "condition": {"field": "package.is_loose_commodity_ordered_via_ecommerce", "op": "eq", "value": true},
+          "conditional_requirements": [
+            {"field": "label.manufacturer_or_marketer_or_brand_owner_or_importer_or_seller_name_address", "op": "exists", "note": "plus country of origin/manufacture if imported"},
+            {"field": "label.consumer_care_email", "op": "exists"},
+            {"field": "label.consumer_care_phone", "op": "exists"},
+            {"field": "label.mrp_inclusive_of_all_taxes_in_indian_currency", "op": "exists"},
+            {"field": "label.net_quantity_standard_unit_or_number", "op": "exists"}
+          ],
+          "inserted_by": "GSR 722(E) dated 06-10-2023"
+        }
+      ],
+      "omitted": ["LM-26-d (agricultural farm produce above 50 kg) omitted w.e.f. 01-01-2018"]
+    }
+  },
+
+  "definitions": {
+    "consumer": "As in s.2(7) of the Consumer Protection Act, 2019",
+    "dealer": "Person/firm that buys, sells, supplies or distributes packaged commodities (cash/deferred/commission), incl. commission agent; excludes a manufacturer selling to a non-dealer",
+    "industrial_consumer": "Consumer who buys packaged commodities directly from manufacturer/importer/wholesale dealer for use by that industry; package bears 'not for retail sale'",
+    "institutional_consumer": "Institution that buys packages bearing 'not for retail sale' directly from manufacturer/importer/wholesale dealer for its own use and not for commercial or trade purposes",
+    "e_commerce": "Buying and selling of goods and services including digital products over digital and electronic network",
+    "e_commerce_entity": "Company (Companies Act 1956/2013), foreign company (s.2(42)), or office/branch/agency in India owned/controlled by a non-resident, conducting e-commerce",
+    "marketplace_model_of_ecommerce": "IT platform provided by an e-commerce entity as a facilitator between buyer and seller",
+    "lot": "(i) stored packages: total number stored; (ii) packages on/at end of packing line: maximum hourly output",
+    "manufacturer": "Produces/makes the commodity, or puts (or causes to be put) a mark on a package claiming that the commodity was made by that person",
+    "maximum_permissible_error": "Error in deficiency not exceeding limits in the First Schedule",
+    "net_quantity": "Quantity by weight, measure or number of the commodity in the package, excluding packaging/wrapper",
+    "packer": "Person/firm that pre-packs a commodity in units suitable for sale (wholesale or retail)",
+    "principal_display_panel": "Total surface area of the package where required information is given: (i) all grouped in one place, or (ii) pre-printed info in one place and on-line info grouped in another",
+    "retail_dealer": "Dealer who directly sells packages to the consumer (incl. wholesale dealer making direct sale)",
+    "retail_package": "Package intended for retail sale to the ultimate consumer for consumption, incl. imported packages; for retail food package, FSS Act definition applies",
+    "combination_package": "Retail package with two or more individual packages/pieces of DISSIMILAR commodities (e.g. spoons, forks, cups, napkins)",
+    "group_package": "Retail package with two or more individual packages/pieces of SIMILAR but NOT identical commodities (e.g. assorted biscuits, sponges of different sizes)",
+    "multi_piece_package": "Package with two or more individually packaged/labelled pieces of the SAME commodity of IDENTICAL quantity (e.g. 5 soap cakes of 20 g each, total 100 g). FSS Act applies for food.",
+    "retail_sale": "Sale, distribution or delivery through retail shops, agencies or other instrumentalities for consumption",
+    "retail_sale_price": "Maximum price at which the commodity in packaged form may be sold to the consumer, inclusive of all taxes",
+    "wholesale_dealer": "Dealer who does not sell directly to consumers but through one or more intermediaries",
+    "wholesale_package": "(i) a package of retail packages meant for an intermediary, not a single consumer; or (ii) bulk commodity sold to an intermediary for resale in smaller quantities; or (iii) ten or more retail packages, provided retail packages are labelled as required"
+  },
+
+  "rules": [
+    {
+      "id": "LM-4-1", "rule_ref": "Rule 4(1)", "chapter": "II", "category": "general", "severity": "mandatory",
+      "title": "Required declarations must be on the package or a securely affixed label",
+      "description": "No person shall pre-pack, or cause or permit pre-packing of, any commodity for sale/distribution/delivery unless the package bears (or a securely affixed label bears) all declarations required under the Rules.",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"field": "label.all_required_declarations_present", "op": "eq", "value": true},
+      "notes": "Packages without RSP inside the manufacturer's premises are not a violation, but every package leaving the premises must carry it."
+    },
+    {
+      "id": "LM-4-2", "rule_ref": "Rule 4(2)", "chapter": "II", "category": "general", "severity": "mandatory",
+      "title": "Promotional groupings: every package must comply with Rule 6",
+      "description": "When one or more retail packages are grouped and sold as a retail package on a promotional offer, every package in the group must comply with Rule 6.",
+      "applies_when": {"field": "package.is_promotional_group_pack", "op": "eq", "value": true},
+      "check": {"field": "label.each_inner_package_complies_with_rule_6", "op": "eq", "value": true}
+    },
+
+    {
+      "id": "LM-6-1-a-mfr", "rule_ref": "Rule 6(1)(a)", "chapter": "II", "category": "identity", "severity": "mandatory",
+      "title": "Name and address of manufacturer",
+      "description": "Declare name and address of the manufacturer. Name must be the actual corporate name (or business name if not incorporated). Address must be 'complete' (see LM-10-1-addr).",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"all": [{"field": "label.manufacturer_name", "op": "exists"}, {"field": "label.manufacturer_address", "op": "exists"}]},
+      "notes": "Explanation I: if a name/address appears without 'manufactured by' or 'packed by', it is presumed to be the manufacturer's. Explanation II: a brand owner shown as marketer is held responsible; where more than one name/address appears, prosecution is against the manufacturer indicated first. Explanation III: food articles - FSS Act applies instead."
+    },
+    {
+      "id": "LM-6-1-a-packer", "rule_ref": "Rule 6(1)(a)", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Packer name and address if manufacturer is not the packer",
+      "applies_when": {"all": [{"field": "package.package_type", "op": "eq", "value": "retail"}, {"field": "package.manufacturer_is_packer", "op": "eq", "value": false}]},
+      "check": {"all": [{"field": "label.packer_name", "op": "exists"}, {"field": "label.packer_address", "op": "exists"}]}
+    },
+    {
+      "id": "LM-6-1-a-importer", "rule_ref": "Rule 6(1)(a)", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Importer name and address for imported packages",
+      "applies_when": {"field": "package.is_imported", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.importer_name", "op": "exists"}, {"field": "label.importer_address", "op": "exists"}]}
+    },
+    {
+      "id": "LM-6-1-a-electronic", "rule_ref": "Rule 6(1)(a) second proviso (GSR 456(E), 23-06-2023)", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Electronic products: name on package; address may be via QR code",
+      "description": "For electronic products the name of the manufacturer/packer/importer must be on the package itself. The address and related information may be given through a QR code if the package tells consumers to scan the QR code.",
+      "applies_when": {"field": "package.is_electronic_product", "op": "eq", "value": true},
+      "check": {"all": [
+        {"field": "label.manufacturer_or_packer_or_importer_name_on_package", "op": "eq", "value": true},
+        {"any": [
+          {"field": "label.manufacturer_address", "op": "exists"},
+          {"all": [{"field": "label.qr_code_covers_address_and_related_info", "op": "eq", "value": true}, {"field": "label.label_says_scan_qr_for_info", "op": "eq", "value": true}]}
+        ]}
+      ]}
+    },
+    {
+      "id": "LM-6-1-aa", "rule_ref": "Rule 6(1)(aa)", "chapter": "II", "category": "origin", "severity": "conditional",
+      "title": "Country of origin / manufacture / assembly for imported products",
+      "applies_when": {"field": "package.is_imported", "op": "eq", "value": true},
+      "check": {"field": "label.country_of_origin", "op": "exists"}
+    },
+    {
+      "id": "LM-6-1-b", "rule_ref": "Rule 6(1)(b)", "chapter": "II", "category": "identity", "severity": "mandatory",
+      "title": "Common or generic name of the commodity",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"field": "label.generic_name", "op": "exists"}
+    },
+    {
+      "id": "LM-6-1-b-multi", "rule_ref": "Rule 6(1)(b)", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Packages with more than one product: name and number/quantity of each",
+      "applies_when": {"field": "package.is_multi_product_package", "op": "eq", "value": true},
+      "check": {"field": "label.each_product_name_and_quantity_listed", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-6-1-b-electronic", "rule_ref": "Rule 6(1)(b) proviso (GSR 456(E))", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Electronic products: generic name may be via QR code if package says 'scan QR'",
+      "applies_when": {"all": [{"field": "package.is_electronic_product", "op": "eq", "value": true}, {"field": "label.generic_name", "op": "not_exists"}]},
+      "check": {"all": [{"field": "label.qr_code_present", "op": "eq", "value": true}, {"field": "label.label_says_scan_qr_for_info", "op": "eq", "value": true}]}
+    },
+    {
+      "id": "LM-6-1-c", "rule_ref": "Rule 6(1)(c)", "chapter": "II", "category": "quantity", "severity": "mandatory",
+      "title": "Net quantity in standard units (or number)",
+      "description": "Declare net quantity in terms of the standard unit of weight or measure; for commodities packed/sold by number, declare the number.",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"all": [{"field": "label.net_quantity_declared_value", "op": "exists"}, {"field": "label.net_quantity_declared_unit", "op": "exists"}]}
+    },
+    {
+      "id": "LM-6-1-d", "rule_ref": "Rule 6(1)(d)", "chapter": "II", "category": "dates", "severity": "conditional",
+      "title": "Month and year of manufacture",
+      "description": "Month and year of manufacture must be mentioned on the package (words or numerals or both). The words 'or pre-packed or imported' were omitted w.e.f. 01-04-2022 (extended through 01-01-2024).",
+      "applies_when": {"all": [
+        {"field": "package.package_type", "op": "eq", "value": "retail"},
+        {"field": "package.is_bidi", "op": "ne", "value": true},
+        {"field": "package.is_incense_sticks", "op": "ne", "value": true},
+        {"field": "package.is_domestic_lpg_cylinder_14_2kg_or_5kg_psu", "op": "ne", "value": true},
+        {"field": "package.is_seed_certified_under_seeds_act", "op": "ne", "value": true},
+        {"field": "package.is_cosmetic", "op": "ne", "value": true},
+        {"field": "package.is_spare_part_for_warranty_servicing_not_sold_to_end_customer", "op": "ne", "value": true}
+      ]},
+      "check": {"field": "label.mfg_month_year", "op": "exists"},
+      "notes": "Food articles: FSS Act and rules apply. Cosmetics: Drugs and Cosmetics Rules, 1945 apply. Pre-printed packaging material bearing an expected pre-pack month may be used in the next succeeding month only (Rule 6(1)(g) proviso B), not for food with best-before/use-before period of 90 days or less."
+    },
+    {
+      "id": "LM-6-1-d-electronic", "rule_ref": "Rule 6(1)(d) proviso (GSR 722(E), w.e.f. 01-01-2024)", "chapter": "II", "category": "dates", "severity": "conditional",
+      "title": "Electronic products, spare parts and accessories: month/year anywhere on retail package, visible and legible",
+      "applies_when": {"any": [{"field": "package.is_electronic_product", "op": "eq", "value": true}, {"field": "package.is_spare_part_or_accessory", "op": "eq", "value": true}]},
+      "check": {"all": [{"field": "label.mfg_month_year", "op": "exists"}, {"field": "label.mfg_month_year_visible_and_legible", "op": "eq", "value": true}]}
+    },
+    {
+      "id": "LM-6-1-da", "rule_ref": "Rule 6(1)(da)", "chapter": "II", "category": "dates", "severity": "conditional",
+      "title": "'Best before' / 'Use by' date, month and year",
+      "description": "If the commodity may become unfit for human consumption after a period, the 'best before or use by' date, month and year must be on the label. Does not apply if another law makes provision.",
+      "applies_when": {"all": [{"field": "package.may_become_unfit_for_human_consumption", "op": "eq", "value": true}, {"field": "package.other_law_covers_expiry_declaration", "op": "ne", "value": true}]},
+      "check": {"field": "label.best_before_or_use_by", "op": "exists"},
+      "definitions": {
+        "best_before": "End of period under stated storage conditions during which the product remains fully marketable and retains specific qualities claimed; may still be safe afterwards.",
+        "use_by": "End of the estimated period after which the product will not have the expected quality attributes and should not be regarded as marketable."
+      }
+    },
+    {
+      "id": "LM-6-1-e", "rule_ref": "Rule 6(1)(e)", "chapter": "II", "category": "price", "severity": "conditional",
+      "title": "Retail sale price (MRP), inclusive of all taxes, in Indian currency",
+      "description": "Package must declare the retail sale price and clearly indicate it is the maximum retail price inclusive of all taxes, in Indian currency.",
+      "applies_when": {"all": [
+        {"field": "package.package_type", "op": "eq", "value": "retail"},
+        {"field": "package.is_bidi", "op": "ne", "value": true},
+        {"field": "package.is_lpg_cylinder_price_under_apm", "op": "ne", "value": true}
+      ]},
+      "check": {"all": [
+        {"field": "label.mrp_value", "op": "exists"},
+        {"field": "label.mrp_inclusive_of_taxes_wording", "op": "eq", "value": true},
+        {"field": "label.mrp_currency_indian", "op": "eq", "value": true}
+      ]},
+      "accepted_formats_examples": ["Maximum Retail Price Rs. xx.xx inclusive of all taxes", "MRP Rs. xx.xx incl. of all taxes", "MRP ₹ xx.xx (incl. of all taxes)"],
+      "notes": "Alcoholic beverages/spirituous liquor: State Excise laws apply in the State of manufacture; these Rules apply only where excise law has no RSP declaration. If an essential commodity's retail price is fixed and notified under the Essential Commodities Act, 1955, that price applies."
+    },
+    {
+      "id": "LM-6-1-f", "rule_ref": "Rule 6(1)(f)", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Dimensions where sizes of the commodity are relevant",
+      "description": "Declare dimensions of the commodity; if pieces differ, dimensions of each different piece.",
+      "applies_when": {"field": "package.is_dimension_relevant_commodity", "op": "eq", "value": true},
+      "check": {"field": "label.dimensions_text", "op": "exists"},
+      "notes": "Electronic products: may be via QR code if package says 'scan QR' (GSR 456(E))."
+    },
+    {
+      "id": "LM-6-2", "rule_ref": "Rule 6(2)", "chapter": "II", "category": "consumer_care", "severity": "mandatory",
+      "title": "Consumer complaint contact details",
+      "description": "Every package must bear name, address, telephone number and e-mail address of the person/office to contact for consumer complaints.",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"all": [
+        {"field": "label.consumer_care_name", "op": "exists"},
+        {"field": "label.consumer_care_address", "op": "exists"},
+        {"field": "label.consumer_care_phone", "op": "exists"},
+        {"field": "label.consumer_care_email", "op": "exists"}
+      ]},
+      "notes": "Electronic products: telephone and e-mail must be on the package itself; other related info may be via QR code (GSR 456(E)). Size of consumer care details must meet Table I (Rule 7(5))."
+    },
+    {
+      "id": "LM-6-3", "rule_ref": "Rule 6(3)", "chapter": "II", "category": "stickers", "severity": "prohibition",
+      "title": "No individual stickers to alter/make mandatory declarations",
+      "description": "Affixing individual stickers to alter or make a declaration required under these Rules is not permitted. Exception: a sticker with a revised LOWER MRP (inclusive of all taxes) may be affixed provided it does not cover the original MRP declaration.",
+      "applies_when": {"field": "label.has_individual_stickers_for_mandatory_declarations", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.sticker_is_lower_mrp_not_covering_original", "op": "eq", "value": true}]},
+      "notes": "Rule 6(9): a label may be affixed on imported packages to make the required declarations."
+    },
+    {
+      "id": "LM-6-4", "rule_ref": "Rule 6(4)", "chapter": "II", "category": "stickers", "severity": "permissive",
+      "title": "Stickers allowed for declarations other than those required by these Rules"
+    },
+    {
+      "id": "LM-6-4A", "rule_ref": "Rule 6(4A)", "chapter": "II", "category": "optional_marks", "severity": "permissive",
+      "title": "Additional permitted marks",
+      "description": "Manufacturer/packer/importer may additionally declare: (a) barcode/GTIN/QR code; (b) 'e-code' for net quantity assurance obtained per Central Government procedure; (c) logos of Government schemes (e.g. Swachh Bharat Mission) where authorised."
+    },
+    {
+      "id": "LM-6-5", "rule_ref": "Rule 6(5)", "chapter": "II", "category": "multi_component", "severity": "conditional",
+      "title": "Commodity with components packed in two or more units",
+      "description": "Declarations appear on the main package, which also carries info about the other packages, OR declarations are on each individual package with intimation on the main package. If components are sold as spare parts, all declarations must be on each package.",
+      "applies_when": {"field": "package.is_multi_component_commodity", "op": "eq", "value": true},
+      "check": {"any": [
+        {"all": [{"field": "label.main_package_has_all_declarations", "op": "eq", "value": true}, {"field": "label.main_package_lists_other_packages", "op": "eq", "value": true}]},
+        {"all": [{"field": "label.each_package_has_declarations", "op": "eq", "value": true}, {"field": "label.main_package_intimation_present", "op": "eq", "value": true}]}
+      ]}
+    },
+    {
+      "id": "LM-6-7", "rule_ref": "Rule 6(7)", "chapter": "II", "category": "marks", "severity": "conditional",
+      "title": "Genetically modified food: 'GM' at top of principal display panel",
+      "applies_when": {"field": "package.is_gm_food", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.gm_marker_text", "op": "eq", "value": "GM"}, {"field": "label.gm_marker_position", "op": "eq", "value": "top_of_pdp"}]}
+    },
+    {
+      "id": "LM-6-8", "rule_ref": "Rule 6(8)", "chapter": "II", "category": "marks", "severity": "conditional",
+      "title": "Veg / non-veg dot on soaps, shampoos, toothpastes, cosmetics and toiletries",
+      "description": "Red or brown dot for products of non-vegetarian origin; green dot for products of vegetarian origin; at top of the principal display panel.",
+      "applies_when": {"field": "package.is_soap_shampoo_toothpaste_cosmetic_or_toiletry", "op": "eq", "value": true},
+      "check": {"all": [
+        {"field": "label.veg_dot_position", "op": "eq", "value": "top_of_pdp"},
+        {"any": [
+          {"all": [{"field": "package.origin", "op": "eq", "value": "vegetarian"}, {"field": "label.veg_dot_color", "op": "eq", "value": "green"}]},
+          {"all": [{"field": "package.origin", "op": "eq", "value": "non_vegetarian"}, {"field": "label.veg_dot_color", "op": "in", "value": ["red", "brown"]}]}
+        ]}
+      ]}
+    },
+    {
+      "id": "LM-6-9", "rule_ref": "Rule 6(9)", "chapter": "II", "category": "stickers", "severity": "permissive",
+      "title": "Label may be affixed on imported packages to make declarations"
+    },
+    {
+      "id": "LM-6-10", "rule_ref": "Rule 6(10)", "chapter": "II", "category": "ecommerce", "severity": "conditional",
+      "title": "E-commerce: mandatory declarations displayed on the platform",
+      "description": "An e-commerce entity must ensure the mandatory declarations in Rule 6(1) - EXCEPT month and year of manufacture/packing - are displayed on the digital/electronic network used for transactions. This does not exempt the declarations on pre-packaged commodities delivered to consumers.",
+      "applies_when": {"field": "package.is_sold_via_ecommerce", "op": "eq", "value": true},
+      "check": {"field": "label.ecommerce_listing_shows_mandatory_declarations", "op": "eq", "value": true},
+      "required_listing_fields": ["manufacturer/packer/importer name and address", "country of origin (imports)", "generic name", "net quantity", "MRP inclusive of all taxes", "dimensions (where relevant)", "consumer care details", "unit sale price", "best before/use by (where applicable)"],
+      "marketplace_liability": {
+        "responsibility_for_correctness_lies_with": "manufacturer / seller / dealer / importer",
+        "if_all_of": ["entity only provides access to a communication system for information provided by manufacturer/seller/dealer/importer (or does not initiate transmission, select receiver, or select/modify the information)", "entity observes due diligence as intermediary under IT Act 2000 and other Central Government guidelines"],
+        "no_protection_if_any_of": ["entity conspired, abetted, aided or induced the unlawful act", "after actual knowledge or notification by Government/agency, entity fails to expeditiously remove or disable access to the material without vitiating evidence"]
+      }
+    },
+    {
+      "id": "LM-6-11", "rule_ref": "Rule 6(11)", "chapter": "II", "category": "price", "severity": "conditional",
+      "title": "Unit sale price (USP) in rupees, rounded to two decimals",
+      "description": "Declare USP per gram/kg, per cm/m, per ml/l, or per number/unit based on net quantity (see lookup_tables.unit_sale_price_units).",
+      "applies_when": {"all": [
+        {"field": "package.package_type", "op": "eq", "value": "retail"},
+        {"field": "package.is_combination_package", "op": "ne", "value": true},
+        {"field": "package.is_group_package", "op": "ne", "value": true},
+        {"field": "package.is_multi_piece_package", "op": "ne", "value": true},
+        {"field": "package.is_alcoholic_beverage", "op": "ne", "value": true},
+        {"field": "label.mrp_equals_unit_sale_price", "op": "ne", "value": true}
+      ]},
+      "check": {"all": [
+        {"field": "label.unit_sale_price_value", "op": "exists"},
+        {"field": "label.unit_sale_price_unit", "op": "eq", "value_from": "lookup_tables.unit_sale_price_units"},
+        {"field": "label.unit_sale_price_decimals", "op": "lte", "value": 2}
+      ]},
+      "exemptions": ["RSP equals USP", "combination, group and multi-piece packages (GSR 722(E), w.e.f. 01-01-2024)", "alcoholic beverages/spirituous liquor - State Excise laws apply"],
+      "notes": "Text says 'less than 1 kg' -> per gram and 'more than 1 kg' -> per kg; exactly 1 kg is not addressed in the current text. Earlier text used 'equal to or more than' for the per-kg/per-litre/per-metre unit. Suggest treating exactly 1 as per-kg/per-l/per-m (or configurable)."
+    },
+
+    {
+      "id": "LM-7-1", "rule_ref": "Rule 7(1)", "chapter": "II", "category": "pdp", "severity": "conditional",
+      "title": "Tiny packages (capacity <= 10 cm3): PDP may be a card or tape firmly affixed",
+      "applies_when": {"field": "package.capacity_cm3", "op": "lte", "value": 10},
+      "check": {"field": "label.pdp_is_card_or_tape_firmly_affixed", "op": "eq", "value": true},
+      "notes": "Was '5 cubic cm' before GSR 385(E) of 14-05-2015."
+    },
+    {
+      "id": "LM-7-2", "rule_ref": "Rule 7(2) + Table-I", "chapter": "II", "category": "typography", "severity": "mandatory",
+      "title": "Minimum height of numerals and letters",
+      "description": "Height of any numeral and letter in the declarations must be at least the value from Table-I for the PDP area (use the 'blown/formed/molded' column where the information is blown, formed or molded on the container surface).",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"field": "label.numeral_height_mm", "op": "gte", "value_from": "lookup_tables.pdp_font_height_table_I"},
+      "notes": "Rule 7(5): sub-rules (1)-(4) do not apply where the same info is required by another law, EXCEPT the size of numbers/letters for net weight, retail sale price, expiry/best-before/use-by date and consumer care details, which must still meet Table-I."
+    },
+    {
+      "id": "LM-7-3", "rule_ref": "Rule 7(3)", "chapter": "II", "category": "typography", "severity": "mandatory",
+      "title": "Width of letter/numeral >= 1/3 of its height",
+      "description": "Exception: numeral '1' and letters 'i', 'I', 'l'.",
+      "check": {"field": "label.numeral_width_to_height_ratio", "op": "gte", "value": 0.3333},
+      "exempt_characters": ["1", "i", "I", "l"]
+    },
+    {
+      "id": "LM-7-4", "rule_ref": "Rule 7(4)", "chapter": "II", "category": "pdp", "severity": "mandatory",
+      "title": "How PDP area is to be computed",
+      "description": "See calculations.pdp_area. Top, bottom, flanges of cans and shoulders/necks of bottles and jars are excluded."
+    },
+
+    {
+      "id": "LM-8-1", "rule_ref": "Rule 8(1)", "chapter": "II", "category": "pdp", "severity": "mandatory",
+      "title": "All declarations on the principal display panel",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "retail"},
+      "check": {"field": "label.all_declarations_on_pdp", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-8-1-space", "rule_ref": "Rule 8(1) proviso", "chapter": "II", "category": "pdp", "severity": "mandatory",
+      "title": "Clear space around the net quantity declaration",
+      "description": "Area around the quantity declaration must be free of printed information: above and below by at least the numeral height; left and right by at least twice the numeral height.",
+      "check": {"all": [
+        {"field": "label.net_qty_clear_space_above_mm", "op": "gte", "value_from": "label.net_qty_numeral_height_mm"},
+        {"field": "label.net_qty_clear_space_below_mm", "op": "gte", "value_from": "label.net_qty_numeral_height_mm"},
+        {"field": "label.net_qty_clear_space_left_mm", "op": "gte", "value_from": "2 x label.net_qty_numeral_height_mm"},
+        {"field": "label.net_qty_clear_space_right_mm", "op": "gte", "value_from": "2 x label.net_qty_numeral_height_mm"}
+      ]}
+    },
+    {
+      "id": "LM-8-2", "rule_ref": "Rule 8(2)", "chapter": "II", "category": "pdp", "severity": "conditional",
+      "title": "Returnable soft-drink / RTS fruit-beverage bottles: RSP may be on crown cap or bottle",
+      "applies_when": {"field": "package.is_returnable_refillable_soft_drink_bottle", "op": "eq", "value": true},
+      "check": {"field": "label.mrp_location", "op": "in", "value": ["crown_cap", "bottle", "both"]},
+      "notes": "If RSP is on crown cap/bottle, the form 'MRP Rs..../₹.....' suffices."
+    },
+
+    {
+      "id": "LM-9-1-a", "rule_ref": "Rule 9(1)(a)", "chapter": "II", "category": "legibility", "severity": "mandatory",
+      "title": "Declarations must be legible and prominent",
+      "check": {"field": "label.declarations_legible_and_prominent", "op": "eq", "value": true},
+      "notes": "Hand-written/hand-scripted declarations must be clear, unambiguous and legible."
+    },
+    {
+      "id": "LM-9-1-b", "rule_ref": "Rule 9(1)(b)", "chapter": "II", "category": "legibility", "severity": "mandatory",
+      "title": "RSP and net quantity numerals in a colour contrasting with the background",
+      "applies_when": {"field": "package.is_blown_formed_or_molded_on_container", "op": "ne", "value": true},
+      "check": {"field": "label.mrp_and_net_qty_contrast_ok", "op": "eq", "value": true},
+      "notes": "Exempt where information is blown, formed or molded on a glass or plastic surface."
+    },
+    {
+      "id": "LM-9-2", "rule_ref": "Rule 9(2)", "chapter": "II", "category": "legibility", "severity": "prohibition",
+      "title": "No declaration that must be read through the liquid contents",
+      "check": {"field": "label.read_through_liquid_required", "op": "eq", "value": false}
+    },
+    {
+      "id": "LM-9-3", "rule_ref": "Rule 9(3)", "chapter": "II", "category": "outer_packaging", "severity": "conditional",
+      "title": "Outer container/wrapper must repeat all declarations",
+      "description": "Unless the outer wrapper is transparent and the declarations on the package are easily readable through it. No declarations are needed on the inner package if the outer package contains all declarations.",
+      "applies_when": {"field": "package.has_outer_container_or_wrapper", "op": "eq", "value": true},
+      "check": {"any": [
+        {"field": "package.outer_wrapper_transparent_and_inner_declarations_readable", "op": "eq", "value": true},
+        {"field": "label.outer_wrapper_has_all_declarations", "op": "eq", "value": true}
+      ]}
+    },
+    {
+      "id": "LM-9-4", "rule_ref": "Rule 9(4)", "chapter": "II", "category": "language", "severity": "mandatory",
+      "title": "Declarations in Hindi (Devanagari) or English",
+      "description": "Any other language may be used in addition to Hindi or English.",
+      "check": {"field": "label.languages", "op": "contains_any", "value": ["Hindi (Devanagari)", "English"]}
+    },
+
+    {
+      "id": "LM-10-1", "rule_ref": "Rule 10(1)", "chapter": "II", "category": "identity", "severity": "mandatory",
+      "title": "Name and complete address borne conspicuously on every package kept, offered or sold",
+      "description": "Name and complete address of the manufacturer; if manufacturer is not the packer, of both; for imported packages, of the importer.",
+      "check": {"all": [{"field": "label.manufacturer_name", "op": "exists"}, {"field": "label.address_is_complete", "op": "eq", "value": true}]}
+    },
+    {
+      "id": "LM-10-1-addr", "rule_ref": "Rule 10 Explanation 1 (GSR 385(E), 629(E))", "chapter": "II", "category": "identity", "severity": "mandatory",
+      "title": "'Complete address' definition",
+      "description": "Postal address at which the factory is situated or the company/firm is registered; in any other case: street name, number (if any) assigned to premises, city and State where business is carried on, and PIN code - so a consumer can identify and locate the manufacturer/packer/importer.",
+      "check": {"any": [
+        {"all": [{"field": "label.address_is_factory_or_registered_postal_address", "op": "eq", "value": true}]},
+        {"all": [{"field": "label.address_street", "op": "exists"}, {"field": "label.address_city", "op": "exists"}, {"field": "label.address_state", "op": "exists"}, {"field": "label.address_pin", "op": "matches", "value": "^[1-9][0-9]{5}$"}]}
+      ]}
+    },
+    {
+      "id": "LM-10-1-small", "rule_ref": "Rule 10(1) first proviso", "chapter": "II", "category": "identity", "severity": "permissive",
+      "title": "Packages <= 10 cm3: a mark or inscription enabling identification of manufacturer/packer/importer is sufficient",
+      "applies_when": {"field": "package.capacity_cm3", "op": "lte", "value": 10}
+    },
+    {
+      "id": "LM-10-1-packedindia", "rule_ref": "Rule 10(1) second proviso", "chapter": "II", "category": "identity", "severity": "conditional",
+      "title": "Made outside India, packed in India: PDP must show name and complete address of Indian packer/importer",
+      "applies_when": {"field": "package.is_made_outside_india_and_packed_in_india", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.indian_packer_or_importer_name_on_pdp", "op": "eq", "value": true}, {"field": "label.indian_packer_or_importer_address_on_pdp", "op": "eq", "value": true}]}
+    },
+    {
+      "id": "LM-10-2", "rule_ref": "Rule 10(2)", "chapter": "II", "category": "identity", "severity": "mandatory",
+      "title": "Actual corporate name (or business name if not incorporated)",
+      "check": {"field": "label.name_is_actual_corporate_or_business_name", "op": "eq", "value": true}
+    },
+
+    {
+      "id": "LM-11-1", "rule_ref": "Rule 11(1)", "chapter": "II", "category": "quantity", "severity": "mandatory",
+      "title": "Net quantity excludes wrappers and other materials",
+      "check": {"field": "label.net_quantity_excludes_packaging", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-11-2-3", "rule_ref": "Rule 11(2)-(3)", "chapter": "II", "category": "quantity", "severity": "prohibition",
+      "title": "'When packed' not allowed where no significant variation due to environmental conditions",
+      "description": "Declared quantity must equal what the consumer receives. For commodities with only negligible variation, declaration must account for it so the consumer gets not less than declared; no 'when packed' qualifier.",
+      "applies_when": {"field": "package.commodity_not_in_third_schedule", "op": "eq", "value": true},
+      "check": {"field": "label.when_packed_qualifier_present", "op": "eq", "value": false}
+    },
+    {
+      "id": "LM-11-4", "rule_ref": "Rule 11(4) + Third Schedule", "chapter": "II", "category": "quantity", "severity": "permissive",
+      "title": "'When packed' qualifier permitted only for Third Schedule commodities",
+      "check": {"field": "package.commodity", "op": "in", "value_from": "lookup_tables.third_schedule_when_packed"}
+    },
+
+    {
+      "id": "LM-12-1-2", "rule_ref": "Rule 12(1)-(2)", "chapter": "II", "category": "quantity", "severity": "mandatory",
+      "title": "Quantity expressed in the right kind of unit",
+      "description": "Mass for solid/semi-solid/viscous/solid-liquid mixtures; length if sold by linear measure; area if sold by area; volume if liquid or sold by cubic measure; number if sold by number. Exceptions in the Fourth Schedule.",
+      "check": {"field": "label.net_quantity_basis", "op": "eq", "value_from": "lookup_tables.quantity_basis_by_commodity_state_or_fourth_schedule"}
+    },
+    {
+      "id": "LM-12-3", "rule_ref": "Rule 12(3)", "chapter": "II", "category": "quantity", "severity": "permissive",
+      "title": "Optional additional count declaration when quantity is in mass"
+    },
+    {
+      "id": "LM-12-4", "rule_ref": "Rule 12(4)", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Add dimensions/number where weight/measure is not sufficient",
+      "applies_when": {"field": "package.is_dimension_relevant_commodity", "op": "eq", "value": true},
+      "check": {"field": "label.dimensions_or_number_declared", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-12-5", "rule_ref": "Rule 12(5)", "chapter": "II", "category": "pdp", "severity": "mandatory",
+      "title": "Additional information about the commodity must be on the same panel as required declarations",
+      "check": {"field": "label.additional_info_on_same_panel_as_required_info", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-12-6", "rule_ref": "Rule 12(6) (GSR 784(E), 24-10-2011)", "chapter": "II", "category": "quantity", "severity": "prohibition",
+      "title": "No exaggerated, misleading or inadequate expression of quantity",
+      "description": "Words of any sort that create or are likely to create an exaggerated, misleading or inadequate impression of quantity are prohibited (earlier examples: minimum, not less than, average, about, approximately).",
+      "check": {"field": "label.misleading_quantity_words_present", "op": "eq", "value": false},
+      "blocked_terms_examples": ["minimum", "not less than", "average", "about", "approximately", "net approx", "min."]
+    },
+    {
+      "id": "LM-12-7", "rule_ref": "Rule 12(7)", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Packages <= 10 cm3: quantity on a tag/card/tape bearing a mark identifying manufacturer/packer",
+      "applies_when": {"field": "package.capacity_cm3", "op": "lte", "value": 10},
+      "check": {"all": [{"field": "label.quantity_on_affixed_tag_card_or_tape", "op": "eq", "value": true}, {"field": "label.tag_has_manufacturer_or_packer_mark", "op": "eq", "value": true}]}
+    },
+
+    {
+      "id": "LM-13-2-3", "rule_ref": "Rule 13(2)-(3)", "chapter": "II", "category": "units", "severity": "mandatory",
+      "title": "Unit of weight/measure by magnitude",
+      "description": "See lookup_tables.units_by_magnitude. Fractions at or above the threshold are expressed as decimals of the larger unit (or in smaller units, e.g. 1.5 kg or 1 kg 500 g). Exactly one kg/m/m2/dm3/m3/l may be expressed in the smaller unit at the option of the manufacturer/packer/importer.",
+      "check": {"field": "label.net_quantity_declared_unit", "op": "eq", "value_from": "lookup_tables.units_by_magnitude"}
+    },
+    {
+      "id": "LM-13-4", "rule_ref": "Rule 13(4)", "chapter": "II", "category": "units", "severity": "prohibition",
+      "title": "No dozen, score, gross, great gross or the like",
+      "check": {"field": "label.net_quantity_text", "op": "not_contains_any", "value": ["dozen", "score", "gross", "great gross"]}
+    },
+    {
+      "id": "LM-13-5-i", "rule_ref": "Rule 13(5)(i)", "chapter": "II", "category": "units", "severity": "prohibition",
+      "title": "Only International System of Units (SI) permitted for net quantity",
+      "check": {"field": "label.net_quantity_declared_unit", "op": "not_in", "value": ["oz", "lb", "fl oz", "pint", "gallon", "inch", "foot", "yard", "seer", "tola"]}
+    },
+    {
+      "id": "LM-13-5-ii", "rule_ref": "Rule 13(5)(ii) (GSR 779(E) series)", "chapter": "II", "category": "units", "severity": "conditional",
+      "title": "Items sold by number: state the number with 'number', 'unit', 'piece', 'pair', 'set' or similar word",
+      "applies_when": {"field": "package.net_quantity_basis", "op": "eq", "value": "number"},
+      "check": {"field": "label.net_quantity_declared_unit", "op": "in", "value": ["number", "unit", "piece", "pair", "set"]},
+      "notes": "'L' may be used as the symbol for litre to avoid confusion with 'I' or '1' (Explanation, GSR 385(E))."
+    },
+    {
+      "id": "LM-13-6", "rule_ref": "Rule 13(6)", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Multiple packages of the same commodity inside a pre-package: supplementary declaration",
+      "description": "State number of packages and quantity of each (e.g. 10 number x 10 g for 100 g).",
+      "applies_when": {"field": "package.is_multi_pack_of_same_commodity", "op": "eq", "value": true},
+      "check": {"field": "label.supplementary_count_x_unit_quantity_declared", "op": "eq", "value": true}
+    },
+
+    {
+      "id": "LM-14", "rule_ref": "Rule 14", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Made-up textile items (bed-sheets, hemmed fabric, dhotis, sarees, napkins, pillow-covers, towels, table cloths, etc.)",
+      "description": "Declare number and finished-size dimensions. If the package contains pieces of different dimensions, declare dimensions and RSP of each piece; dimensions and sale price must also be marked on each individual piece.",
+      "applies_when": {"field": "package.is_made_up_textile_item", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.number_of_pieces", "op": "exists"}, {"field": "label.finished_size_dimensions", "op": "exists"}, {"field": "label.mrp_per_piece_and_dimensions_marked_on_each_piece", "op": "eq", "value": true}]}
+    },
+    {
+      "id": "LM-15", "rule_ref": "Rule 15", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Where dimensions/weight relate to price, declaration of quantity must include them",
+      "applies_when": {"field": "package.dimensions_or_weight_relate_to_price", "op": "eq", "value": true},
+      "check": {"field": "label.dimensions_weight_or_combination_declared", "op": "eq", "value": true}
+    },
+    {
+      "id": "LM-16", "rule_ref": "Rule 16", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Sheet-type commodities (aluminium foil, tissues, waxed paper, toilet paper, etc.)",
+      "description": "Declare number of usable sheets and dimensions of each sheet.",
+      "applies_when": {"field": "package.is_sheet_type_commodity", "op": "eq", "value": true},
+      "check": {"all": [{"field": "label.number_of_usable_sheets", "op": "exists"}, {"field": "label.sheet_dimensions", "op": "exists"}]}
+    },
+    {
+      "id": "LM-17", "rule_ref": "Rule 17", "chapter": "II", "category": "quantity", "severity": "conditional",
+      "title": "Container-type commodities (bags, boxes, cups, pans, etc.)",
+      "description": "(i) bags: number of bags + linear dimensions; (ii) square/oblong/rectangular containers: number + length, width and (if required) depth; (iii) circular/round containers (not cups): number + diameter and (if necessary) depth; (iv) if label references relate to capacity to hold a standard weight/measure of a commodity, include that reference in the quantity declaration.",
+      "applies_when": {"field": "package.is_container_type_commodity", "op": "eq", "value": true},
+      "check": {"field": "label.container_count_and_dimensions_declared", "op": "eq", "value": true}
+    },
+
+    {
+      "id": "LM-18-1", "rule_ref": "Rule 18(1)", "chapter": "II", "category": "dealer_conduct", "severity": "prohibition",
+      "title": "Dealers/importers must not sell, distribute, deliver, display or store non-compliant packages",
+      "description": "Applies to wholesale dealer, retail dealer and importer. Wholesale dealers may sell pre-packaged commodities directly to industrial and institutional consumers (Rule 18(1A))."
+    },
+    {
+      "id": "LM-18-2", "rule_ref": "Rule 18(2)", "chapter": "II", "category": "dealer_conduct", "severity": "prohibition",
+      "title": "No sale above the retail sale price",
+      "applies_to": ["retail dealer", "manufacturer", "packer", "importer", "wholesale dealer"],
+      "check": {"field": "sale.price", "op": "lte", "value_from": "label.mrp_value"}
+    },
+    {
+      "id": "LM-18-2A", "rule_ref": "Rule 18(2A)", "chapter": "II", "category": "dealer_conduct", "severity": "prohibition",
+      "title": "No different MRPs on an identical pre-packaged commodity via restrictive/unfair trade practices",
+      "description": "Unless otherwise provided under another law, no manufacturer/packer/importer may declare different MRPs on an identical pre-packaged commodity by restrictive or unfair trade practices as defined in s.2(41) and s.2(47) of the Consumer Protection Act, 2019."
+    },
+    {
+      "id": "LM-18-3", "rule_ref": "Rule 18(3)-(4)", "chapter": "II", "category": "dealer_conduct", "severity": "conditional",
+      "title": "Tax revision after pre-packing",
+      "description": "Retail price cannot exceed the revised RSP communicated by the manufacturer/packer. The difference between marked and revised price must not exceed the tax increase (or fresh tax). Manufacturer/packer must advertise the revised prices in at least two newspaper advertisements and notify dealers and the Director/Controllers (newspaper publication not required for State-law tax changes). Revised prices apply only to packages pre-packed in the month of revision or the month after. If the revised price is LOWER, no price above the revised price may be charged irrespective of pre-pack month. Does not apply to packages not required to show month/year of pre-packing."
+    },
+    {
+      "id": "LM-18-5", "rule_ref": "Rule 18(5)", "chapter": "II", "category": "dealer_conduct", "severity": "prohibition",
+      "title": "No obliterating, smudging or altering the RSP marked by the manufacturer/packer/importer"
+    },
+    {
+      "id": "LM-18-6", "rule_ref": "Rule 18(6)", "chapter": "II", "category": "dealer_conduct", "severity": "prohibition",
+      "title": "Manufacturer/packer/importer must not alter price on a wrapper once printed and used for packing"
+    },
+    {
+      "id": "LM-18-7", "rule_ref": "Rule 18(7)", "chapter": "II", "category": "dealer_conduct", "severity": "conditional",
+      "title": "Retailers under GST dealing in weight/volume packages must maintain a customer-check electronic weighing machine",
+      "description": "Accuracy class III, smallest division at least 1 g, able to print a receipt (gross quantity, price etc.), placed prominently, free of cost to consumers."
+    },
+    {
+      "id": "LM-18-8", "rule_ref": "Rule 18(8)", "chapter": "II", "category": "dealer_conduct", "severity": "conditional",
+      "title": "LPG cylinders: check weigher and delivery-person weighing facility",
+      "description": "Marketing companies, manufacturers, packers, importers and distributors must keep a digital/analogue check weigher of Accuracy class III (Max 50 kg, e=10 g) and provide the delivery man with means to measure or weigh the cylinder."
+    },
+
+    {
+      "id": "LM-23", "rule_ref": "Rule 23", "chapter": "II", "category": "deceptive_package", "severity": "prohibition",
+      "title": "Deceptive packages",
+      "description": "A package that is designed to deliberately give an exaggerated or misleading impression of quantity is deceptive even if declared quantity is correct; it must be repacked/relabelled or is liable to seizure. Bigger dimensions are acceptable if justified as necessary for protection of the commodity or machine filling requirements.",
+      "check": {"any": [{"field": "package.slack_fill_deliberate_misleading", "op": "eq", "value": false}, {"field": "package.oversize_justified_for_protection_or_filling_machine", "op": "eq", "value": true}]}
+    },
+
+    {
+      "id": "LM-24", "rule_ref": "Rule 24", "chapter": "III", "category": "wholesale", "severity": "mandatory",
+      "title": "Wholesale package declarations",
+      "description": "Every wholesale package must bear a legible, definite, plain and conspicuous declaration of: (a) name and address of manufacturer or importer (or of the packer if the manufacturer/importer is not the packer); (b) identity of the commodity; (c) total number of retail packages in it OR net quantity in standard units of weight/measure/number. Not applicable where a similar declaration is required by other law.",
+      "applies_when": {"field": "package.package_type", "op": "eq", "value": "wholesale"},
+      "check": {"all": [
+        {"field": "label.manufacturer_or_importer_or_packer_name", "op": "exists"},
+        {"field": "label.manufacturer_or_importer_or_packer_address", "op": "exists"},
+        {"field": "label.commodity_identity", "op": "exists"},
+        {"any": [{"field": "label.number_of_retail_packages", "op": "exists"}, {"field": "label.net_quantity_declared_value", "op": "exists"}]}
+      ]}
+    },
+
+    {
+      "id": "LM-25", "rule_ref": "Rule 25", "chapter": "IV", "category": "export", "severity": "prohibition",
+      "title": "Export packages must not be sold in India unless re-packed/re-labelled per Chapter II",
+      "applies_when": {"field": "package.is_export_package", "op": "eq", "value": true},
+      "check": {"field": "package.repacked_or_relabelled_per_chapter_II", "op": "eq", "value": true},
+      "consequence": "Liable to seizure under the Act"
+    },
+
+    {
+      "id": "LM-27", "rule_ref": "Rule 27", "chapter": "VI", "category": "registration", "severity": "mandatory",
+      "title": "Registration of manufacturers, packers and importers",
+      "description": "Every individual, firm, HUF, society, company or corporation that pre-packs or imports any commodity for sale/distribution/delivery must apply to the Director/Controller (fee Rs. 500) within 90 days of commencing pre-packing/importing. Application contains: name; complete address of the premises; name of commodities pre-packed/imported. Alteration of certificate: fee Rs. 100. Incomplete applications are returned within 7 working days.",
+      "check": {"field": "entity.legal_metrology_registration_number", "op": "exists"},
+      "fees_inr": {"registration": 500, "alteration": 100},
+      "deadline_days_from_commencement": 90
+    },
+    {
+      "id": "LM-28", "rule_ref": "Rule 28", "chapter": "VI", "category": "registration", "severity": "permissive",
+      "title": "A registered shorter address may be used on labels",
+      "check": {"field": "label.address_matches_registered_shorter_address", "op": "eq", "value": true}
+    },
+
+    {
+      "id": "LM-31", "rule_ref": "Rule 31", "chapter": "VII", "category": "advertisement", "severity": "conditional",
+      "title": "Advertisements mentioning RSP must state net quantity/number in the same font size as the RSP",
+      "applies_when": {"field": "advertisement.mentions_retail_sale_price", "op": "eq", "value": true},
+      "check": {"all": [{"field": "advertisement.net_quantity_declared", "op": "eq", "value": true}, {"field": "advertisement.net_quantity_font_size", "op": "eq", "value_from": "advertisement.rsp_font_size"}]}
+    }
+  ],
+
+  "inspection_and_quantity_testing": {
+    "rule_refs": ["Rules 19-22", "Fifth Schedule", "Sixth Schedule"],
+    "lot_approval_criteria": {
+      "rule_ref": "Rule 19(6) (GSR 629(E))",
+      "all_of": [
+        "corrected average net quantity of sample >= declared net quantity",
+        "number of packages with deficiency error > MPE is <= value in column 4 of the Fifth Schedule table",
+        "no package has deficiency error > 2 x MPE",
+        "every package bears the required declarations"
+      ],
+      "formulas": {
+        "mean": "x_bar = sum(x_i) / n",
+        "standard_deviation": "sigma = sqrt( (1/(n-1)) * sum( (x_i - x_bar)^2 ) )",
+        "corrected_average": "X_c = x_bar + (sigma * C), where C is the correction factor from the Fifth Schedule"
+      }
+    },
+    "actions_on_non_compliance": {
+      "rule_ref": "Rule 20",
+      "triggers": [
+        "corrected average < declared quantity",
+        "number of packages exceeding MPE > column 4 limit",
+        "any package error in deficiency > 2 x MPE",
+        "any package lacks required declarations"
+      ],
+      "actions": ["seize the sample packages and keep them safe until produced in court as evidence", "initiate action under the Act and Rules", "seized packages disposed per Code of Criminal Procedure, 1973"],
+      "rule_19_7_8": "Mandatory declarations are ensured at factory level and at the depot of the factory. Action may be taken after seizing five representative samples; the rest may be released only after the manufacturer/packer completes compliance."
+    },
+    "retail_wholesale_premises_testing": {
+      "rule_ref": "Rule 21",
+      "ordinarily_no_testing_unless": "complaint received that a package was tampered with/pilfered/leaked or lacks declarations",
+      "deficiency_beyond_MPE": "seize package and act against dealer; no punitive action against dealer if package carries 'when packed' and deficiency is proved to be due to environmental conditions",
+      "deficiency_within_MPE": "dealer may sell at price based on quantity found on test"
+    }
+  },
+
+  "lookup_tables": {
+    "pdp_font_height_table_I": {
+      "rule_ref": "Rule 7(2), Table-I (GSR 629(E), corrected by GSR 1373(E))",
+      "unit": "mm",
+      "rows": [
+        {"pdp_area_cm2": {"min_exclusive": null, "max_inclusive": 50}, "min_height_normal_mm": 1.0, "min_height_blown_formed_or_molded_mm": 2.0},
+        {"pdp_area_cm2": {"min_exclusive": 50, "max_inclusive": 100}, "min_height_normal_mm": 1.5, "min_height_blown_formed_or_molded_mm": 3.0},
+        {"pdp_area_cm2": {"min_exclusive": 100, "max_inclusive": 500}, "min_height_normal_mm": 2.5, "min_height_blown_formed_or_molded_mm": 4.0},
+        {"pdp_area_cm2": {"min_exclusive": 500, "max_inclusive": 2500}, "min_height_normal_mm": 4.0, "min_height_blown_formed_or_molded_mm": 6.0},
+        {"pdp_area_cm2": {"min_exclusive": 2500, "max_inclusive": null}, "min_height_normal_mm": 6.0, "min_height_blown_formed_or_molded_mm": 6.0}
+      ]
+    },
+
+    "mpe_weight_volume_first_schedule_table_I": {
+      "rule_ref": "First Schedule para 1, Table-I",
+      "note": "Applies to quantities declared by weight (g) or volume (ml). Each band gives EITHER a percentage of declared quantity OR an absolute value in g/ml. MPE applies in excess or in deficiency in the schedule; Rule 2(e) treats it as error in deficiency. Band boundaries as printed (e.g. 50, 100, 200) are shared between adjacent rows - treat lower bound as exclusive and upper bound as inclusive, and verify against the gazette.",
+      "rounding": "Percentage-based MPE is rounded off to nearest 0.1 g/ml for declared quantity <= 1000 g/ml, and to the next whole g/ml for declared quantity > 1000 g/ml.",
+      "rows": [
+        {"declared_g_or_ml": {"from_exclusive": 0, "to_inclusive": 50}, "mpe_percent": 9, "mpe_absolute_g_or_ml": null},
+        {"declared_g_or_ml": {"from_exclusive": 50, "to_inclusive": 100}, "mpe_percent": null, "mpe_absolute_g_or_ml": 4.5},
+        {"declared_g_or_ml": {"from_exclusive": 100, "to_inclusive": 200}, "mpe_percent": 4.5, "mpe_absolute_g_or_ml": null},
+        {"declared_g_or_ml": {"from_exclusive": 200, "to_inclusive": 300}, "mpe_percent": null, "mpe_absolute_g_or_ml": 9},
+        {"declared_g_or_ml": {"from_exclusive": 300, "to_inclusive": 500}, "mpe_percent": 3, "mpe_absolute_g_or_ml": null},
+        {"declared_g_or_ml": {"from_exclusive": 500, "to_inclusive": 1000}, "mpe_percent": null, "mpe_absolute_g_or_ml": 15},
+        {"declared_g_or_ml": {"from_exclusive": 1000, "to_inclusive": 10000}, "mpe_percent": 1.5, "mpe_absolute_g_or_ml": null},
+        {"declared_g_or_ml": {"from_exclusive": 10000, "to_inclusive": 15000}, "mpe_percent": null, "mpe_absolute_g_or_ml": 150},
+        {"declared_g_or_ml": {"from_exclusive": 15000, "to_inclusive": null}, "mpe_percent": 1.0, "mpe_absolute_g_or_ml": null}
+      ]
+    },
+
+    "mpe_length_area_number_first_schedule_table_II": {
+      "rule_ref": "First Schedule para 2, Table-II",
+      "rows": [
+        {"basis": "length", "mpe": "2% of declared quantity up to 10 m, and thereafter 1% of declared quantity"},
+        {"basis": "area", "mpe": "4% of declared quantity up to 10 sq. m, and thereafter 1% of declared quantity"},
+        {"basis": "number", "mpe": "2% of declared quantity"}
+      ],
+      "structured": [
+        {"basis": "length", "threshold": 10, "threshold_unit": "m", "percent_up_to_threshold": 2, "percent_beyond_threshold": 1},
+        {"basis": "area", "threshold": 10, "threshold_unit": "m2", "percent_up_to_threshold": 4, "percent_beyond_threshold": 1},
+        {"basis": "number", "threshold": null, "percent_up_to_threshold": 2, "percent_beyond_threshold": 2}
+      ],
+      "note": "The source says 'thereafter 1%'; whether this applies to the whole quantity or only the excess over the threshold is not stated. Confirm with Legal Metrology authority before hard-coding."
+    },
+
+    "fifth_schedule_sampling_plan": {
+      "rule_ref": "Fifth Schedule (GSR 629(E))",
+      "rows": [
+        {"lot_size_min": 100, "lot_size_max": 500, "sample_size_n": 50, "correction_factor_C": 0.379, "max_packages_with_error_gt_MPE_but_lt_2xMPE": 3},
+        {"lot_size_min": 501, "lot_size_max": 3200, "sample_size_n": 80, "correction_factor_C": 0.295, "max_packages_with_error_gt_MPE_but_lt_2xMPE": 5},
+        {"lot_size_min": 3201, "lot_size_max": null, "sample_size_n": 125, "correction_factor_C": 0.234, "max_packages_with_error_gt_MPE_but_lt_2xMPE": 7}
+      ],
+      "sampling_notes": [
+        "Samples selected at random from every lot; for stored lots, pick from top, bottom, centre, right, left, front and rear so the sample represents the lot.",
+        "For packages being filled, pick from already-filled packages, or feed marked tare-weighed empty containers into the packing line at random."
+      ]
+    },
+
+    "unit_sale_price_units": {
+      "rule_ref": "Rule 6(11)",
+      "rows": [
+        {"net_quantity_basis": "mass", "condition": "net quantity < 1 kg", "usp_unit": "per g"},
+        {"net_quantity_basis": "mass", "condition": "net quantity >= 1 kg", "usp_unit": "per kg"},
+        {"net_quantity_basis": "length", "condition": "net length < 1 m", "usp_unit": "per cm"},
+        {"net_quantity_basis": "length", "condition": "net length >= 1 m", "usp_unit": "per m"},
+        {"net_quantity_basis": "volume", "condition": "net volume < 1 l", "usp_unit": "per ml"},
+        {"net_quantity_basis": "volume", "condition": "net volume >= 1 l", "usp_unit": "per l"},
+        {"net_quantity_basis": "number", "condition": "any", "usp_unit": "per number / per unit"}
+      ],
+      "boundary_note": "Current text says 'more than one' for the larger unit; superseded text said 'equal or more'. Exactly 1 kg/m/l is treated here as the larger unit."
+    },
+
+    "units_by_magnitude": {
+      "rule_ref": "Rule 13(2)-(3)",
+      "rows": [
+        {"basis": "mass", "less_than": "1 kg", "unit": "g", "at_or_above": "1 kg", "unit_at_or_above": "kg"},
+        {"basis": "length", "less_than": "1 m", "unit": "cm", "at_or_above": "1 m", "unit_at_or_above": "m"},
+        {"basis": "area", "less_than": "1 m2", "unit": "dm2", "at_or_above": "1 m2", "unit_at_or_above": "m2"},
+        {"basis": "volume (cubic measure)", "less_than": "1 m3", "unit": "cm3", "at_or_above": "1 m3", "unit_at_or_above": "m3"},
+        {"basis": "volume (cubic measure)", "less_than": "1 dm3", "unit": "cm3", "at_or_above": "1 dm3", "unit_at_or_above": "dm3 (see Rule 13(3) proviso)"},
+        {"basis": "volume (liquid)", "less_than": "1 l", "unit": "ml", "at_or_above": "1 l", "unit_at_or_above": "l"}
+      ],
+      "proviso": "Where the quantity is exactly 1 kg / 1 m / 1 m2 / 1 dm3 / 1 m3 / 1 l it may be expressed in g / cm / dm2 / cm3 / dm3 / ml respectively at the option of manufacturer/packer/importer."
+    },
+
+    "third_schedule_when_packed": {
+      "rule_ref": "Third Schedule (See Rule 11(4))",
+      "description": "Commodities sold by weight/volume whose quantity declaration may be qualified by 'When packed'",
+      "commodities": ["All kinds of soaps", "Lotions", "Cream (other than cream of milk)", "Camphor"]
+    },
+
+    "fourth_schedule_quantity_expression": {
+      "rule_ref": "Fourth Schedule (See Rule 12(2))",
+      "description": "Commodities that may be sold by weight, measure or number as shown (exceptions to Rule 12(2) default).",
+      "rows": [
+        {"sl": 1, "commodity": "Aerosol products", "declared_in": ["weight"]},
+        {"sl": 2, "commodity": "Acids in liquid form", "declared_in": ["weight", "volume"]},
+        {"sl": 3, "commodity": "Compressed or liquefied gas (not LPG)", "declared_in": ["weight and equivalent volume at stated temperature and pressure"]},
+        {"sl": 4, "commodity": "Curd", "declared_in": ["weight"]},
+        {"sl": 5, "commodity": "Electric cables", "declared_in": ["length", "weight"]},
+        {"sl": 6, "commodity": "Electric wire", "declared_in": ["length", "weight"]},
+        {"sl": 7, "commodity": "Fencing wire", "declared_in": ["number", "weight"]},
+        {"sl": 8, "commodity": "Fruits, all kinds", "declared_in": ["number", "weight"]},
+        {"sl": 9, "commodity": "Furnace oil", "declared_in": ["weight", "volume"]},
+        {"sl": 10, "commodity": "Non-edible vegetable oil", "declared_in": ["weight", "volume"]},
+        {"sl": 11, "commodity": "Edible oil, vanaspati, ghee and butter oil", "declared_in": ["weight", "volume"], "extra": "If net quantity is declared by volume, it shall also be declared by weight"},
+        {"sl": 12, "commodity": "Heavy residual fuel oil", "declared_in": ["weight"]},
+        {"sl": 13, "commodity": "Industrial diesel fuel", "declared_in": ["volume"]},
+        {"sl": 14, "commodity": "Honey, malt-extract, golden syrup treacle", "declared_in": ["weight"]},
+        {"sl": 15, "commodity": "Ice cream and other similar frozen products", "declared_in": ["weight", "volume"], "extra": "'Weight or volume' per GSR 426(E) of 05-06-2012 / GSR 722(E)"},
+        {"sl": 16, "commodity": "Liquid chemicals", "declared_in": ["weight", "volume"]},
+        {"sl": 17, "commodity": "Liquefied petroleum gas", "declared_in": ["weight"]},
+        {"sl": 18, "commodity": "Nails, wood screws", "declared_in": ["number", "weight"]},
+        {"sl": 19, "commodity": "Paints other than paste/solid paint; varnish; varnish stains; enamels", "declared_in": ["volume"]},
+        {"sl": 20, "commodity": "Paste paint, solid paint", "declared_in": ["weight"]},
+        {"sl": 21, "commodity": "Rasgulla, Gulabjamun and other sweet preparations", "declared_in": ["weight"]},
+        {"sl": 22, "commodity": "Ready-made garments", "declared_in": ["number"]},
+        {"sl": 23, "commodity": "Sauces, all kinds", "declared_in": ["weight"]},
+        {"sl": 24, "commodity": "Tyres and tubes", "declared_in": ["number"]},
+        {"sl": 25, "commodity": "Yarn", "declared_in": ["weight", "length of yarn"]},
+        {"sl": 26, "commodity": "Cosmetics including creams, shampoo, lotions and perfumes", "declared_in": ["weight", "measure"]}
+      ]
+    },
+
+    "second_schedule_standard_pack_sizes": {
+      "status": "OMITTED / NOT IN FORCE",
+      "note": "Rule 5 and the Second Schedule (standard pack sizes for baby food, biscuits, tea, coffee, edible oils, soaps, aerated drinks, packaged drinking water, cement, paints, etc.) were omitted w.e.f. 01-01-2024. Do not enforce."
+    }
+  },
+
+  "calculations": {
+    "pdp_area": {
+      "rule_ref": "Rule 7(4)",
+      "excludes": ["top", "bottom", "flange at top and bottom of cans", "shoulders and neck of bottles and jars"],
+      "methods": [
+        {"shape": "rectangular", "condition": "one entire side can properly be treated as the PDP", "formula": "height x width of that side"},
+        {"shape": "cylindrical or nearly cylindrical", "formula": "0.40 x height x circumference"},
+        {"shape": "other", "formula": "0.40 x total surface area of the package, or the area considered to be the PDP"}
+      ]
+    },
+    "maximum_permissible_error": {
+      "weight_volume": "Look up band in lookup_tables.mpe_weight_volume_first_schedule_table_I; if mpe_percent: MPE = declared * percent / 100, rounded per rounding rule; else MPE = absolute value.",
+      "length_area_number": "Use lookup_tables.mpe_length_area_number_first_schedule_table_II."
+    },
+    "package_level_deficiency": {
+      "error_in_deficiency": "declared_net_quantity - actual_net_quantity (if positive)",
+      "flag_gt_MPE": "error_in_deficiency > MPE",
+      "flag_gt_2x_MPE": "error_in_deficiency > 2 x MPE"
+    },
+    "lot_level": "Use inspection_and_quantity_testing.lot_approval_criteria with the Fifth Schedule plan.",
+    "tare_weight_procedure_sixth_schedule": {
+      "if_tare_weight_le_0_3_x_MPE": "Use single tare for all samples.",
+      "else": "Weigh 5 tare packages; if (max tare - min tare) <= 0.4 x MPE use the mean tare; otherwise open and weigh every sampled package (Sixth Schedule para 3(4)) or use marked empty containers fed through the packing line (para 3(5)).",
+      "liquids_by_volume": "If specific gravity is sufficiently constant, use weight method; otherwise pour contents into a suitable volume measure (para 4)."
+    }
+  },
+
+  "penalties": {
+    "rule_32_general": {"rule_ref": "Rule 32 (GSR 629(E))", "text": "Whoever contravenes any provision of these Rules for which no punishment is provided shall be punished with fine of Rs. 5,000", "fine_inr": 5000},
+    "rule_32A_compounding": {
+      "rule_ref": "Rule 32A",
+      "amounts_inr": [
+        {"offence": "Contravention of section 29 of the Act", "retailers_or_wholesale_dealers": 2000, "manufacturers_or_importers": 10000},
+        {"offence": "Contravention of section 36(1) of the Act", "retailers_or_wholesale_dealers": 5000, "manufacturers_or_importers": 25000},
+        {"offence": "Contravention of section 36(2) of the Act", "retailers_or_wholesale_dealers": 10000, "manufacturers_or_importers": 50000}
+      ]
+    },
+    "rule_33_relaxation": "Central Government may, after ascertaining genuineness, permit a manufacturer/packer to pack for sale for a reasonable period by relaxing one or more provisions with corrective measures."
+  },
+
+  "transitional_note": {
+    "no_prosecution_clause": "Per GSR 779(E) dated 02-11-2021 and its extensions up to GSR 714(E) dated 30-09-2023 (valid till 01-01-2024), no prosecution was to be initiated for declarations made under the amended Rules (changes to Rule 2(aa), 4, 5, 6(1)(d), 6(1)(e), 6(11), 13(5)(ii), 18(2A), 18(7)). That relief period has lapsed as of 01-01-2024."
+  }
+}

@@ -328,29 +328,36 @@
 <div class="lg:col-span-5 flex flex-col gap-6">
 <div class="bg-surface rounded-xl border border-outline-variant shadow-sm flex flex-col h-full">
 <div class="p-6 border-b border-outline-variant">
-<h2 class="text-headline-md font-headline-md text-primary mb-2">Compliance Checklist</h2>
-<p class="text-body-md text-on-surface-variant" id="checklist-intro">Every applicable Legal Metrology declaration check for this label, with its extracted value and reasoning.</p>
+<h2 class="text-headline-md font-headline-md text-primary mb-2">Canonical 75-Rule JSON Evaluation</h2>
+<p class="text-body-md text-on-surface-variant" id="checklist-intro">The JSON ruleset result is authoritative. Unknown evidence remains review-required; legacy profile findings are shown separately as reference only.</p>
+<details class="mt-4 mb-5 rounded-lg border border-outline-variant bg-surface-container-lowest p-4" id="canonical-json-details">
+<summary class="cursor-pointer font-semibold text-primary">Rule results, applicability, trace, and evidence</summary>
+<p class="text-body-md text-on-surface-variant mt-3" id="canonical-json-summary"></p>
+<ul class="mt-3 divide-y divide-outline-variant" id="canonical-json-rules"></ul>
+</details>
+<h3 class="text-body-lg font-body-lg font-bold text-primary mb-2">Legacy Profile Findings (Reference Only)</h3>
+<p class="text-body-md text-on-surface-variant" id="legacy-checklist-note">These compatibility field findings and counts do not determine the canonical JSON result.</p>
 <!-- Summary Bar -->
 <div class="mt-4 flex flex-wrap items-center gap-4 bg-surface-container-lowest p-3 rounded-lg border border-outline-variant">
 <div class="flex items-center gap-2">
 <div class="flex items-center justify-center w-12 h-12 rounded-full bg-secondary/10 text-secondary">
 <span class="text-headline-lg font-headline-lg" id="passed-count">0</span>
 </div>
-<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Passed</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Legacy Passed</div>
 </div>
 <div class="h-8 w-[1px] bg-outline-variant"></div>
 <div class="flex items-center gap-2">
 <div class="flex items-center justify-center w-12 h-12 rounded-full bg-error/10 text-error">
 <span class="text-headline-lg font-headline-lg" id="failed-count">0</span>
 </div>
-<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Non-Compliant</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Legacy Failed</div>
 </div>
 <div class="h-8 w-[1px] bg-outline-variant"></div>
 <div class="flex items-center gap-2">
 <div class="flex items-center justify-center w-12 h-12 rounded-full bg-tertiary-fixed-dim/10 text-tertiary-container">
 <span class="text-headline-lg font-headline-lg" id="review-count">0</span>
 </div>
-<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Needs Review</div>
+<div class="text-label-md text-on-surface-variant uppercase tracking-wider">Legacy Review</div>
 </div>
 <div class="hidden h-8 w-[1px] bg-outline-variant" id="na-divider"></div>
 <div class="hidden items-center gap-2" id="na-chip">
@@ -546,12 +553,32 @@
                 return;
             }
 
+            var jsonEvaluation = compliance.data_driven_evaluation;
+            var canonicalSummary = document.getElementById('canonical-json-summary');
+            var canonicalRulesList = document.getElementById('canonical-json-rules');
+            if (!jsonEvaluation || !Array.isArray(jsonEvaluation.rules)) {
+                canonicalSummary.textContent = 'Canonical JSON evaluation is unavailable for this older revision.';
+            } else {
+                var jsonCounts = (jsonEvaluation.summary && jsonEvaluation.summary.status_counts) || {};
+                canonicalSummary.textContent = 'Canonical result: ' + jsonEvaluation.overall_status + ' · ' + (jsonEvaluation.summary.total_rules_loaded || jsonEvaluation.rules.length) + ' rules loaded · PASS ' + (jsonCounts.PASS || 0) + ' · FAIL ' + (jsonCounts.FAIL || 0) + ' · REVIEW_REQUIRED ' + (jsonCounts.REVIEW_REQUIRED || 0) + ' · NOT_ASSESSED ' + (jsonCounts.NOT_ASSESSED || 0) + ' · NOT_APPLICABLE ' + (jsonCounts.NOT_APPLICABLE || 0) + '. NOT_ASSESSED is not a confirmed failure.';
+                canonicalRulesList.innerHTML = jsonEvaluation.rules.map(function (rule) {
+                    var traceItems = (rule.trace || []).map(function (trace) {
+                        var evidence = (trace.evidence || []).map(function (item) {
+                            return '<li>Evidence ' + LL.escapeHtml(item.evidence_id || '') + ': ' + LL.escapeHtml(item.source_text || 'source text unavailable') + ' · OCR confidence ' + LL.escapeHtml(item.ocr_confidence == null ? 'unavailable' : item.ocr_confidence) + ' · extraction confidence ' + LL.escapeHtml(item.extraction_confidence == null ? 'unavailable' : item.extraction_confidence) + '</li>';
+                        }).join('');
+                        return '<li class="py-2"><strong>' + LL.escapeHtml(trace.path || trace.field || 'Rule trace') + '</strong> · ' + LL.escapeHtml(trace.result || 'UNKNOWN') + ' · actual ' + LL.escapeHtml(trace.actual == null ? 'UNKNOWN' : JSON.stringify(trace.actual)) + ' · expected ' + LL.escapeHtml(trace.expected == null ? 'UNKNOWN' : JSON.stringify(trace.expected)) + (trace.detail ? '<br>' + LL.escapeHtml(trace.detail) : '') + (evidence ? '<ul class="list-disc pl-5 mt-1">' + evidence + '</ul>' : '') + '</li>';
+                    }).join('');
+                    var evidenceIds = (rule.evidence_ids || []).map(LL.escapeHtml).join(', ');
+                    return '<li class="py-4"><div class="flex flex-wrap items-baseline justify-between gap-2"><strong>' + LL.escapeHtml(rule.rule_id) + ' · ' + LL.escapeHtml(rule.title || rule.rule_name) + '</strong><span class="font-semibold">' + LL.escapeHtml(rule.status) + '</span></div><p class="text-label-md text-on-surface-variant">' + LL.escapeHtml(rule.rule_ref) + ' · ' + LL.escapeHtml(rule.category || '') + ' · ' + LL.escapeHtml(rule.severity) + ' · Applicability ' + LL.escapeHtml(rule.applicability) + '</p><p class="text-body-md mt-1">' + LL.escapeHtml(rule.explanation || '') + '</p>' + (evidenceIds ? '<p class="text-label-md mt-1">Evidence IDs: ' + evidenceIds + '</p>' : '') + (traceItems ? '<details class="mt-2"><summary class="cursor-pointer text-primary">Rule trace and source evidence</summary><ul class="mt-2">' + traceItems + '</ul></details>' : '') + '</li>';
+                }).join('');
+            }
+
             var checks = flattenChecks(compliance);
             var counts = { passed: 0, failed: 0, review: 0, notApplicable: 0 };
             checks.forEach(function (c) { counts[statusMeta(c.status).bucket] += 1; });
 
             var scoreText = (compliance.compliance_score === null || compliance.compliance_score === undefined) ? 'Not scored' : Math.round(compliance.compliance_score) + '%';
-            document.getElementById('report-subtitle').textContent = record.productName + ' - Version ' + record.version + ' \u2022 Score: ' + scoreText;
+            document.getElementById('report-subtitle').textContent = record.productName + ' - Version ' + record.version + ' \u2022 Canonical status: ' + compliance.overall_status + ' · Score: ' + scoreText;
             // Phase 1, Requirement 10: unconditional, backend-supplied
             // disclaimer - rendered verbatim via textContent, never
             // reworded/weakened here.
@@ -619,7 +646,7 @@
                 location.href = 'new-self-check.html?productId=' + encodeURIComponent(record.productId);
             });
 
-            if (compliance.overall_status === 'COMPLIANT') {
+            if (compliance.overall_status === 'PASS' || compliance.overall_status === 'COMPLIANT') {
                 var certBtn = document.createElement('button');
                 certBtn.className = 'bg-secondary-container text-on-secondary-container px-6 py-3 rounded-lg font-headline-md text-body-md font-semibold hover:bg-secondary-container/80 transition-colors shadow-sm flex items-center gap-2';
                 certBtn.innerHTML = '<span class="material-symbols-outlined">verified</span> View Compliance Certificate';
