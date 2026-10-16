@@ -71,20 +71,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure deployed frontend origins through FRONTEND_URL. Multiple origins
-# can be provided as a comma-separated list; localhost remains available for
-# local development.
+frontend_url = os.getenv(
+    "FRONTEND_URL",
+    "https://legallense-sih-frontend.vercel.app",
+).strip().rstrip("/")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        origin.strip().rstrip("/")
-        for origin in os.getenv("FRONTEND_URL", "").split(",")
-        if origin.strip()
+        frontend_url,
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
     ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True,
 )
 
 app.include_router(ocr_router)
