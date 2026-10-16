@@ -11,15 +11,10 @@
   var SESSION_KEY = "legallense_session_v1";
   var DEMO_KEY = "legallense_demo_session_v1";
 
-  // The backend is always reached on port 8000, but on WHICHEVER hostname
-  // this page itself was loaded from (localhost vs 127.0.0.1) - not
-  // hardcoded to one, because browsers treat those as different sites for
-  // SameSite cookie purposes. If this page is served from 127.0.0.1 while
-  // every API call hardcodes "localhost", the login session cookie gets set
-  // but then never sent back on the next request (SameSite=Lax blocks it
-  // cross-site), which looks exactly like "login succeeds but doesn't let
-  // you in". Matching the API host to the page's own host avoids that.
-  var API_ORIGIN = "http://" + (global.location.hostname || "localhost") + ":8000";
+  var isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(global.location.hostname);
+  var API_ORIGIN = isLocalHost
+    ? "http://" + global.location.hostname + ":8000"
+    : "https://legallens-lil2.onrender.com";
   global.LL_API_ORIGIN = API_ORIGIN;
 
   // ---------- Utilities ----------

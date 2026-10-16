@@ -402,7 +402,10 @@
     // /api/scans flow already uses) against its own revision, exposing it at
     // GET /api/manufacturer/revisions/{revisionId}/image, and rendering that
     // real image here instead of the static mockup.
-    var API_ORIGIN = "http://" + (location.hostname || "localhost") + ":8000";
+    var isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    var API_ORIGIN = isLocalHost
+      ? "http://" + location.hostname + ":8000"
+      : "https://legallens-lil2.onrender.com";
 
     // Root-cause fix (part 3): the report used to render a hand-rolled
     // 4-check placeholder (product name / net quantity / MRP / manufacturer)

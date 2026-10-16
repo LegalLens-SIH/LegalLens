@@ -7,7 +7,10 @@
 (function (global) {
   "use strict";
 
-  var API_ORIGIN = "http://" + (global.location.hostname || "localhost") + ":8000";
+  var isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(global.location.hostname);
+  var API_ORIGIN = isLocalHost
+    ? "http://" + global.location.hostname + ":8000"
+    : "https://legallens-lil2.onrender.com";
 
   function isDemoMode() {
     return !!(global.LL && global.LL.isDemoMode && global.LL.isDemoMode());

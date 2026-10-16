@@ -1,14 +1,10 @@
 /* Browser client for the backend authentication API. */
 (function (global) {
   "use strict";
-  // Match whichever hostname this page itself was loaded from (localhost vs
-  // 127.0.0.1) rather than hardcoding one - the backend's session cookie is
-  // SameSite=Lax, so a page served from 127.0.0.1 calling a hardcoded
-  // "localhost" API is a cross-site request as far as the cookie policy is
-  // concerned: the cookie set on login never gets sent back on the next
-  // request, which looks exactly like "login succeeds but doesn't let you
-  // in". See app.js's matching API_ORIGIN comment for the same reasoning.
-  var API_ORIGIN = "http://" + (global.location.hostname || "localhost") + ":8000";
+  var isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(global.location.hostname);
+  var API_ORIGIN = isLocalHost
+    ? "http://" + global.location.hostname + ":8000"
+    : "https://legallens-lil2.onrender.com";
   var API_BASE = API_ORIGIN + "/api/auth";
   function request(path, options) {
     options = options || {};

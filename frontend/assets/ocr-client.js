@@ -4,10 +4,10 @@
 (function (global) {
   "use strict";
 
-  // Match whichever hostname this page was loaded from (localhost vs
-  // 127.0.0.1) rather than hardcoding one - see auth-client.js's matching
-  // comment: a mismatch here breaks the SameSite=Lax session cookie.
-  var DEFAULT_BASE_URL = "http://" + (global.location.hostname || "localhost") + ":8000";
+  var isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(global.location.hostname);
+  var DEFAULT_BASE_URL = isLocalHost
+    ? "http://" + global.location.hostname + ":8000"
+    : "https://legallens-lil2.onrender.com";
   var ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   var ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
