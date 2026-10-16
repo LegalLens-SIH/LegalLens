@@ -16,6 +16,7 @@ auditable ruleset and engine version.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -70,14 +71,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# The frontend is plain static HTML with no fixed dev-server port (it can be
-# opened via VS Code Live Server, `python -m http.server`, `npx serve`,
-# etc.), so any localhost/127.0.0.1 origin is allowed for local development.
-# This is intentionally permissive for local dev only - it must be locked
-# down to a specific origin before any real deployment.
+# Configure deployed frontend origins through FRONTEND_URL. Multiple origins
+# can be provided as a comma-separated list; localhost remains available for
+# local development.
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"(null|http://(localhost|127\.0\.0\.1)(:\d+)?)",
+    allow_origins=[
+        origin.strip().rstrip("/")
+        for origin in os.getenv("FRONTEND_URL", "").split(",")
+        if origin.strip()
+    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
