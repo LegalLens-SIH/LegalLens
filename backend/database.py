@@ -11,9 +11,8 @@ from pymongo.errors import PyMongoError
 
 logger = logging.getLogger("legallense.database")
 
-DEFAULT_MONGODB_URI = "mongodb://127.0.0.1:27017/LegalLense"
 DATABASE_NAME = "LegalLense"
-MONGODB_CONNECT_TIMEOUT_MS = 5000
+MONGODB_CONNECT_TIMEOUT_MS = 10000
 
 _client: MongoClient | None = None
 _database: Database | None = None
@@ -23,7 +22,10 @@ def connect_to_mongodb() -> Database:
     """Connect to MongoDB, verify the server, and return the LegalLense database."""
     global _client, _database
 
-    mongodb_uri = os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI)
+    mongodb_uri = os.getenv("MONGODB_URI", "").strip()
+    if not mongodb_uri.startswith(("mongodb://", "mongodb+srv://")):
+        raise RuntimeError("MONGODB_URI is missing or invalid")
+
     client = MongoClient(mongodb_uri, serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT_MS, tz_aware=True)
 
     try:
