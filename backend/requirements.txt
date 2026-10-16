@@ -147,5 +147,5 @@ urllib3==2.7.0
 uvicorn[standard]==0.52.4
 watchfiles==1.2.0
 wcwidth==0.8.3
-websockets==17.1
+websockets==16.0
 yarl==1.24.5
